@@ -15,7 +15,7 @@ let handles
 const N = 100
 let size = 100
 let timeSamples = Array(N).fill(0)
-let upSample = 1
+let upSample = 2
 let fps = 1
 let then = 0
 let time = 0
@@ -223,6 +223,7 @@ async function main() {
         upSample *= target / fps
         upSample = Math.max(1, Math.min(upSample, 16))
         upSample = Math.round(upSample*2)/2
+        canvas.style.imageRendering = upSample > 1 ? 'pixelated' : 'auto'
         resize()
     }, 1000)
 
