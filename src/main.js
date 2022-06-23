@@ -240,6 +240,7 @@ async function add_listeners() {
         upSample *= Math.sqrt(target / fps)
         upSample = Math.max(1, Math.min(upSample, 16))
         upSample = Math.round(upSample * 2) / 2
+        upSample = 1
         resize()
     }, 1000)
     resize()

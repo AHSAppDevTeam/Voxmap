@@ -5,7 +5,8 @@ precision highp int;
 // Quality settings:
 //    Reflections,  Ambient occlusion,	Render distance
 // 0: no,	    no,			short
-// 1: yes,	    yes,		long
+// 1: no,	    yes,		long
+// 2: yes,	    yes,		long
 #define QUALITY 1
 
 out vec4 FragColor;
@@ -26,7 +27,7 @@ const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
 
-const int MAX_BOUNCES = QUALITY + 1;
+const int MAX_BOUNCES = QUALITY/2 + 1;
 int MAX_RAY_STEPS = X * (QUALITY + 1)/2;
 int MAX_SUN_STEPS = Z * (QUALITY + 2);
 
@@ -239,7 +240,7 @@ void main() { // Marching setup
       : pow(clamp(dist/Yf, 0., 1.), 3.);
 
     bounceCol = mix( objCol, skyCol, skyFactor );
-    col = mix(bounceCol, col, pow(float(i)/float(MAX_BOUNCES), 0.1));
+    col = mix(col, bounceCol, exp(-float(2*i)));
     if(skyFactor > 0.99) break;
     MAX_RAY_STEPS /= 2;
     MAX_SUN_STEPS /= 2;
