@@ -11,6 +11,7 @@ const X = 1024
 const handles = {}
 
 const N = 10
+const HEIGHT = 1.6
 let size = 100
 const times = Array(N).fill(0)
 const deltas = Array(N).fill(0)
@@ -22,7 +23,7 @@ const camera = {
     pos: {
         x: -130.5,
         y: 0.1,
-        z: 3.5
+        z: 1 + HEIGHT
     },
     vel: {
         x: 0,
@@ -235,12 +236,12 @@ async function add_listeners() {
     window.addEventListener('resize', resize)
     setInterval(() => {
         let target = 30
-        if(Math.abs(fps - target) < 10) return;
+        let delta = fps - target
+        if(delta < 5 || delta > -15) return;
 
         upSample *= Math.sqrt(target / fps)
         upSample = Math.max(1, Math.min(upSample, 16))
         upSample = Math.round(upSample * 2) / 2
-        upSample = 1
         resize()
     }, 1000)
     resize()

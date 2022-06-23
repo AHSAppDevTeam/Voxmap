@@ -167,8 +167,8 @@ void main() { // Marching setup
   }
 
   vec3 sunDir = normalize(vec3(0,0,1));
-  sunDir.xz = rotate2d(sunDir.xz, iTime/5.);
-  sunDir.xy = rotate2d(sunDir.xy, sin(iTime/7.)/3.);
+  sunDir.xz = rotate2d(sunDir.xz, iTime/17.);
+  sunDir.xy = rotate2d(sunDir.xy, sin(iTime/31.)/3.);
   sunDir.z = abs(sunDir.z);
 
   vec3 col;
