@@ -272,8 +272,8 @@ async function update_state(time, delta) {
     let Fy = Math.pow(controls.move.y, 3)
     let sin = Math.sin(camera.rot.z)
     let cos = Math.cos(camera.rot.z)
-    let ax = 169 * (Fx * cos - Fy * sin)
-    let ay = 169 * (Fx * sin + Fy * cos)
+    let ax = 64 * (Fx * cos - Fy * sin)
+    let ay = 64 * (Fx * sin + Fy * cos)
 
     let drag = 1 / 8
     ax -= camera.vel.x / delta * drag
