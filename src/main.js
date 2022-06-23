@@ -186,8 +186,8 @@ async function add_listeners() {
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.move.active) {
-            controls.move.x = (event.offsetX * 2 / size) - 1
-            controls.move.y = -(event.offsetY * 2 / size - 1)
+            controls.move.x = + 2 * (event.offsetX * 2 / size - 1)
+            controls.move.y = - 2 * (event.offsetY * 2 / size - 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -196,22 +196,23 @@ async function add_listeners() {
         controls.move.y = 0
     })
     window.addEventListener('keydown', (event) => {
+        const power = event.shiftKey ? 1.2 : 0.8
         switch (event.code) {
             case "KeyW":
             case "ArrowUp":
-                controls.move.y = 1
+                controls.move.y = power
                 break;
             case "KeyS":
             case "ArrowDown":
-                controls.move.y = -1
+                controls.move.y = -power
                 break;
             case "KeyA":
             case "ArrowLeft":
-                controls.move.x = -1
+                controls.move.x = -power
                 break;
             case "KeyD":
             case "ArrowRight":
-                controls.move.x = 1
+                controls.move.x = power
                 break;
         }
     })
@@ -272,8 +273,8 @@ async function update_state(time, delta) {
     let Fy = Math.pow(controls.move.y, 3)
     let sin = Math.sin(camera.rot.z)
     let cos = Math.cos(camera.rot.z)
-    let ax = 64 * (Fx * cos - Fy * sin)
-    let ay = 64 * (Fx * sin + Fy * cos)
+    let ax = 100 * (Fx * cos - Fy * sin)
+    let ay = 100 * (Fx * sin + Fy * cos)
 
     let drag = 1 / 8
     ax -= camera.vel.x / delta * drag
