@@ -23,8 +23,8 @@ let running = false
 
 const camera = {
     pos: {
-        x: -200,
-        y: 0,
+        x: -130.5,
+        y: 0.1,
         z: 3.5
     },
     vel: {
@@ -46,9 +46,9 @@ const controls = {
         z: 0
     },
     rot: {
-        x: 0,
+        x: 0.01,
         y: 0,
-        z: 0
+        z: -0.2
     },
 }
 
@@ -242,23 +242,7 @@ function render(now) {
 
     timeSamples.shift()
     timeSamples.push(delta)
-    fps = Math.round(N * timeSamples.length / timeSamples.reduce((a, b) => a +
-        b, 0)) / N
-
-    camera.pos.x += camera.vel.x * delta
-    camera.pos.y += camera.vel.y * delta
-    camera.pos.z += camera.vel.z * delta
-
-    joystick.firstElementChild.style.transform =
-        `translate(${controls.move.x*15}%, ${-controls.move.y*15}%)`
-
-    const num = x => x.toFixed(1)
-    const ft = x => num(x * 3)
-
-    debug.innerText = `${num(fps)} fps, ${num(upSample)} upscaling
-        position (ft): ${ft(camera.pos.x)}, ${ft(camera.pos.y)}, ${ft(camera.pos.z)}
-        velocity (ft/s): ${ft(camera.vel.x)}, ${ft(camera.vel.y)}, ${ft(camera.vel.z)}
-    `
+    fps = N / timeSamples.reduce((a, b) => a + b, 0)
 
     let Fx = Math.pow(controls.move.x, 3)
     let Fy = Math.pow(controls.move.y, 3)
@@ -274,8 +258,23 @@ function render(now) {
     camera.vel.x += ax * delta
     camera.vel.y += ay * delta
 
+    camera.pos.x += camera.vel.x * delta
+    camera.pos.y += camera.vel.y * delta
+    camera.pos.z += camera.vel.z * delta
+
     camera.rot.x = controls.rot.x * Math.PI * 2
     camera.rot.z = controls.rot.z * Math.PI
+
+    joystick.firstElementChild.style.transform =
+        `translate(${controls.move.x*15}%, ${-controls.move.y*15}%)`
+
+    const num = x => x.toFixed(1)
+    const ft = x => num(x * 3)
+
+    debug.innerText = `${num(fps)} fps, ${num(upSample)} upscaling
+        position (ft): ${ft(camera.pos.x)}, ${ft(camera.pos.y)}, ${ft(camera.pos.z)}
+        velocity (ft/s): ${ft(camera.vel.x)}, ${ft(camera.vel.y)}, ${ft(camera.vel.z)}
+    `
 
     time += delta
     then = now
