@@ -2,6 +2,12 @@
 precision highp float;
 precision highp int;
 
+// Quality settings:
+//    Reflections,  Ambient occlusion,	Render distance
+// 0: no,	    no,			short
+// 1: yes,	    yes,		long
+#define QUALITY 1
+
 out vec4 FragColor;
 
 in vec2 TexCoord;
@@ -20,19 +26,15 @@ const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
 
-const int MAX_BOUNCES = 2;
-int MAX_RAY_STEPS = X/2;
-int MAX_SUN_STEPS = 3*Z;
+const int MAX_BOUNCES = QUALITY + 1;
+int MAX_RAY_STEPS = X * (QUALITY + 1)/2;
+int MAX_SUN_STEPS = Z * (QUALITY + 2);
 
 int hash(int a, int b){
   return ((a + b)*(a + b + 1) + b*2) % 255;
 }
 int hash(int a, int b, int c){
   return hash(hash(a,b),c);
-}
-#define KEY 69420
-int hash(int a, int b, int c, int d){
-  return hash(hash(hash(hash(a,b),c),d),KEY);
 }
 
 ivec3 tex(ivec3 c) {
@@ -43,6 +45,16 @@ ivec3 tex(ivec3 c) {
 }
 int sdf(ivec3 c) {
   return tex(c).r + max(0, c.z - Z);
+}
+float sdf(ivec3 c, vec3 f) {
+  f = f - 0.5;
+  ivec3 dir = ivec3(sign(f));
+  f = abs(f);
+#define D3(X,Y,Z) ( float(sdf(c + dir * ivec3(X,Y,Z))) )
+#define D2(Y,Z) ( mix(D3(0,Y,Z), D3(1,Y,Z), f.x) )
+#define D1(Z)   ( mix(D2(0,Z),   D2(1,Z),   f.y) )
+#define D0      ( mix(D1(0),     D1(1),     f.z) )
+  return D0;
 }
 
 vec3 color(ivec3 c) {
@@ -196,7 +208,14 @@ void main() { // Marching setup
     vec3 skyCol = vec3(1.0, 0.6, 0.1)*sun + atmCol;
     skyCol = clamp(skyCol, vec3(0), vec3(1));
 
-    vec3 ambCol = mix(scatterCol, spaceCol, rayDir.z*0.5 + 0.5);
+    vec3 shadeCol = mix(scatterCol, spaceCol, rayDir.z*0.5 + 0.5);
+
+#if QUALITY > 0
+    float ambFactor = pow(sdf(res.cellPos, res.fractPos)*2., 0.5);
+    vec3 ambCol = mix(shadeCol, vec3(1), ambFactor);
+#else
+    vec3 ambCol = vec3(1);
+#endif
 
     // Bounce
     camPos = res.rayPos + res.normal * 1e-3;
@@ -207,12 +226,13 @@ void main() { // Marching setup
       March sun = march(camPos, sunDir, MAX_SUN_STEPS);
       shadeFactor *= clamp(sun.minDist, 0., 1.);
     }
-    vec3 shadeCol = mix(ambCol, sunCol, shadeFactor);
+    vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
 
     vec3 objCol = baseCol
       * normalCol
       * heightCol
-      * shadeCol
+      * lightCol
+      * ambCol
       * 1.0;
 
     float skyFactor = (res.step == MAX_RAY_STEPS || res.minDist > Zf) ? 1.
@@ -230,13 +250,4 @@ void main() { // Marching setup
   }
   FragColor.rgb = col;
   FragColor.a = 1.0;
-
-  /*
-  //Compute cheap ambient occlusion from the SDF.
-  float ao = smoothstep(-1.0, 1.0, sdf(rayPos)),
-  //Fade out to black using the distance.
-  fog = min(1.0, exp(1.0 - length(rayPos-camPos)/8.0));
-
-   */
-  //Output final color with ao and fog (sqrt for gamma correction).
 }
