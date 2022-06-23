@@ -2,23 +2,20 @@ const debug = document.getElementById("debug")
 const canvas = document.getElementById("canvas")
 const joystick = document.getElementById("joystick")
 const gl = canvas.getContext("webgl2")
-const texture = gl.createTexture()
 
 const Z = 16
 const Y = 256
 const X = 1024
 
 // look up where the vertex data needs to go.
-let program
-let handles
+const handles = {}
 
-const N = 100
+const N = 10
 let size = 100
-let timeSamples = Array(N).fill(0)
+const times = Array(N).fill(0)
+const deltas = Array(N).fill(0)
+let delta = 1
 let upSample = 2
-let fps = 1
-let then = 0
-let time = 0
 let running = false
 
 const camera = {
@@ -52,57 +49,13 @@ const controls = {
     },
 }
 
-const KEY = 69420
-const hash = (a, b) => ((a + b) * (a + b + 1) + b * 2) % 256
-const hash_key = (a, b, c, d) => 50 //hash(hash(hash(hash(a,b),c),d),KEY)
+const url = new URL(window.location)
 
 main()
 
-const url = new URL(window.location)
 
 async function main() {
-    const crypto_initial = Uint8Array.from([
-        55, 44, 146, 89,
-        30, 93, 68, 30,
-        209, 23, 56, 140,
-        88, 149, 55, 221
-    ])
-    const texture_blob = await (await fetch("src/map.blob")).blob()
-    const crypto_key = await crypto.subtle.importKey( "jwk", 
-        {
-            "alg": "A256CBC",
-            "ext":true,
-            "k": url.searchParams.get("password") || prompt("password"),
-            "key_ops": ["encrypt","decrypt"],
-            "kty": "oct"
-        },
-        { "name": "AES-CBC" },
-        false, 
-        ["encrypt", "decrypt"]
-    )
-    url.searchParams.set("password","")
     //window.history.replaceState(null, "", url.toString())
-
-    const texture_decrypted = await crypto.subtle.decrypt({
-        'name': 'AES-CBC',
-        'iv': crypto_initial
-    }, crypto_key, await texture_blob.arrayBuffer())
-   const texture_img = new Image()
-   texture_img.src = URL.createObjectURL(
-       new Blob([ texture_decrypted ], { type: "image/png" })
-   )
-   await texture_img.decode()
-   
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
-        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, texture_img)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
     const vert = (await (await fetch("src/shaders/march.vertex.glsl"))
             .text())
         .replace("#version 330 core", "#version 300 es")
@@ -112,16 +65,16 @@ async function main() {
         .replace("#version 330 core", "#version 300 es")
 
     // setup GLSL program
-    program = createProgramFromSources(gl, [vert, frag])
+    const program = createProgramFromSources(gl, [vert, frag])
 
-    handles = {
-        position: gl.getAttribLocation(program, "vPosition"),
-        coord: gl.getAttribLocation(program, "TexCoord"),
-        resolution: gl.getUniformLocation(program, "iResolution"),
-        time: gl.getUniformLocation(program, "iTime"),
-        rotation: gl.getUniformLocation(program, "iCamRot"),
-        position: gl.getUniformLocation(program, "iCamPos"),
-    }
+    handles.position = gl.getAttribLocation(program, "vPosition")
+    handles.coord = gl.getAttribLocation(program, "TexCoord")
+    handles.resolution = gl.getUniformLocation(program, "iResolution")
+    handles.time = gl.getUniformLocation(program, "iTime")
+    handles.rotation = gl.getUniformLocation(program, "iCamRot")
+    handles.position = gl.getUniformLocation(program, "iCamPos")
+
+    map_texture()
 
     const positionBuffer = gl.createBuffer();
 
@@ -153,7 +106,67 @@ async function main() {
     gl.enableVertexAttribArray(handles.position)
 
     start()
-    window.addEventListener('resize', resize)
+    add_listeners()
+}
+
+async function map_texture() {
+
+    const encrypted_blob = await (await fetch("src/map.blob")).blob()
+
+    const crypto_initial = Uint8Array.from([
+        55, 44, 146, 89,
+        30, 93, 68, 30,
+        209, 23, 56, 140,
+        88, 149, 55, 221
+    ])
+
+    const crypto_key = await crypto.subtle.importKey("jwk", {
+            "alg": "A256CBC",
+            "ext": true,
+            "k": url.searchParams.get("password") || prompt("password"),
+            "key_ops": ["encrypt", "decrypt"],
+            "kty": "oct"
+        }, {
+            "name": "AES-CBC"
+        },
+        false,
+        ["encrypt", "decrypt"]
+    )
+    url.searchParams.set("password", "")
+
+    const decrypted_buffer = await crypto.subtle.decrypt({
+        'name': 'AES-CBC',
+        'iv': crypto_initial
+    }, crypto_key, await encrypted_blob.arrayBuffer())
+
+    const decrypted_blob = new Blob([decrypted_buffer], {
+        type: "image/png"
+    })
+
+    const blob_url = URL.createObjectURL(decrypted_blob)
+
+    const image = new Image()
+    image.src = blob_url
+
+    await image.decode() // let load
+
+    const texture = gl.createTexture()
+
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
+        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, image)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.uniform1i(handles.textureSampler, 0)
+}
+
+
+async function add_listeners() {
     document.addEventListener('contextmenu', (event) => {
         event.preventDefault()
         canvas.requestPointerLock()
@@ -218,32 +231,43 @@ async function main() {
                 break;
         }
     })
+    window.addEventListener('resize', resize)
     setInterval(() => {
         let target = 30
+        if(Math.abs(fps - target) < 10) return;
+
         upSample *= target / fps
         upSample = Math.max(1, Math.min(upSample, 16))
-        upSample = Math.round(upSample*2)/2
-        canvas.style.imageRendering = upSample > 1 ? 'pixelated' : 'auto'
+        upSample = Math.round(upSample * 2) / 2
         resize()
     }, 1000)
-
     resize()
 }
 
-function prerender() {
-    gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.uniform1i(handles.textureSampler, 0)
+function render(now) {
+    times.pop()
+    times.unshift(now / 1000)
+
+    deltas.pop()
+    deltas.unshift(times[0] - times[1])
+
+    update_state(times[0], deltas[0])
+
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+
+    gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
+    gl.uniform1f(handles.time, times[0])
+    gl.uniform3f(handles.position, camera.pos.x, camera.pos.y, camera.pos.z)
+    gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera.rot.z)
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6)
+
+    if (running) requestAnimationFrame(render)
 }
 
-function render(now) {
-    now *= 0.001 // convert to seconds
-    const delta = now - then
+async function update_state(time, delta) {
 
-    timeSamples.shift()
-    timeSamples.push(delta)
-    fps = N / timeSamples.reduce((a, b) => a + b, 0)
-
+    fps = N / deltas.reduce((a, b) => a + b, 0)
     let Fx = Math.pow(controls.move.x, 3)
     let Fy = Math.pow(controls.move.y, 3)
     let sin = Math.sin(camera.rot.z)
@@ -275,20 +299,6 @@ function render(now) {
         position (ft): ${ft(camera.pos.x)}, ${ft(camera.pos.y)}, ${ft(camera.pos.z)}
         velocity (ft/s): ${ft(camera.vel.x)}, ${ft(camera.vel.y)}, ${ft(camera.vel.z)}
     `
-
-    time += delta
-    then = now
-
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-
-    gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
-    gl.uniform1f(handles.time, time)
-    gl.uniform3f(handles.position, camera.pos.x, camera.pos.y, camera.pos.z)
-    gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera.rot.z)
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6)
-
-    if (running) requestAnimationFrame(render)
 }
 
 function stop() {
@@ -298,12 +308,12 @@ function stop() {
 function start() {
     if (running) return
     running = true
-    prerender()
     requestAnimationFrame(render)
 }
 
-
-function resize() {
+async function resize() {
     size = Math.min(window.innerWidth, window.innerHeight)
     resizeCanvasToDisplaySize(gl.canvas, 1 / upSample)
+    canvas.style.imageRendering = upSample > 1 ? 'pixelated' :
+        'auto'
 }
