@@ -200,12 +200,12 @@ void main() { // Marching setup
 
     float sun = sunFactor;
     float glow = sun;
-    sun = 2.0 * pow(sun,800.0);
+    sun = 0.5 * pow(sun,800.0);
     glow = pow(glow,6.0) * 1.0;
     glow = clamp(glow,0.0,1.0);
-    sun += glow / 2.;
+    sun += glow / 4.;
 
-    vec3 skyCol = vec3(1.0, 0.6, 0.1)*sun + atmCol;
+    vec3 skyCol = vec3(1.4, 1.0, 0.5)*sun + atmCol;
     skyCol = clamp(skyCol, vec3(0), vec3(1));
 
     vec3 shadeCol = mix(scatterCol, spaceCol, rayDir.z*0.5 + 0.5);

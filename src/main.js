@@ -236,7 +236,7 @@ async function add_listeners() {
         let target = 30
         if(Math.abs(fps - target) < 10) return;
 
-        upSample *= target / fps
+        upSample *= Math.pow(target / fps, 2.0)
         upSample = Math.max(1, Math.min(upSample, 16))
         upSample = Math.round(upSample * 2) / 2
         resize()
