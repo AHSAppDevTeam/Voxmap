@@ -52,7 +52,7 @@ int main()
 	{
 		int i = 0;
 		for (pnm::rgb_pixel pixel : pal_set) {
-			std::cout << "p<=" << i << "?";
+			std::cout << "p==" << i << "?";
 			std::cout << "vec3(";
 			std::cout << float(pixel.red)/255.0 << ",";
 			std::cout << float(pixel.green)/255.0 << ",";
