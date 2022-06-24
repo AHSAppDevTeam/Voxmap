@@ -246,7 +246,7 @@ async function add_listeners() {
         if (delta < 5 && delta > -15) return;
 
         upSample *= Math.sqrt(target / fps)
-        upSample = Math.pow(2, Math.round(Math.log2(upSample)))
+        upSample = Math.pow(2, Math.round(Math.log2(Math.max(-2, upSample))))
         resize()
     }, 1000)
     resize()
