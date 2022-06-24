@@ -57,7 +57,6 @@ main()
 
 
 async function main() {
-    //window.history.replaceState(null, "", url.toString())
     const vert = (await (await fetch("src/shaders/march.vertex.glsl"))
             .text())
         .replace("#version 330 core", "#version 300 es")
@@ -115,7 +114,7 @@ async function map_texture() {
     
     const image = new Image()
 
-    if (url.protocol !== 'http') {
+    if (url.protocol === 'https:') {
         const encrypted_blob = await (await fetch("src/map.blob")).blob()
 
         const crypto_initial = Uint8Array.from([
@@ -139,6 +138,7 @@ async function map_texture() {
             ["encrypt", "decrypt"]
         )
         url.searchParams.set("password", "")
+        window.history.replaceState(null, "", url.toString())
 
         const decrypted_buffer = await crypto.subtle.decrypt({
             'name': 'AES-CBC',
