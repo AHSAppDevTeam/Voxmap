@@ -44,8 +44,14 @@ ivec3 tex(ivec3 c) {
   c.z = clamp(c.z, 0, Z-1);
   return ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0) + 7u)/8;
 }
-int sdf(ivec3 c) {
+int sdf_up(ivec3 c) {
   return tex(c).r + max(0, c.z - Z);
+}
+int sdf_down(ivec3 c) {
+  return tex(c).g;
+}
+int sdf(ivec3 c) {
+  return min(sdf_down(c), sdf_up(c));
 }
 float sdf(ivec3 c, vec3 f) {
   f = f - 0.5;
@@ -59,7 +65,7 @@ float sdf(ivec3 c, vec3 f) {
 }
 
 vec3 color(ivec3 c) {
-  int p = tex(c).g;
+  int p = tex(c).b;
   vec3 base = p<=0?vec3(0,0,0):p<=1?vec3(0.133333,0.490196,0.317647):p<=2?vec3(0.180392,0.662745,0.87451):p<=3?vec3(0.235294,0.184314,0.254902):p<=4?vec3(0.392157,0.211765,0.235294):p<=5?vec3(0.439216,0.486275,0.454902):p<=6?vec3(0.505882,0.780392,0.831373):p<=7?vec3(0.52549,0.65098,0.592157):p<=8?vec3(0.666667,0.666667,0.666667):p<=9?vec3(0.694118,0.705882,0.47451):p<=10?vec3(0.741176,0.752941,0.729412):p<=11?vec3(0.768627,0.384314,0.262745):p<=12?vec3(0.780392,0.243137,0.227451):p<=13?vec3(0.854902,0.788235,0.65098):p<=14?vec3(1,1,1):vec3(1);
   base *= 1. - vec3(hash(c.x, c.y, c.z) % 255)/255./64.;
   return base;
@@ -119,7 +125,7 @@ March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
       break;
     }
 
-    dist = sdf(res.cellPos);
+    dist = rayDir.z > 0.0 ? sdf_up(res.cellPos) : sdf_down(res.cellPos);
     res.minDist = min(float(dist), res.minDist);
 
     res.step++;
