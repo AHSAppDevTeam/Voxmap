@@ -16,6 +16,7 @@ let size = 100
 const times = Array(N).fill(0)
 const deltas = Array(N).fill(0)
 let delta = 1
+let fps = 30
 let upSample = 2
 let running = false
 
@@ -237,7 +238,7 @@ async function add_listeners() {
     setInterval(() => {
         let target = 30
         let delta = fps - target
-        if(delta < 5 || delta > -15) return;
+        if(delta < 5 && delta > -15) return;
 
         upSample *= Math.sqrt(target / fps)
         upSample = Math.max(0.25, Math.min(upSample, 16))
