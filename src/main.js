@@ -64,7 +64,7 @@ async function main() {
     const frag = (await (await fetch("src/shaders/march.fragment.glsl"))
             .text())
         .replace("#version 330 core", "#version 300 es")
-        .replace("#define QUALITY 1", "#define QUALITY " + (url.searchParams.get("quality") || "1") )
+        .replace("#define QUALITY 2", "#define QUALITY " + (url.searchParams.get("quality") || "2") )
 
     // setup GLSL program
     const program = createProgramFromSources(gl, [vert, frag])

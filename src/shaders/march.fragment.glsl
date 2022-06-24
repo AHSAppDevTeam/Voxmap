@@ -2,12 +2,19 @@
 precision highp float;
 precision highp int;
 
-// Quality settings:
-//    Reflections,  Ambient occlusion,	Render distance
-// 0: no,	    no,			short
-// 1: no,	    yes,		long
-// 2: yes,	    yes,		long
-#define QUALITY 1
+/* Quality settings:
++---+---------+-------------------+-------------+-----------------+
+|   | Shadows | Ambient Occlusion | Reflections | Render distance |
++---+---------+-------------------+-------------+-----------------+
+| 0 | No      | No                | No          | Short           |
++---+---------+-------------------+-------------+-----------------+
+| 1 | Yes     | No                | No          | Medium          |
++---+---------+-------------------+-------------+-----------------+
+| 2 | Yes     | Yes               | No          | Medium          |
++---+---------+-------------------+-------------+-----------------+
+| 3 | Yes     | Yes               | Yes         | Long            |
++---+---------+-------------------+-------------+-----------------+*/
+#define QUALITY 2
 
 out vec4 FragColor;
 
@@ -27,8 +34,8 @@ const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
 
-const int MAX_BOUNCES = QUALITY/2 + 1;
-int MAX_RAY_STEPS = X * (QUALITY + 1)/2;
+const int MAX_BOUNCES = max(QUALITY - 1, 1);
+int MAX_RAY_STEPS = X * (QUALITY + 1)/3;
 int MAX_SUN_STEPS = Z * (QUALITY + 2);
 
 int hash(int a, int b){
@@ -216,22 +223,20 @@ void main() { // Marching setup
 
     vec3 shadeCol = mix(scatterCol, spaceCol, rayDir.z*0.5 + 0.5);
 
-#if QUALITY > 0
+#if QUALITY > 1
     float ambFactor = pow(sdf(res.cellPos, res.fractPos)*2., 0.5);
     vec3 ambCol = mix(shadeCol, vec3(1), ambFactor);
 #else
     vec3 ambCol = vec3(1);
 #endif
 
-    // Bounce
-    camPos = res.rayPos + res.normal * 1e-3;
-    rayDir -= 2.0 * dot(rayDir, res.normal) * res.normal;
-
     float shadeFactor = sunDir.z < 0. ? 0. : max(0., dot(res.normal, sunDir));
+#if QUALITY > 0
     if( shadeFactor > 0.){
       March sun = march(camPos, sunDir, MAX_SUN_STEPS);
       shadeFactor *= clamp(sun.minDist, 0., 1.);
     }
+#endif
     vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
 
     vec3 objCol = baseCol
@@ -247,8 +252,12 @@ void main() { // Marching setup
     bounceCol = mix( objCol, skyCol, skyFactor );
     col = mix(col, bounceCol, exp(-float(3*i)));
     if(skyFactor > 0.99) break;
+    
+    // Bounce
     MAX_RAY_STEPS /= 2;
     MAX_SUN_STEPS /= 2;
+    camPos = res.rayPos + res.normal * 1e-3;
+    rayDir -= 2.0 * dot(rayDir, res.normal) * res.normal;
   }
 
   if(inMini && sdTriangleIsosceles(rotate2d(TexCoord - miniPos, -camRot.z), vec2(0.2,0.6)) < 0.) {
