@@ -112,43 +112,47 @@ async function main() {
 }
 
 async function map_texture() {
-
-    const encrypted_blob = await (await fetch("src/map.blob")).blob()
-
-    const crypto_initial = Uint8Array.from([
-        55, 44, 146, 89,
-        30, 93, 68, 30,
-        209, 23, 56, 140,
-        88, 149, 55, 221
-    ])
-
-    const crypto_key = await crypto.subtle.importKey("jwk", {
-            "alg": "A256CBC",
-            "ext": true,
-            "k": url.searchParams.get("password") || prompt("password"),
-            "key_ops": ["encrypt", "decrypt"],
-            "kty": "oct"
-        }, {
-            "name": "AES-CBC"
-        },
-        false,
-        ["encrypt", "decrypt"]
-    )
-    url.searchParams.set("password", "")
-
-    const decrypted_buffer = await crypto.subtle.decrypt({
-        'name': 'AES-CBC',
-        'iv': crypto_initial
-    }, crypto_key, await encrypted_blob.arrayBuffer())
-
-    const decrypted_blob = new Blob([decrypted_buffer], {
-        type: "image/png"
-    })
-
-    const blob_url = URL.createObjectURL(decrypted_blob)
-
+    
     const image = new Image()
-    image.src = blob_url
+
+    if (url.protocol !== 'http') {
+        const encrypted_blob = await (await fetch("src/map.blob")).blob()
+
+        const crypto_initial = Uint8Array.from([
+            55, 44, 146, 89,
+            30, 93, 68, 30,
+            209, 23, 56, 140,
+            88, 149, 55, 221
+        ])
+
+        const crypto_key = await crypto.subtle.importKey("jwk", {
+                "alg": "A256CBC",
+                "ext": true,
+                "k": url.searchParams.get("password") || prompt(
+                    "password"),
+                "key_ops": ["encrypt", "decrypt"],
+                "kty": "oct"
+            }, {
+                "name": "AES-CBC"
+            },
+            false,
+            ["encrypt", "decrypt"]
+        )
+        url.searchParams.set("password", "")
+
+        const decrypted_buffer = await crypto.subtle.decrypt({
+            'name': 'AES-CBC',
+            'iv': crypto_initial
+        }, crypto_key, await encrypted_blob.arrayBuffer())
+
+        const decrypted_blob = new Blob([decrypted_buffer], {
+            type: "image/png"
+        })
+
+        image.src = URL.createObjectURL(decrypted_blob)
+    } else {
+        image.src = "maps/texture.png"
+    }
 
     await image.decode() // let load
 
@@ -188,8 +192,8 @@ async function add_listeners() {
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.move.active) {
-            controls.move.x = + 2 * (event.offsetX * 2 / size - 1)
-            controls.move.y = - 2 * (event.offsetY * 2 / size - 1)
+            controls.move.x = +2 * (event.offsetX * 2 / size - 1)
+            controls.move.y = -2 * (event.offsetY * 2 / size - 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -238,7 +242,7 @@ async function add_listeners() {
     setInterval(() => {
         let target = 30
         let delta = fps - target
-        if(delta < 5 && delta > -15) return;
+        if (delta < 5 && delta > -15) return;
 
         upSample *= Math.sqrt(target / fps)
         upSample = Math.max(0.25, Math.min(upSample, 16))
