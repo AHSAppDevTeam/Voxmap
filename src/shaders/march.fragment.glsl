@@ -204,12 +204,14 @@ void main() { // Marching setup
 	) * abs(res.normal);
     if(res.normal.z < 0.) normalCol *= 0.8;
 
+    vec3 sunCol = vec3(1.2,1.1,1.0);
+
+#if QUALITY > 0
     float sunFactor = max(0., dot(sunDir, rayDir));
     float scatter = 1.0 - pow(max(0.0, sunDir.z), 0.3);
     vec3 spaceCol = mix(vec3(0.1,0.3,0.6),vec3(0.0), scatter);
     vec3 scatterCol = mix(vec3(1.0),vec3(1.0,0.3,0.0), scatter);
     vec3 atmCol = mix(scatterCol, spaceCol, pow(max(0.0, rayDir.z), 0.5));
-    vec3 sunCol = vec3(1.2,1.1,1.0);
 
     float sun = sunFactor;
     float glow = sun;
@@ -222,6 +224,10 @@ void main() { // Marching setup
     skyCol = clamp(skyCol, vec3(0), vec3(1));
 
     vec3 shadeCol = mix(scatterCol, spaceCol, rayDir.z*0.5 + 0.5);
+#else
+    vec3 skyCol = mix(vec3(0.8, 0.9, 1.0), vec3(0.1, 0.3, 0.6), rayDir.z);
+    vec3 shadeCol = skyCol * 0.7;
+#endif
 
 #if QUALITY > 1
     float ambFactor = pow(sdf(res.cellPos, res.fractPos)*2., 0.5);
@@ -229,6 +235,12 @@ void main() { // Marching setup
 #else
     vec3 ambCol = vec3(1);
 #endif
+    
+    // Bounce
+    MAX_RAY_STEPS /= 2;
+    MAX_SUN_STEPS /= 2;
+    camPos = res.rayPos + res.normal * 1e-3;
+    rayDir -= 2.0 * dot(rayDir, res.normal) * res.normal;
 
     float shadeFactor = sunDir.z < 0. ? 0. : max(0., dot(res.normal, sunDir));
 #if QUALITY > 0
@@ -252,12 +264,6 @@ void main() { // Marching setup
     bounceCol = mix( objCol, skyCol, skyFactor );
     col = mix(col, bounceCol, exp(-float(3*i)));
     if(skyFactor > 0.99) break;
-    
-    // Bounce
-    MAX_RAY_STEPS /= 2;
-    MAX_SUN_STEPS /= 2;
-    camPos = res.rayPos + res.normal * 1e-3;
-    rayDir -= 2.0 * dot(rayDir, res.normal) * res.normal;
   }
 
   if(inMini && sdTriangleIsosceles(rotate2d(TexCoord - miniPos, -camRot.z), vec2(0.2,0.6)) < 0.) {

@@ -1,6 +1,7 @@
 const debug = document.getElementById("debug")
 const canvas = document.getElementById("canvas")
 const joystick = document.getElementById("joystick")
+const form = document.getElementById("form")
 const gl = canvas.getContext("webgl2")
 
 const Z = 16
@@ -172,13 +173,12 @@ async function map_texture() {
     gl.uniform1i(handles.textureSampler, 0)
 }
 
-
 async function add_listeners() {
-    document.addEventListener('contextmenu', (event) => {
+    canvas.addEventListener('contextmenu', (event) => {
         event.preventDefault()
         canvas.requestPointerLock()
     })
-    document.addEventListener('click', (event) => {
+    canvas.addEventListener('click', (event) => {
         event.preventDefault()
         document.body.requestFullscreen()
     })
@@ -306,6 +306,7 @@ async function update_state(time, delta) {
     debug.innerText = `${num(fps)} fps, ${num(upSample)} upscaling
         position (ft): ${ft(camera.pos.x)}, ${ft(camera.pos.y)}, ${ft(camera.pos.z)}
         velocity (ft/s): ${ft(camera.vel.x)}, ${ft(camera.vel.y)}, ${ft(camera.vel.z)}
+        by: Xing :D
     `
 }
 
