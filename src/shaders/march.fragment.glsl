@@ -44,14 +44,11 @@ ivec3 tex(ivec3 c) {
   c.z = clamp(c.z, 0, Z-1);
   return ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0) + 7u)/8;
 }
-int sdf_up(ivec3 c) {
-  return tex(c).r + max(0, c.z - Z);
-}
-int sdf_down(ivec3 c) {
-  return tex(c).g;
+int sdf_dir(ivec3 c, int dir) {
+  return (tex(c).r + max(0, c.z - Z))*dir + tex(c).g*(1-dir);
 }
 int sdf(ivec3 c) {
-  return min(sdf_down(c), sdf_up(c));
+  return min(sdf_dir(c,0), sdf_dir(c,1));
 }
 float sdf(ivec3 c, vec3 f) {
   f = f - 0.5;
@@ -97,6 +94,7 @@ March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
   vec3 axisCellDist;
   vec3 axisRayDist; vec3 minAxis; float minAxisDist;
   int dist = 1;
+  int dir = rayDir.z > 0.0 ? 1 : 0;
   // Start marchin'
   while(res.step < MAX_STEPS && dist != 0) {
     int safeDist = max(1, dist-1); // works for some reason
@@ -125,7 +123,7 @@ March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
       break;
     }
 
-    dist = rayDir.z > 0.0 ? sdf_up(res.cellPos) : sdf_down(res.cellPos);
+    dist = sdf_dir(res.cellPos, dir);
     res.minDist = min(float(dist), res.minDist);
 
     res.step++;
