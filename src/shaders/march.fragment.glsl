@@ -43,15 +43,18 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 int hash(int a, int b){
   return ((a + b)*(a + b + 1) + b*2) % 255;
 }
-int hash(int a, int b, int c){
-  return hash(hash(a,b),c);
+int hash(ivec3 v){
+  return hash(hash(v.x,v.y),v.z);
+}
+int hash(ivec3 a, ivec3 b){
+  return hash(hash(a), hash(b));
 }
 
 ivec3 tex(ivec3 c) {
   c.x = clamp(c.x, 0, X-1);
   c.y = clamp(c.y, 0, Y-1);
   c.z = clamp(c.z, 0, Z-1);
-  return ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0) + 7u)/8;
+  return ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0) + 6u)/8;
 }
 int sdf_dir(ivec3 c, int dir) {
   ivec2 d = tex(c).rg;
@@ -73,9 +76,12 @@ float sdf(ivec3 c, vec3 f) {
 
 vec3 color(ivec3 c) {
   int p = tex(c).b;
-  vec3 base = p==0?vec3(0,0,0):p==1?vec3(0.133333,0.490196,0.317647):p==2?vec3(0.180392,0.662745,0.87451):p==3?vec3(0.235294,0.184314,0.254902):p==4?vec3(0.392157,0.211765,0.235294):p==5?vec3(0.439216,0.486275,0.454902):p==6?vec3(0.505882,0.780392,0.831373):p==7?vec3(0.52549,0.65098,0.592157):p==8?vec3(0.666667,0.666667,0.666667):p==9?vec3(0.694118,0.705882,0.47451):p==10?vec3(0.741176,0.752941,0.729412):p==11?vec3(0.768627,0.384314,0.262745):p==12?vec3(0.780392,0.243137,0.227451):p==13?vec3(0.854902,0.788235,0.65098):p==14?vec3(1,1,1):vec3(1);
-  base *= 1. - vec3(hash(c.x, c.y, c.z) % 255)/255./64.;
-  return base;
+  return p==0?vec3(0,0,0):p==1?vec3(0.133333,0.490196,0.317647):p==2?vec3(0.180392,0.662745,0.87451):p==3?vec3(0.235294,0.184314,0.254902):p==4?vec3(0.392157,0.211765,0.235294):p==5?vec3(0.439216,0.486275,0.454902):p==6?vec3(0.505882,0.780392,0.831373):p==7?vec3(0.52549,0.65098,0.592157):p==8?vec3(0.666667,0.666667,0.666667):p==9?vec3(0.694118,0.705882,0.47451):p==10?vec3(0.741176,0.752941,0.729412):p==11?vec3(0.768627,0.384314,0.262745):p==12?vec3(0.780392,0.243137,0.227451):p==13?vec3(0.854902,0.788235,0.65098):p==14?vec3(1,1,1):vec3(1);
+}
+
+vec3 color(ivec3 c, vec3 f){
+  ivec3 p = ivec3(f*12.0);
+  return color(c) * (1. - vec3(hash(c, p) % 255)/255./32.);
 }
 
 vec2 rotate2d(vec2 v, float a) {
@@ -194,7 +200,7 @@ void main() { // Marching setup
 
     // Start coloring
 
-    vec3 baseCol = color(res.cellPos);
+    vec3 baseCol = color(res.cellPos, res.fractPos);
 
     vec3 heightCol = vec3(float(clamp(res.rayPos.z, 0., 1.))/Zf + 5.)/6.;
 
