@@ -24,7 +24,9 @@ uniform highp usampler2D mapTexture;
 uniform vec2 iResolution;
 uniform float iTime;
 uniform vec3 iCamRot;
-uniform vec3 iCamPos;
+
+uniform ivec3 iCamCellPos;
+uniform vec3 iCamFractPos;
 
 const int X = 1024;
 const int Y = 256;
@@ -46,8 +48,8 @@ int hash(int a, int b, int c){
 }
 
 ivec3 tex(ivec3 c) {
-  c.x = clamp(c.x + X/2, 0, X-1);
-  c.y = clamp(c.y + Y/2, 0, Y-1);
+  c.x = clamp(c.x, 0, X-1);
+  c.y = clamp(c.y, 0, Y-1);
   c.z = clamp(c.z, 0, Z-1);
   return ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0) + 7u)/8;
 }
@@ -91,13 +93,13 @@ struct March {
   int step;
 };
 
-March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
+March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
   March res;
 
   res.minDist = Zf;
   res.step = 0;
-  res.cellPos = ivec3(floor(rayPos));
-  res.fractPos = fract(rayPos);
+  res.cellPos = rayCellPos;
+  res.fractPos = rayFractPos;
 
   vec3 axisCellDist;
   vec3 axisRayDist; vec3 minAxis; float minAxisDist;
@@ -120,13 +122,9 @@ March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
     res.fractPos = fract(res.fractPos);
 
     res.normal = -sign(rayDir * minAxis);
+    ivec3 c = res.cellPos;
     ivec3 n = ivec3(res.normal);
-
-    if(
-	(res.cellPos.z > Z && n.z < 0) ||
-	(abs(res.cellPos.y) > Y/2 && sign(n.y*res.cellPos.y) < 0) ||
-	(abs(res.cellPos.x) > X/2 && sign(n.x*res.cellPos.x) < 0)
-      ) {
+    if(any(greaterThan(c, ivec3(X,Y,Z))) || any(lessThan(c, ivec3(0)))) {
       res.minDist = Zf+1.;
       break;
     }
@@ -151,7 +149,8 @@ float sdTriangleIsosceles( in vec2 p, in vec2 q )
   return -sqrt(d.x)*sign(d.y);
 }
 void main() { // Marching setup
-  vec3 camPos = iCamPos;
+  ivec3 camCellPos = iCamCellPos;
+  vec3 camFractPos = iCamFractPos;
   vec3 camRot = iCamRot;
   vec3 rayDir;
 
@@ -166,7 +165,9 @@ void main() { // Marching setup
   bool inMini = all(greaterThan(TexCoord, vec2(miniPos - miniSize)));
   if( inMini ) {
     //minimap
-    camPos = vec3((TexCoord - miniPos)*Yf + iCamPos.xy, Z+1);
+    camFractPos.xyz = vec3(0.5);
+    camCellPos.xy += ivec2((TexCoord - miniPos)*Yf);
+    camCellPos.z = Z + 1;
     rayDir = normalize(vec3(.01,.01,-1.));
   } else {
     rayDir = normalize(
@@ -188,8 +189,8 @@ void main() { // Marching setup
   for(int i = 0; i < MAX_BOUNCES; i++) {
     vec3 bounceCol;
 
-    March res = march(camPos, rayDir, MAX_RAY_STEPS);
-    float dist = length(res.rayPos.xy - camPos.xy);
+    March res = march(camCellPos, camFractPos, rayDir, MAX_RAY_STEPS);
+    float dist = length(res.rayPos.xy - vec2(camCellPos.xy));
 
     // Start coloring
 
@@ -239,13 +240,14 @@ void main() { // Marching setup
     // Bounce
     MAX_RAY_STEPS /= 2;
     MAX_SUN_STEPS /= 2;
-    camPos = res.rayPos + res.normal * 1e-3;
+    camCellPos = res.cellPos;
+    camFractPos = res.fractPos + 1e-4;
     rayDir -= 2.0 * dot(rayDir, res.normal) * res.normal;
 
     float shadeFactor = sunDir.z < 0. ? 0. : max(0., dot(res.normal, sunDir));
 #if QUALITY > 0
     if( shadeFactor > 0.){
-      March sun = march(camPos, sunDir, MAX_SUN_STEPS);
+      March sun = march(camCellPos, camFractPos, sunDir, MAX_SUN_STEPS);
       shadeFactor *= clamp(sun.minDist, 0., 1.);
     }
 #endif

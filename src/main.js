@@ -23,8 +23,8 @@ let running = false
 
 const camera = {
     pos: {
-        x: -130.5,
-        y: 0.1,
+        x: 381.5,
+        y: 128.1,
         z: 1 + HEIGHT
     },
     vel: {
@@ -70,12 +70,13 @@ async function main() {
     // setup GLSL program
     const program = createProgramFromSources(gl, [vert, frag])
 
-    handles.position = gl.getAttribLocation(program, "vPosition")
+    handles.position = gl.getUniformLocation(program, "vPosition")
     handles.coord = gl.getAttribLocation(program, "TexCoord")
     handles.resolution = gl.getUniformLocation(program, "iResolution")
     handles.time = gl.getUniformLocation(program, "iTime")
     handles.rotation = gl.getUniformLocation(program, "iCamRot")
-    handles.position = gl.getUniformLocation(program, "iCamPos")
+    handles.cellPos = gl.getUniformLocation(program, "iCamCellPos")
+    handles.fractPos = gl.getUniformLocation(program, "iCamFractPos")
 
     map_texture()
 
@@ -252,6 +253,13 @@ async function add_listeners() {
     resize()
 }
 
+function floor(x) {
+    return Math.floor(x)
+}
+function fract(x) {
+    return x - floor(x)
+}
+
 function render(now) {
     times.pop()
     times.unshift(now / 1000)
@@ -265,7 +273,8 @@ function render(now) {
 
     gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
     gl.uniform1f(handles.time, times[0])
-    gl.uniform3f(handles.position, camera.pos.x, camera.pos.y, camera.pos.z)
+    gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos.y), fract(camera.pos.z))
+    gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos.y), floor(camera.pos.z))
     gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera.rot.z)
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
