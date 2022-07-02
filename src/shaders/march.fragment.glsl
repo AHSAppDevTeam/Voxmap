@@ -36,6 +36,9 @@ const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
 
+const int GAP = 8;
+const int ZERO = 8;
+
 const int MAX_BOUNCES = max(QUALITY - 1, 1);
 int MAX_RAY_STEPS = X * (QUALITY + 1)/3;
 int MAX_SUN_STEPS = Z * (QUALITY + 2);
@@ -54,7 +57,9 @@ ivec3 tex(ivec3 c) {
   c.x = clamp(c.x, 0, X-1);
   c.y = clamp(c.y, 0, Y-1);
   c.z = clamp(c.z, 0, Z-1);
-  return ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0) + 6u)/8;
+  ivec3 v = ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0).rgb);
+  if(v.b == 7) v.b = 10; // aaaaa
+  return (v+6)/8;
 }
 int sdf_dir(ivec3 c, int dir) {
   ivec2 d = tex(c).rg;
@@ -76,7 +81,7 @@ float sdf(ivec3 c, vec3 f) {
 
 vec3 color(ivec3 c) {
   int p = tex(c).b;
-  return p==0?vec3(0,0,0):p==1?vec3(0.133333,0.490196,0.317647):p==2?vec3(0.180392,0.662745,0.87451):p==3?vec3(0.235294,0.184314,0.254902):p==4?vec3(0.392157,0.211765,0.235294):p==5?vec3(0.439216,0.486275,0.454902):p==6?vec3(0.505882,0.780392,0.831373):p==7?vec3(0.52549,0.65098,0.592157):p==8?vec3(0.666667,0.666667,0.666667):p==9?vec3(0.694118,0.705882,0.47451):p==10?vec3(0.741176,0.752941,0.729412):p==11?vec3(0.768627,0.384314,0.262745):p==12?vec3(0.780392,0.243137,0.227451):p==13?vec3(0.854902,0.788235,0.65098):p==14?vec3(1,1,1):vec3(1);
+  return p==0?vec3(0,0,0):p==1?vec3(0.0431373,0.0627451,0.0745098):p==2?vec3(0.133333,0.490196,0.317647):p==3?vec3(0.180392,0.662745,0.87451):p==4?vec3(0.392157,0.211765,0.235294):p==5?vec3(0.439216,0.486275,0.454902):p==6?vec3(0.505882,0.780392,0.831373):p==7?vec3(0.52549,0.65098,0.592157):p==8?vec3(0.666667,0.666667,0.666667):p==9?vec3(0.694118,0.705882,0.47451):p==10?vec3(0.741176,0.752941,0.729412):p==11?vec3(0.768627,0.384314,0.262745):p==12?vec3(0.780392,0.243137,0.227451):p==13?vec3(0.854902,0.788235,0.65098):p==14?vec3(0.866667,0.823529,0.231373):p==15?vec3(1,1,1):vec3(1);
 }
 
 vec3 color(ivec3 c, vec3 f){
@@ -155,6 +160,7 @@ float sdTriangleIsosceles( in vec2 p, in vec2 q )
   return -sqrt(d.x)*sign(d.y);
 }
 void main() { // Marching setup
+  FragColor.a = 1.0;
   ivec3 camCellPos = iCamCellPos;
   vec3 camFractPos = iCamFractPos;
   vec3 camRot = iCamRot;
