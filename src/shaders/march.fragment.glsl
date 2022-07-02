@@ -28,6 +28,7 @@ uniform vec3 iCamRot;
 uniform ivec3 iCamCellPos;
 uniform vec3 iCamFractPos;
 
+// Dimensions
 const int X = 1024;
 const int Y = 256;
 const int Z = 16;
@@ -36,9 +37,15 @@ const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
 
+// Texture data encoding
+// Gap: distance between values
+// Zero: minimum value
+// Neither really works because
+// WebGL gives wrong numbers sometimes
+const int ZERO = 0;
 const int GAP = 8;
-const int ZERO = 8;
 
+// Quality-adjustable raytracing parameters
 const int MAX_BOUNCES = max(QUALITY - 1, 1);
 int MAX_RAY_STEPS = X * (QUALITY + 1)/3;
 int MAX_SUN_STEPS = Z * (QUALITY + 2);
@@ -57,7 +64,7 @@ int hash(ivec3 a, ivec3 b){
   return hash(hash(a), hash(b));
 }
 
-// Rotate vector
+// Vector rotater
 vec2 rotate2d(vec2 v, float a) {
   float sinA = sin(a);
   float cosA = cos(a);
@@ -74,7 +81,7 @@ ivec3 tex(ivec3 c) {
   c.z = clamp(c.z, 0, Z-1);
   ivec3 v = ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0).rgb);
   if(v.b == 7) v.b = 10; // aaaaa
-  return (v+6)/8;
+  return (v+6)/GAP; // why does -ZERO not work? aaaaaa
 }
 // SDF texture is split into two directions:
 // one for the distance to the closest thing above
@@ -89,6 +96,7 @@ int sdf_dir(ivec3 c, int dir) {
 int sdf(ivec3 c) {
   return min(sdf_dir(c,0), sdf_dir(c,1));
 }
+// Fancy trilinear interpolator (stolen from Wikipedia)
 float sdf(ivec3 c, vec3 f) {
   f = f - 0.5;
   ivec3 dir = ivec3(sign(f));
@@ -116,23 +124,29 @@ vec3 color(ivec3 c, vec3 f){
 
 // Output object
 struct March {
-  ivec3 cellPos;
-  vec3 fractPos;
-  vec3 rayPos;
-  vec3 normal;
-  float minDist;
-  int step;
-  float glass;
+  ivec3 cellPos; // integer cell position
+  vec3 fractPos; // floating point fractional cell position [0, 1)
+  vec3 rayPos; // total cell position
+  vec3 normal; // surface normal
+  float minDist; // minimum distance encountered
+  int step; // number of steps taken
+  float glass; // amount of glass hit
 };
 
 // Cube-accelerated code-spaghetti raymarcher
+// Based on Xor's [shadertoy.com/view/fstSRH]
+// and modified in order to support integer coordinates
 March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
   March res;
 
+  // materials encountered (currently: glass or not glass)
   int material;
   int lastMaterial;
 
+  // store initial ray direction (currently: for exiting glass)
   vec3 iRayDir = rayDir;
+
+  // other initial values
   res.minDist = Zf;
   res.step = 0;
   res.cellPos = rayCellPos;
@@ -141,45 +155,71 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
   vec3 axisCellDist;
   vec3 axisRayDist; vec3 minAxis; float minAxisDist;
   int dist = 1;
+
+  // is ray up or down, because SDF is split for performance reasons
   int dir = rayDir.z > 0.0 ? 1 : 0;
+
   // Start marchin'
   while(res.step < MAX_STEPS && dist != 0) {
     int safeDist = max(1, dist-1); // works for some reason
 
+    // Distances to each axis
     axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-4;
+
+    // How quickly the ray would reach each axis
     axisRayDist = axisCellDist / abs(rayDir);
+
+    // Pick the axis where the ray hits first
     minAxis = vec3(lessThanEqual(
 	  axisRayDist.xyz, min(
 	    axisRayDist.yzx,
 	    axisRayDist.zxy
 	    )));
     minAxisDist = length(minAxis * axisRayDist);
+
+    // March along that axis
     res.fractPos += rayDir * float(safeDist) * minAxisDist;
     res.cellPos += ivec3(floor(res.fractPos));
     res.fractPos = fract(res.fractPos);
 
+    // Calculate normals
     res.normal = -sign(rayDir * minAxis);
     ivec3 c = res.cellPos;
     ivec3 n = ivec3(res.normal);
+
+    // Break early if sky
     if(any(greaterThan(c, ivec3(X,Y,Z))) || any(lessThan(c, ivec3(0)))) {
       res.minDist = Zf+1.;
       break;
     }
 
     dist = sdf_dir(res.cellPos, dir);
+
+    // TODO: improve floating-point distance
+    // currently just casted integer distance
     res.minDist = min(float(dist), res.minDist);
 
     material = tex(res.cellPos).b;
-    if(material == 6) {
-      vec3 f = abs(res.fractPos - 0.5);
+
+    // Glass stuff
+    if (material == 6) { // If glass
+
+      // Go through the glass
       dist++;
-      if(lastMaterial != 6) {
+
+      if(lastMaterial != 6) { // If not glass --> glass
+	// Refract ray
 	res.glass+= 1.0 - abs(dot(rayDir, res.normal))*0.5;
 	rayDir = refract(rayDir, res.normal, 0.9);
       }
-    }else if (lastMaterial == 6){
+
+    } else if (lastMaterial == 6) { // If glass --> not glass
+
+      // Refract ray back to original direction if glass to not glass
       rayDir = iRayDir;
+
     }
+
     lastMaterial = material;
 
     res.step++;
