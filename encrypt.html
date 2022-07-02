@@ -12,8 +12,8 @@
 		const key = await crypto.subtle.importKey("jwk", {
 				"alg": "A256CBC",
 				"ext": true,
-				"k": url.searchParams.get("password") || prompt(
-					"password"),
+				"k": prompt(
+					"AES-CBC JSON Web Key"),
 				"key_ops": ["encrypt", "decrypt"],
 				"kty": "oct"
 			}, {

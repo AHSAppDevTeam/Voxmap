@@ -92,6 +92,9 @@ int main()
 			int x0, int y0, int z0,
 			int x1, int y1, int z1
 	){
+		x0--;
+		y0--;
+		z0--;
 		return 0
 			- csum(z0, y1, x1)
 			- csum(z1, y0, x1)
