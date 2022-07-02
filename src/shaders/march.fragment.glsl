@@ -102,7 +102,7 @@ struct March {
   vec3 normal;
   float minDist;
   int step;
-  int glass;
+  float glass;
 };
 
 March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
@@ -150,9 +150,10 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
     material = tex(res.cellPos).b;
     if(material == 6) {
+      vec3 f = abs(res.fractPos - 0.5);
       dist++;
       if(lastMaterial != 6) {
-	res.glass++;
+	res.glass+= 1.0 - abs(dot(rayDir, res.normal))*0.5;
 	rayDir = refract(rayDir, res.normal, 0.9);
       }
     }else if (lastMaterial == 6){
