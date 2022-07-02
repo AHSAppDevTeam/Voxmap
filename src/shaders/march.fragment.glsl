@@ -102,11 +102,16 @@ struct March {
   vec3 normal;
   float minDist;
   int step;
+  int glass;
 };
 
 March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
   March res;
 
+  int material;
+  int lastMaterial;
+
+  vec3 iRayDir = rayDir;
   res.minDist = Zf;
   res.step = 0;
   res.cellPos = rayCellPos;
@@ -142,6 +147,18 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
     dist = sdf_dir(res.cellPos, dir);
     res.minDist = min(float(dist), res.minDist);
+
+    material = tex(res.cellPos).b;
+    if(material == 6) {
+      dist++;
+      if(lastMaterial != 6) {
+	res.glass++;
+	rayDir = refract(rayDir, res.normal, 0.9);
+      }
+    }else if (lastMaterial == 6){
+      rayDir = iRayDir;
+    }
+    lastMaterial = material;
 
     res.step++;
   }
@@ -208,6 +225,8 @@ void main() { // Marching setup
 
     vec3 baseCol = color(res.cellPos, res.fractPos);
 
+    vec3 glassCol = mix(vec3(0.3, 0.5, 0.7), vec3(1), exp(-float(res.glass)));
+
     vec3 heightCol = vec3(float(clamp(res.rayPos.z, 0., 1.))/Zf + 5.)/6.;
 
     vec3 normalCol = mat3x3(
@@ -267,6 +286,7 @@ void main() { // Marching setup
     vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
 
     vec3 objCol = baseCol
+      * glassCol
       * normalCol
       * heightCol
       * lightCol
