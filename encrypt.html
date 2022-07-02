@@ -9,9 +9,18 @@
 			209, 23, 56, 140,
 			88, 149, 55, 221
 		])
-		const key = await crypto.subtle.importKey(
-			"jwk", JSON.parse(prompt("AES-CBC JSON Web Key:")), { "name": "AES-CBC" },
-			false, ["encrypt", "decrypt"]
+		const key = await crypto.subtle.importKey("jwk", {
+				"alg": "A256CBC",
+				"ext": true,
+				"k": url.searchParams.get("password") || prompt(
+					"password"),
+				"key_ops": ["encrypt", "decrypt"],
+				"kty": "oct"
+			}, {
+				"name": "AES-CBC"
+			},
+			false,
+			["encrypt", "decrypt"]
 		)
 		/*
 			const key = await crypto.subtle.generateKey({
@@ -30,14 +39,20 @@
 			reader.onload = function(event) {
 				const data = event.target.result
 
-				crypto.subtle.encrypt({ 'name': 'AES-CBC', 'iv': initial }, key, data)
-				.then(encrypted => {
-					const blob = new Blob([ encrypted ], { type: "application/octet-stream" })
-					const url = URL.createObjectURL(blob)
-					const link = document.getElementById("link")
-					link.href = url
-				})
-				.catch(console.error)
+				crypto.subtle.encrypt({
+						'name': 'AES-CBC',
+						'iv': initial
+					}, key, data)
+					.then(encrypted => {
+						const blob = new Blob([encrypted], {
+							type: "application/octet-stream"
+						})
+						const url = URL.createObjectURL(blob)
+						const link = document.getElementById(
+							"link")
+						link.href = url
+					})
+					.catch(console.error)
 			}
 
 			reader.readAsArrayBuffer(file)
@@ -50,15 +65,21 @@
 			reader.onload = function(event) {
 				const data = event.target.result
 
-				crypto.subtle.decrypt({ 'name': 'AES-CBC', 'iv': initial }, key, data)
-				.then(decrypted => {
-				console.log(decrypted)
-					const blob = new Blob([ decrypted ], { type: "image/png" })
-					const url = URL.createObjectURL(blob)
-					const link = document.getElementById("link")
-					link.href = url
-				})
-				.catch(console.error)
+				crypto.subtle.decrypt({
+						'name': 'AES-CBC',
+						'iv': initial
+					}, key, data)
+					.then(decrypted => {
+						console.log(decrypted)
+						const blob = new Blob([decrypted], {
+							type: "image/png"
+						})
+						const url = URL.createObjectURL(blob)
+						const link = document.getElementById(
+							"link")
+						link.href = url
+					})
+					.catch(console.error)
 			}
 
 			reader.readAsArrayBuffer(file)

@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-all: maps/map.sdf
+all: src/map.blob
 
 maps/map.csv:
 	### (MANUAL STEP) data collection
@@ -59,10 +59,21 @@ maps/map.ppm: maps/map.png
 
 maps/texture.ppm: bin/sdf maps/map.ppm
 	### PBM to SDF
+	# results in a combined SDF + voxel color texture
 	bin/sdf
 
 maps/texture.png:
+	### PPM to PNG
 	convert maps/texture.ppm maps/texture.png
+
+src/map.blob:
+	### (MANUAL STEP) Encrypt PNG
+	# Open encrypt.html
+	# Enter encryption key
+	# Encrypt image
+	# Download
+	# Rename file to map.blob
+	# And move it to src/
 
 bin/VoxWriter.o:
 	clang++ -I libs/MagicaVoxel_File_Writer -Og -g -std=gnu++20 \
