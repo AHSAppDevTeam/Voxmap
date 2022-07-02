@@ -211,9 +211,9 @@ void main() { // Marching setup
     vec3 heightCol = vec3(float(clamp(res.rayPos.z, 0., 1.))/Zf + 5.)/6.;
 
     vec3 normalCol = mat3x3(
-	0.85, 0.95, 1.0,
-	0.90, 0.90, 1.0,
-	1.00, 1.00, 1.0
+	0.90, 0.90, 0.95,
+	0.95, 0.95, 1.00,
+	1.00, 1.00, 1.00
 	) * abs(res.normal);
     if(res.normal.z < 0.) normalCol *= 0.8;
 
@@ -222,8 +222,8 @@ void main() { // Marching setup
 #if QUALITY > 0
     float sunFactor = max(0., dot(sunDir, rayDir));
     float scatter = 1.0 - pow(max(0.0, sunDir.z), 0.3);
-    vec3 spaceCol = mix(vec3(0.1,0.3,0.6),vec3(0.0), scatter);
-    vec3 scatterCol = mix(vec3(1.0),vec3(1.0,0.3,0.0), scatter);
+    vec3 spaceCol = mix(vec3(0.1,0.3,0.5),vec3(0.0), scatter);
+    vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.0), scatter);
     vec3 atmCol = mix(scatterCol, spaceCol, pow(max(0.0, rayDir.z), 0.5));
 
     float sun = sunFactor;
@@ -237,6 +237,7 @@ void main() { // Marching setup
     skyCol = clamp(skyCol, vec3(0), vec3(1));
 
     vec3 shadeCol = mix(scatterCol, spaceCol, rayDir.z*0.5 + 0.5);
+    shadeCol = mix(shadeCol, vec3(0.8), 0.5);
 #else
     vec3 skyCol = mix(vec3(0.8, 0.9, 1.0), vec3(0.1, 0.3, 0.6), rayDir.z);
     vec3 shadeCol = skyCol * 0.7;
