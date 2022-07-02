@@ -111,12 +111,12 @@ float sdf(ivec3 c, vec3 f) {
 // Get color from texture's palette index
 vec3 color(ivec3 c) {
   int p = tex(c).b;
-  return p==0?vec3(0,0,0):p==1?vec3(0.0431373,0.0627451,0.0745098):p==2?vec3(0.133333,0.490196,0.317647):p==3?vec3(0.180392,0.662745,0.87451):p==4?vec3(0.392157,0.211765,0.235294):p==5?vec3(0.439216,0.486275,0.454902):p==6?vec3(0.505882,0.780392,0.831373):p==7?vec3(0.52549,0.65098,0.592157):p==8?vec3(0.666667,0.666667,0.666667):p==9?vec3(0.694118,0.705882,0.47451):p==10?vec3(0.741176,0.752941,0.729412):p==11?vec3(0.768627,0.384314,0.262745):p==12?vec3(0.780392,0.243137,0.227451):p==13?vec3(0.854902,0.788235,0.65098):p==14?vec3(0.866667,0.823529,0.231373):p==15?vec3(1,1,1):vec3(1);
+  return p==0?vec3(0,0,0):p==1?vec3(0.0431373,0.0627451,0.0745098):p==2?vec3(0.133333,0.490196,0.317647):p==3?vec3(0.392157,0.211765,0.235294):p==4?vec3(0.439216,0.486275,0.454902):p==5?vec3(0.505882,0.780392,0.831373):p==6?vec3(0.52549,0.65098,0.592157):p==7?vec3(0.666667,0.666667,0.666667):p==8?vec3(0.741176,0.752941,0.729412):p==9?vec3(0.768627,0.384314,0.262745):p==10?vec3(0.780392,0.243137,0.227451):p==11?vec3(0.854902,0.788235,0.65098):p==12?vec3(0.964706,0.772549,0.333333):p==13?vec3(1,1,1):vec3(1);
 }
 // Base color + sub-voxel noise
 vec3 color(ivec3 c, vec3 f){
   ivec3 p = ivec3(f*12.0);
-  return color(c) * (1. - vec3(hash(c, p) % 255)/255./32.);
+  return color(c) * (1. - vec3(hash(c, p) % 255)/255./64.);
 }
 
 // Raymarcher
@@ -161,8 +161,6 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
   // Start marchin'
   while(res.step < MAX_STEPS && dist != 0) {
-    int safeDist = max(1, dist-1); // works for some reason
-
     // Distances to each axis
     axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-4;
 
@@ -178,7 +176,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
     minAxisDist = length(minAxis * axisRayDist);
 
     // March along that axis
-    res.fractPos += rayDir * float(safeDist) * minAxisDist;
+    res.fractPos += rayDir * float(dist) * minAxisDist;
     res.cellPos += ivec3(floor(res.fractPos));
     res.fractPos = fract(res.fractPos);
 
@@ -202,18 +200,18 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
     material = tex(res.cellPos).b;
 
     // Glass stuff
-    if (material == 6) { // If glass
+    if (material == 5) { // If glass
 
       // Go through the glass
       dist++;
 
-      if(lastMaterial != 6) { // If not glass --> glass
+      if(lastMaterial != 5) { // If not glass --> glass
 	// Refract ray
 	res.glass+= 1.0 - abs(dot(rayDir, res.normal))*0.5;
 	rayDir = refract(rayDir, res.normal, 0.9);
       }
 
-    } else if (lastMaterial == 6) { // If glass --> not glass
+    } else if (lastMaterial == 5) { // If glass --> not glass
 
       // Refract ray back to original direction if glass to not glass
       rayDir = iRayDir;
