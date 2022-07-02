@@ -222,6 +222,9 @@ async function add_listeners() {
             case "ArrowRight":
                 controls.move.x = power
                 break;
+            case "Space":
+                camera.pos.z += (event.shiftKey) ? -1 : 1
+                break;
         }
     })
     window.addEventListener('keyup', (event) => {
