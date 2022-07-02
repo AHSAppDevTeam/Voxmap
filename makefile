@@ -37,6 +37,21 @@ maps/map.vox: bin/vox maps/map.pgm
 
 maps/map.png: maps/map.vox
 	### (MANUAL STEP) open in Goxel and export PNG slices
+	#
+	# PNG slices should have X on the horizontal axis,
+	# and Z*(max_Y) + Y on the vertical axis.
+	#
+	# The official version of Goxel currently does not
+	# support exporting PNG slices in that way, and
+	# adjusting the orientation using a tool like
+	# ImageMagick runs into hardcoded limitations on max image size,
+	# so I use a custom version of Goxel at
+	# https://github.com/FlyOrBoom/goxel/tree/a906c9e9a2c633f155f13d7854998ced165a08b5,
+	# where I open maps/map.vox, adjust the image size to auto-fit,
+	# then in exports > PNG slices, select
+	# slicing direction = 2
+	# laying direction = 1
+	# then export.
 
 maps/map.ppm: maps/map.png
 	### PNG slices to PAM
