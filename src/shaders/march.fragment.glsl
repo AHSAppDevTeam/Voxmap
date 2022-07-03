@@ -37,14 +37,6 @@ const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
 
-// Texture data encoding
-// Gap: distance between values
-// Zero: minimum value
-// Neither really works because
-// WebGL gives wrong numbers sometimes
-const int ZERO = 0;
-const int GAP = 8;
-
 // Quality-adjustable raytracing parameters
 const int MAX_BOUNCES = max(QUALITY - 1, 1);
 int MAX_RAY_STEPS = X * (QUALITY + 1)/3;
@@ -80,8 +72,7 @@ ivec3 tex(ivec3 c) {
   c.y = clamp(c.y, 0, Y-1);
   c.z = clamp(c.z, 0, Z-1);
   ivec3 v = ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0).rgb);
-  if(v.b == 7) v.b = 10; // aaaaa
-  return (v+6)/GAP; // why does -ZERO not work? aaaaaa
+  return v; // TODO: this gives the wrong color for Firefox
 }
 // SDF texture is split into two directions:
 // one for the distance to the closest thing above

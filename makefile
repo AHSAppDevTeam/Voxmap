@@ -64,7 +64,7 @@ maps/texture.ppm: bin/sdf maps/map.ppm
 
 maps/texture.png:
 	### PPM to PNG
-	convert maps/texture.ppm maps/texture.png
+	convert maps/texture.ppm -profile src/srgb.v4.icc png24:maps/texture.png
 
 src/map.blob:
 	### (MANUAL STEP) Encrypt PNG

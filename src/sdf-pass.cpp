@@ -4,8 +4,6 @@
 #include <cassert>
 #include <set>
 
-const int ZERO = 0;
-const int GAP = 8;
 const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
 
@@ -149,12 +147,12 @@ int main()
 	std::cout << "Converting into RGBA..." << std::flush;
 
 	FOR_XYZ {
-		img[Y*z + y][x].red = sdf[z][y][x][0] * GAP + ZERO;
-		img[Y*z + y][x].green = sdf[z][y][x][1] * GAP + ZERO;
+		img[Y*z + y][x].red = sdf[z][y][x][0];
+		img[Y*z + y][x].green = sdf[z][y][x][1];
 
 		int col_index = 0;
 		for (; col_index < MAX && pal[col_index] != col[z][y][x]; col_index++) { continue; }
-		img[Y*z + y][x].blue = col_index * GAP + ZERO;
+		img[Y*z + y][x].blue = col_index;
 	}
 	for(int i = 0; i < 255; i++){
 		img[i][0].red = i;
