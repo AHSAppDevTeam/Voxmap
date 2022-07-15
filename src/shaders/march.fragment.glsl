@@ -366,7 +366,7 @@ void main() {
     // Do cheap ambient occlusion by interpolating SDFs
     float ambDist = sdf(
 	res.cellPos + ivec3(res.normal), 
-	res.fractPos * (1.0 - abs(res.normal))
+	res.fractPos
       );
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
