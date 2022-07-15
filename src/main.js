@@ -119,13 +119,8 @@ async function main() {
 async function map_texture() {
 
     let texture_buffer
-    if (url.protocol == 'https:') {
-        const compressed_blob = await (await fetch("src/map.blob")).blob()
 
-        const encrypted_stream = compressed_blob.stream()
-        .pipeThrough(new DecompressionStream('gzip'))
-
-        const encrypted_blob = await new Response(encrypted_stream).blob()
+    if (url.protocol === 'https:') {
 
         const crypto_initial = Uint8Array.from([
             55, 44, 146, 89,
@@ -147,13 +142,22 @@ async function map_texture() {
             false,
             ["encrypt", "decrypt"]
         )
-        url.searchParams.set("password", "")
-        window.history.replaceState(null, "", url.toString())
 
-        const decrypted_buffer = await crypto.subtle.decrypt({
-            'name': 'AES-CBC',
-            'iv': crypto_initial
-        }, crypto_key, await encrypted_blob.arrayBuffer())
+        url.searchParams.set("password", "")
+        //window.history.replaceState(null, "", url.toString())
+
+        texture_buffer = await fetch("src/map.blob")
+            .then(response => response.blob())
+            .then(blob => blob.arrayBuffer())
+            .then(buffer => crypto.subtle.decrypt({
+                'name': 'AES-CBC',
+                'iv': crypto_initial
+            }, crypto_key, buffer))
+            .then(buffer => new Blob([buffer]).stream())
+            .then(stream => stream.pipeThrough(new DecompressionStream(
+                'gzip')))
+            .then(stream => new Response(stream).arrayBuffer())
+            .then(buffer => new Uint8Array(buffer))
 
     } else {
         texture_buffer = new Uint8Array(await (await fetch(
@@ -189,7 +193,8 @@ async function add_listeners() {
     canvas.addEventListener('pointermove', (event) => {
         controls.rot.z -= event.movementX / size
         controls.rot.x -= event.movementY / size
-        controls.rot.x = Math.max(-0.2, Math.min(controls.rot.x,
+        controls.rot.x = Math.max(-0.2, Math.min(controls
+            .rot.x,
             0.2))
     })
     joystick.addEventListener('touchstart', () => {
@@ -197,8 +202,10 @@ async function add_listeners() {
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.move.active) {
-            controls.move.x = +2 * (event.offsetX * 2 / size - 1)
-            controls.move.y = -2 * (event.offsetY * 2 / size - 1)
+            controls.move.x = +2 * (event.offsetX * 2 /
+                size - 1)
+            controls.move.y = -2 * (event.offsetY * 2 /
+                size - 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -253,8 +260,9 @@ async function add_listeners() {
         if (delta < 5 && delta > -15) return;
 
         upSample *= target / fps
-        upSample = Math.pow(2, Math.round(Math.max(-2, Math.log(
-            upSample))))
+        upSample = Math.pow(2, Math.round(Math.max(-2, Math
+            .log(
+                upSample))))
         resize()
     }, 1000)
     resize()
@@ -281,11 +289,14 @@ function render(now) {
 
     gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
     gl.uniform1f(handles.time, times[0])
-    gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos.y),
+    gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos
+            .y),
         fract(camera.pos.z))
-    gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos.y),
+    gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos
+            .y),
         floor(camera.pos.z))
-    gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera.rot.z)
+    gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera
+        .rot.z)
     gl.uniform1i(handles.frame, frame)
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
