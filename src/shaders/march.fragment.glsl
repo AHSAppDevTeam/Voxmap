@@ -18,6 +18,7 @@ precision highp int;
 
 #if QUALITY > 0
 #define SHADOWS
+#define SKY
 #endif
 
 #if QUALITY > 1
@@ -58,6 +59,13 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 
 // Utility functions
 //-------------------
+
+vec3 hash(vec3 p3)
+{
+    p3 = fract(p3 * vec3(.1031, .1030, .0973));
+    p3 += dot(p3, p3.yxz+33.33);
+    return fract((p3.xxy + p3.yxx)*p3.zyx) - 0.5;
+}
 
 // Vector rotater
 vec2 rotate2d(vec2 v, float a) {
@@ -282,12 +290,14 @@ void main() {
 
   // Shorthand for FragColor.rgb
   vec3 col;
+  float bounceFactor = 1.0;
 
   // Start marchin'!
   for(int i = 0; i < MAX_BOUNCES; i++) {
 
     // Get result of marching
     March res = march(camCellPos, camFractPos, rayDir, MAX_RAY_STEPS);
+    vec3 noise = 1.0 + 0.1 * hash(100.0 * res.fractPos);
     
     // Intersection distance
     float dist = length(res.rayPos.xy - vec2(camCellPos.xy));
@@ -295,7 +305,7 @@ void main() {
     // Start coloring!
 
     // Get base color (matte & shadowless) from texture
-    vec3 baseCol = palette(res.material);
+    vec3 baseCol = palette(res.material) * noise.xxx;
 
     // Mix in any glass we hit along the way
     vec3 glassCol = mix(vec3(0.3, 0.5, 0.7), vec3(1), exp(-res.glass));
@@ -309,8 +319,8 @@ void main() {
 	0.95, 0.95, 1.00,
 	1.00, 1.00, 1.00
 	) * abs(res.normal);
-    if(res.normal.z < 0.) normalCol *= 0.8;
 
+    if(res.normal.z < 0.) normalCol *= 0.8;
     // Illumination color of sunlit surfaces
     vec3 sunCol = vec3(1.2,1.1,1.0);
 
@@ -364,14 +374,13 @@ void main() {
     MAX_SUN_STEPS /= 2;
     camCellPos = res.cellPos;
     camFractPos = res.fractPos;
-    rayDir = reflect(rayDir, res.normal);
 
     // Check if we're facing towards Sun
     float shadeFactor = sunDir.z < 0. ? 0. : max(0., dot(res.normal, sunDir));
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
-      March sun = march(camCellPos, camFractPos, sunDir, MAX_SUN_STEPS);
+      March sun = march(camCellPos, camFractPos, sunDir * noise, MAX_SUN_STEPS);
       shadeFactor *= clamp(sun.minDist, 0., 1.);
     }
     // TODO: soft shadows (aaa)
@@ -394,11 +403,13 @@ void main() {
       : pow(clamp(dist/Yf, 0., 1.), 3.);
     vec3 bounceCol = mix( objCol, skyCol, skyFactor ) * glassCol;
 
-    // Mix with previous bounces
-    col = mix(col, bounceCol, exp(-float(3*i)));
+    col = mix(col, bounceCol, exp(-float(i)) * bounceFactor);
 
     // If too much sky, stop bouncing
-    if(skyFactor > 0.99) break;
+    bounceFactor = 1.0 - 2.0 * sqrt(dot(-res.normal, rayDir));
+    if(skyFactor > 0.95 || bounceFactor < 0.0) break;
+
+    rayDir = reflect(rayDir, res.normal) * noise;
   }
 
   // Highlight viewing range triangle
