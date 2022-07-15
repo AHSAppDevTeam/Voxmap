@@ -1,6 +1,7 @@
 #include "voxmap.h"
 #include "../libs/pnm.hpp"
 #include <iostream>
+#include <fstream>
 #include <cassert>
 #include <set>
 
@@ -144,26 +145,19 @@ int main()
 	}
 
 	std::cout << "Done." << std::endl;
-	std::cout << "Converting into RGBA..." << std::flush;
-
-	FOR_XYZ {
-		img[Y*z + y][x].red = sdf[z][y][x][0];
-		img[Y*z + y][x].green = sdf[z][y][x][1];
-
-		int col_index = 0;
-		for (; col_index < MAX && pal[col_index] != col[z][y][x]; col_index++) { continue; }
-		img[Y*z + y][x].blue = col_index;
-	}
-	for(int i = 0; i < 255; i++){
-		img[i][0].red = i;
-		img[256+i][0].blue = i;
-		img[2*256 + i][0].green = i;
-	}
-
-	std::cout << "Done." << std::endl;
 	std::cout << "Writing to file..." << std::flush;
 
-	pnm::write("maps/texture.ppm", img, pnm::format::binary);
+	std::ofstream out("maps/texture.bin", std::ios::binary);
+
+	FOR_XYZ {
+		int col_index = 0;
+		for (; col_index < MAX && pal[col_index] != col[z][y][x]; col_index++) { continue; }
+		
+		out.put((char) sdf[z][y][x][0]);
+		out.put((char) sdf[z][y][x][1]);
+		out.put((char) col_index);
+	}
+	out.close();
 
 	std::cout << "Done." << std::endl;
 	std::cout << "^_^" << std::endl;;

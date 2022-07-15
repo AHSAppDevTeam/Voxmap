@@ -57,16 +57,12 @@ maps/map.ppm: maps/map.png
 	### PNG slices to PAM
 	convert maps/map.png -rotate 270 maps/map.ppm
 
-maps/texture.ppm: bin/sdf maps/map.ppm
+maps/texture.bin: bin/sdf maps/map.ppm
 	### PBM to SDF
 	# results in a combined SDF + voxel color texture
 	bin/sdf
 
-maps/texture.png: maps/texture.ppm
-	### PPM to PNG
-	convert maps/texture.ppm -profile src/srgb.v4.icc png24:maps/texture.png
-
-src/map.blob:
+src/map.blob: maps/texture.bin
 	### (MANUAL STEP) Encrypt PNG
 	# Open encrypt.html
 	# Enter encryption key
