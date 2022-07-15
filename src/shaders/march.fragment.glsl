@@ -14,7 +14,19 @@ precision highp int;
 +---+---------+-------------------+-------------+-----------------+
 | 3 | Yes     | Yes               | Yes         | Long            |
 +---+---------+-------------------+-------------+-----------------+*/
-#define QUALITY 2
+#define QUALITY 3
+
+#if QUALITY > 0
+#define SHADOWS
+#endif
+
+#if QUALITY > 1
+#define AO
+#endif
+
+#if QUALITY > 2
+#define JITTER
+#endif
 
 out vec4 FragColor;
 
@@ -46,17 +58,6 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 
 // Utility functions
 //-------------------
-
-// Pseudo random number maker
-int hash(int a, int b){
-  return ((a + b)*(a + b + 1) + b*2) % 255;
-}
-int hash(ivec3 v){
-  return hash(hash(v.x,v.y),v.z);
-}
-int hash(ivec3 a, ivec3 b){
-  return hash(hash(a), hash(b));
-}
 
 // Vector rotater
 vec2 rotate2d(vec2 v, float a) {
@@ -93,8 +94,7 @@ int sdf(ivec3 c) {
   return min(sdf_dir(c,0), sdf_dir(c,1));
 }
 // Fancy trilinear interpolator (stolen from Wikipedia)
-float sdf(ivec3 c, vec3 f, vec3 n) {
-  c += ivec3(n);
+float sdf(ivec3 c, vec3 f) {
   f = f - 0.5;
   ivec3 dir = ivec3(sign(f));
   f = abs(f);
@@ -106,14 +106,11 @@ float sdf(ivec3 c, vec3 f, vec3 n) {
 }
 
 // Get color from texture's palette index
-vec3 color(ivec3 c) {
-  int p = tex(c).b;
+vec3 palette(int p) {
   return p==0?vec3(0,0,0):p==1?vec3(0.0431373,0.0627451,0.0745098):p==2?vec3(0.133333,0.490196,0.317647):p==3?vec3(0.392157,0.211765,0.235294):p==4?vec3(0.439216,0.486275,0.454902):p==5?vec3(0.505882,0.780392,0.831373):p==6?vec3(0.52549,0.65098,0.592157):p==7?vec3(0.666667,0.666667,0.666667):p==8?vec3(0.741176,0.752941,0.729412):p==9?vec3(0.768627,0.384314,0.262745):p==10?vec3(0.780392,0.243137,0.227451):p==11?vec3(0.854902,0.788235,0.65098):p==12?vec3(0.964706,0.772549,0.333333):p==13?vec3(1,1,1):vec3(1);
 }
-// Base color + sub-voxel noise
-vec3 color(ivec3 c, vec3 f){
-  ivec3 p = ivec3(f*12.0);
-  return color(c) * (1. - vec3(hash(c, p) % 255)/255./64.);
+vec3 color(ivec3 c){
+  return palette(tex(c).b);
 }
 
 // Raymarcher
@@ -128,6 +125,7 @@ struct March {
   float minDist; // minimum distance encountered
   int step; // number of steps taken
   float glass; // amount of glass hit
+  int material; // material type
 };
 
 // Cube-accelerated code-spaghetti raymarcher
@@ -137,7 +135,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
   March res;
 
   // materials encountered (currently: glass or not glass)
-  int material;
+  res.material = 0;
   int lastMaterial;
 
   // store initial ray direction (currently: for exiting glass)
@@ -194,28 +192,26 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
     // currently just casted integer distance
     res.minDist = min(float(dist), res.minDist);
 
-    material = tex(res.cellPos).b;
+    if(dist == 0) {
+      res.material = tex(res.cellPos).b;
 
-    // Glass stuff
-    if (material == 5) { // If glass
+      // Glass stuff
+      if (res.material == 5) { // If glass
 
-      // Go through the glass
-      dist++;
+	// Go through the glass
+	dist++;
 
-      if(lastMaterial != 5) { // If not glass --> glass
-	// Refract ray
-	res.glass+= 1.0 - abs(dot(rayDir, res.normal))*0.5;
-	rayDir = refract(rayDir, res.normal, 0.9);
+	if(lastMaterial != 5) {
+	  // Refract ray
+	  res.glass += 1.0 - 0.5*abs(dot(rayDir, res.normal));
+	  rayDir = refract(rayDir, res.normal, 0.8);
+	}
       }
-
-    } else if (lastMaterial == 5) { // If glass --> not glass
-
-      // Refract ray back to original direction if glass to not glass
+    } else {
       rayDir = iRayDir;
-
+      res.material = 0;
     }
-
-    lastMaterial = material;
+    lastMaterial = res.material;
 
     res.step++;
   }
@@ -252,13 +248,6 @@ void main() {
   vec3 rayDir;
 
   vec2 screenPos = TexCoord * 0.6;
-
-#ifdef JITTER
-  int modFrame = iFrame % 4;
-  vec2 e = 0.5 / iResolution;
-  screenPos.x += (modFrame > 1) ? e.x : -e.x;
-  screenPos.y += (modFrame % 2 == 0) ? e.y : -e.y;
-#endif
 
   vec3 camDir = vec3(0, 1, 0);
   vec3 camPlaneU = vec3(1, 0, 0);
@@ -299,14 +288,14 @@ void main() {
 
     // Get result of marching
     March res = march(camCellPos, camFractPos, rayDir, MAX_RAY_STEPS);
-
+    
     // Intersection distance
     float dist = length(res.rayPos.xy - vec2(camCellPos.xy));
 
     // Start coloring!
 
     // Get base color (matte & shadowless) from texture
-    vec3 baseCol = color(res.cellPos, res.fractPos);
+    vec3 baseCol = palette(res.material);
 
     // Mix in any glass we hit along the way
     vec3 glassCol = mix(vec3(0.3, 0.5, 0.7), vec3(1), exp(-res.glass));
@@ -325,7 +314,7 @@ void main() {
     // Illumination color of sunlit surfaces
     vec3 sunCol = vec3(1.2,1.1,1.0);
 
-#if QUALITY > 0
+#ifdef SKY
     // Fancy sky!
 
     // Color of the sky where the Sun is
@@ -356,12 +345,16 @@ void main() {
     vec3 shadeCol = skyCol * 0.7;
 #endif
     // Make shadow slightly more gray
-    shadeCol = mix(shadeCol, vec3(0.8), 0.5);
+    shadeCol = mix(shadeCol, vec3(0.8), 0.3);
 
-#if QUALITY > 1
+#ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
-    float ambFactor = pow(sdf(res.cellPos, res.fractPos, res.normal)*2., 0.5);
-    vec3 ambCol = mix(shadeCol, vec3(1), ambFactor);
+    float ambDist = sdf(
+	res.cellPos + ivec3(res.normal), 
+	res.fractPos * (1.0 - abs(res.normal))
+      );
+    float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
+    vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
     vec3 ambCol = vec3(1);
 #endif
@@ -370,12 +363,12 @@ void main() {
     MAX_RAY_STEPS /= 2;
     MAX_SUN_STEPS /= 2;
     camCellPos = res.cellPos;
-    camFractPos = res.fractPos + 1e-4;
-    rayDir -= 2.0 * dot(rayDir, res.normal) * res.normal;
+    camFractPos = res.fractPos;
+    rayDir = reflect(rayDir, res.normal);
 
     // Check if we're facing towards Sun
     float shadeFactor = sunDir.z < 0. ? 0. : max(0., dot(res.normal, sunDir));
-#if QUALITY > 0
+#ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
       March sun = march(camCellPos, camFractPos, sunDir, MAX_SUN_STEPS);
@@ -390,7 +383,6 @@ void main() {
 
     // Multiply everything together
     vec3 objCol = baseCol
-      * glassCol
       * normalCol
       * heightCol
       * lightCol
@@ -400,7 +392,7 @@ void main() {
     // also add the sky if we reached the void
     float skyFactor = (res.step == MAX_RAY_STEPS || res.minDist > Zf) ? 1.
       : pow(clamp(dist/Yf, 0., 1.), 3.);
-    vec3 bounceCol = mix( objCol, skyCol, skyFactor );
+    vec3 bounceCol = mix( objCol, skyCol, skyFactor ) * glassCol;
 
     // Mix with previous bounces
     col = mix(col, bounceCol, exp(-float(3*i)));
