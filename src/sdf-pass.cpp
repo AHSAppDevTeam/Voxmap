@@ -1,11 +1,11 @@
 #include "voxmap.h"
 #include "../libs/pnm.hpp"
 #include <iostream>
+#include <fstream>
 #include <cassert>
 #include <set>
 
-const int GAP = 8;
-const int MAX = 255/GAP;
+const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
 
 pnm::rgb_pixel col[Z][Y][X]; // color
@@ -19,7 +19,7 @@ int main()
 {
 	using namespace pnm::literals;
 
-	std::cout << "Loading png slices...";
+	std::cout << "Loading png slices..." << std::flush;
 
 	pnm::image<pnm::rgb_pixel> img = pnm::read("maps/map.ppm");
 
@@ -27,7 +27,7 @@ int main()
 	assert( Y*Z == img.height() );
 
 	std::cout << "Done." << std::endl;
-	std::cout << "Generating volume...";
+	std::cout << "Generating volume..." << std::flush;
 
 	// clamped sum access
 	auto csum = [&](int _z, int _y, int _x){
@@ -63,7 +63,7 @@ int main()
 		std::cout << "vec3(1);" << std::endl;
 	}
 
-	std::cout << "Generating summed volume table...";
+	std::cout << "Generating summed volume table..." << std::flush;
 
 	FOR_XYZ {
 		// compute a summed volume table
@@ -85,12 +85,15 @@ int main()
 	}
 	
 	std::cout << "Done." << std::endl;
-	std::cout << "Generating signed distance fields...";
+	std::cout << "Generating signed distance fields..." << std::flush;
 
 	auto vol = [&](
 			int x0, int y0, int z0,
 			int x1, int y1, int z1
 	){
+		x0--;
+		y0--;
+		z0--;
 		return 0
 			- csum(z0, y1, x1)
 			- csum(z1, y0, x1)
@@ -142,21 +145,19 @@ int main()
 	}
 
 	std::cout << "Done." << std::endl;
-	std::cout << "Converting into RGBA...";
+	std::cout << "Writing to file..." << std::flush;
+
+	std::ofstream out("maps/texture.bin", std::ios::binary);
 
 	FOR_XYZ {
-		img[Y*z + y][x].red = sdf[z][y][x][0] * GAP;
-		img[Y*z + y][x].green = sdf[z][y][x][1] * GAP;
-
 		int col_index = 0;
 		for (; col_index < MAX && pal[col_index] != col[z][y][x]; col_index++) { continue; }
-		img[Y*z + y][x].blue = col_index * GAP;
+		
+		out.put((char) sdf[z][y][x][0]);
+		out.put((char) sdf[z][y][x][1]);
+		out.put((char) col_index);
 	}
-
-	std::cout << "Done." << std::endl;
-	std::cout << "Writing to file...";
-
-	pnm::write("maps/texture.ppm", img, pnm::format::binary);
+	out.close();
 
 	std::cout << "Done." << std::endl;
 	std::cout << "^_^" << std::endl;;

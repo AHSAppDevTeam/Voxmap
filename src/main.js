@@ -20,11 +20,12 @@ let delta = 1
 let fps = 30
 let upSample = 2
 let running = false
+let frame = 0
 
 const camera = {
     pos: {
-        x: -130.5,
-        y: 0.1,
+        x: 381.5,
+        y: 128.1,
         z: 1 + HEIGHT
     },
     vel: {
@@ -65,17 +66,20 @@ async function main() {
     const frag = (await (await fetch("src/shaders/march.fragment.glsl"))
             .text())
         .replace("#version 330 core", "#version 300 es")
-        .replace("#define QUALITY 2", "#define QUALITY " + (url.searchParams.get("quality") || "2") )
+        .replace("#define QUALITY 3", "#define QUALITY " + (url.searchParams
+            .get("quality") || "3"))
 
     // setup GLSL program
     const program = createProgramFromSources(gl, [vert, frag])
 
-    handles.position = gl.getAttribLocation(program, "vPosition")
+    handles.position = gl.getUniformLocation(program, "vPosition")
     handles.coord = gl.getAttribLocation(program, "TexCoord")
     handles.resolution = gl.getUniformLocation(program, "iResolution")
     handles.time = gl.getUniformLocation(program, "iTime")
     handles.rotation = gl.getUniformLocation(program, "iCamRot")
-    handles.position = gl.getUniformLocation(program, "iCamPos")
+    handles.cellPos = gl.getUniformLocation(program, "iCamCellPos")
+    handles.fractPos = gl.getUniformLocation(program, "iCamFractPos")
+    handles.frame = gl.getUniformLocation(program, "iFrame")
 
     map_texture()
 
@@ -113,11 +117,10 @@ async function main() {
 }
 
 async function map_texture() {
-    
-    const image = new Image()
+
+    let texture_buffer
 
     if (url.protocol === 'https:') {
-        const encrypted_blob = await (await fetch("src/map.blob")).blob()
 
         const crypto_initial = Uint8Array.from([
             55, 44, 146, 89,
@@ -139,31 +142,36 @@ async function map_texture() {
             false,
             ["encrypt", "decrypt"]
         )
+
         url.searchParams.set("password", "")
-        window.history.replaceState(null, "", url.toString())
+        //window.history.replaceState(null, "", url.toString())
 
-        const decrypted_buffer = await crypto.subtle.decrypt({
-            'name': 'AES-CBC',
-            'iv': crypto_initial
-        }, crypto_key, await encrypted_blob.arrayBuffer())
+        texture_buffer = await fetch("src/map.blob")
+            .then(response => response.blob())
+            .then(blob => blob.arrayBuffer())
+            .then(buffer => crypto.subtle.decrypt({
+                'name': 'AES-CBC',
+                'iv': crypto_initial
+            }, crypto_key, buffer))
+            .then(buffer => new Blob([buffer]).stream())
+            .then(stream => stream.pipeThrough(new DecompressionStream(
+                'gzip')))
+            .then(stream => new Response(stream).arrayBuffer())
+            .then(buffer => new Uint8Array(buffer))
 
-        const decrypted_blob = new Blob([decrypted_buffer], {
-            type: "image/png"
-        })
-
-        image.src = URL.createObjectURL(decrypted_blob)
     } else {
-        image.src = "maps/texture.png"
+        texture_buffer = new Uint8Array(await (await fetch(
+            "maps/texture.bin")).arrayBuffer())
+        console.log(texture_buffer)
     }
-
-    await image.decode() // let load
 
     const texture = gl.createTexture()
 
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
-        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, image)
+        1024, 4096, 0,
+        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, texture_buffer)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -185,7 +193,8 @@ async function add_listeners() {
     canvas.addEventListener('pointermove', (event) => {
         controls.rot.z -= event.movementX / size
         controls.rot.x -= event.movementY / size
-        controls.rot.x = Math.max(-0.2, Math.min(controls.rot.x,
+        controls.rot.x = Math.max(-0.2, Math.min(controls
+            .rot.x,
             0.2))
     })
     joystick.addEventListener('touchstart', () => {
@@ -193,8 +202,10 @@ async function add_listeners() {
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.move.active) {
-            controls.move.x = +2 * (event.offsetX * 2 / size - 1)
-            controls.move.y = -2 * (event.offsetY * 2 / size - 1)
+            controls.move.x = +2 * (event.offsetX * 2 /
+                size - 1)
+            controls.move.y = -2 * (event.offsetY * 2 /
+                size - 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -221,6 +232,9 @@ async function add_listeners() {
             case "ArrowRight":
                 controls.move.x = power
                 break;
+            case "Space":
+                camera.pos.z += (event.shiftKey) ? -1 : 1
+                break;
         }
     })
     window.addEventListener('keyup', (event) => {
@@ -245,11 +259,21 @@ async function add_listeners() {
         let delta = fps - target
         if (delta < 5 && delta > -15) return;
 
-        upSample *= Math.sqrt(target / fps)
-        upSample = Math.pow(2, Math.round(Math.log2(Math.max(-2, upSample))))
+        upSample *= target / fps
+        upSample = Math.pow(2, Math.round(Math.max(-2, Math
+            .log(
+                upSample))))
         resize()
     }, 1000)
     resize()
+}
+
+function floor(x) {
+    return Math.floor(x)
+}
+
+function fract(x) {
+    return x - floor(x)
 }
 
 function render(now) {
@@ -265,8 +289,15 @@ function render(now) {
 
     gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
     gl.uniform1f(handles.time, times[0])
-    gl.uniform3f(handles.position, camera.pos.x, camera.pos.y, camera.pos.z)
-    gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera.rot.z)
+    gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos
+            .y),
+        fract(camera.pos.z))
+    gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos
+            .y),
+        floor(camera.pos.z))
+    gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera
+        .rot.z)
+    gl.uniform1i(handles.frame, frame)
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
 
@@ -275,6 +306,7 @@ function render(now) {
 
 async function update_state(time, delta) {
 
+    frame++
     fps = N / deltas.reduce((a, b) => a + b, 0)
     let Fx = Math.pow(controls.move.x, 3)
     let Fy = Math.pow(controls.move.y, 3)
