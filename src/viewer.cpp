@@ -96,7 +96,7 @@ int main() {
   // shader configuration
   // --------------------
   marchShader.use();
-  marchShader.setVec2("iResolution", SCR_WIDTH/TAA, SCR_HEIGHT/TAA);
+  marchShader.setVec2("iResolution", SCR_WIDTH, SCR_HEIGHT);
   marchShader.setInt("mapTexture", 0);
 
   filterShader.use();
@@ -161,8 +161,10 @@ int main() {
     marchShader.use();
     marchShader.setVec2("iResolution", SCR_WIDTH, SCR_HEIGHT);
     marchShader.setFloat("iTime", t);
-    marchShader.setVec3("iCamRot", 0, 0, t/10.);
-    marchShader.setVec3("iCamPos", -200, 0, 3.5);
+    marchShader.setVec3("iCamRot", 0.1, 0.1, 0.1);
+    marchShader.setIvec3("iCamCellPos", 381, 128, 3);
+    marchShader.setVec3("iCamFractPos", 0.55, 0.1, 0.1);
+    marchShader.setInt("iFrame", frame);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mapTexture);
     glBindVertexArray(quadVertexArray);

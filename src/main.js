@@ -20,6 +20,7 @@ let delta = 1
 let fps = 30
 let upSample = 2
 let running = false
+let frame = 0
 
 const camera = {
     pos: {
@@ -77,6 +78,7 @@ async function main() {
     handles.rotation = gl.getUniformLocation(program, "iCamRot")
     handles.cellPos = gl.getUniformLocation(program, "iCamCellPos")
     handles.fractPos = gl.getUniformLocation(program, "iCamFractPos")
+    handles.frame = gl.getUniformLocation(program, "iFrame")
 
     map_texture()
 
@@ -249,7 +251,7 @@ async function add_listeners() {
         let delta = fps - target
         if (delta < 5 && delta > -15) return;
 
-        upSample *= Math.sqrt(target / fps)
+        upSample *= target / fps
         upSample = Math.pow(2, Math.round(Math.max(-2,Math.log(upSample))))
         resize()
     }, 1000)
@@ -279,6 +281,7 @@ function render(now) {
     gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos.y), fract(camera.pos.z))
     gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos.y), floor(camera.pos.z))
     gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera.rot.z)
+    gl.uniform1i(handles.frame, frame)
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
 
@@ -287,6 +290,7 @@ function render(now) {
 
 async function update_state(time, delta) {
 
+    frame++
     fps = N / deltas.reduce((a, b) => a + b, 0)
     let Fx = Math.pow(controls.move.x, 3)
     let Fy = Math.pow(controls.move.y, 3)

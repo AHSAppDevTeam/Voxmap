@@ -14,14 +14,15 @@ uniform int iTAA;
 
 void main()
 {
-	ivec2 m = ivec2(gl_FragCoord.xy) % iTAA;
-	if(m ==ivec2(0,0)) {
-		FragColor = texture(marchTexture0, TexCoord);
-	} else if (m == ivec2(0,1)) {
-		FragColor = texture(marchTexture1, TexCoord);
-	} else if (m == ivec2(1,0)) {
-		FragColor = texture(marchTexture2, TexCoord);
-	} else if (m == ivec2(1,1)) {
-		FragColor = texture(marchTexture3, TexCoord);
-	}
+	ivec2 c = ivec2(gl_FragCoord.xy);
+		FragColor = mix(
+				mix(
+				texelFetch(marchTexture0, c, 0),
+				texelFetch(marchTexture1, c, 0),0.5
+				),
+			mix(
+				texelFetch(marchTexture2, c, 0),
+				texelFetch(marchTexture3, c, 0),0.5
+				), 0.5
+			);
 }
