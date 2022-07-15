@@ -28,6 +28,8 @@ uniform vec3 iCamRot;
 uniform ivec3 iCamCellPos;
 uniform vec3 iCamFractPos;
 
+uniform int iFrame;
+
 // Dimensions
 const int X = 1024;
 const int Y = 256;
@@ -66,13 +68,16 @@ vec2 rotate2d(vec2 v, float a) {
 // Read data from texture
 //------------------------
 
-// Read 2D texture from 3D coordinate
-ivec3 tex(ivec3 c) {
+ivec2 project(ivec3 c){
   c.x = clamp(c.x, 0, X-1);
   c.y = clamp(c.y, 0, Y-1);
   c.z = clamp(c.z, 0, Z-1);
-  ivec3 v = ivec3(texelFetch(mapTexture, ivec2(c.x, c.y + Y*c.z), 0).rgb);
-  return v; // TODO: this gives the wrong color for Firefox
+  return ivec2(c.x, c.y + Y*c.z);
+}
+// Read 2D texture from 3D coordinate
+ivec3 tex(ivec3 c) {
+  return ivec3(texelFetch(mapTexture, project(c), 0).rgb);
+  // TODO: this gives the wrong color for Firefox
 }
 // SDF texture is split into two directions:
 // one for the distance to the closest thing above
@@ -88,7 +93,8 @@ int sdf(ivec3 c) {
   return min(sdf_dir(c,0), sdf_dir(c,1));
 }
 // Fancy trilinear interpolator (stolen from Wikipedia)
-float sdf(ivec3 c, vec3 f) {
+float sdf(ivec3 c, vec3 f, vec3 n) {
+  c += ivec3(n);
   f = f - 0.5;
   ivec3 dir = ivec3(sign(f));
   f = abs(f);
@@ -241,11 +247,18 @@ void main() {
 
   // Marching setup
   ivec3 camCellPos = iCamCellPos;
-  vec3 camFractPos = iCamFractPos;
+  vec3 camFractPos = iCamFractPos + 1e-3;
   vec3 camRot = iCamRot;
   vec3 rayDir;
 
   vec2 screenPos = TexCoord * 0.6;
+
+#ifdef JITTER
+  int modFrame = iFrame % 4;
+  vec2 e = 0.5 / iResolution;
+  screenPos.x += (modFrame > 1) ? e.x : -e.x;
+  screenPos.y += (modFrame % 2 == 0) ? e.y : -e.y;
+#endif
 
   vec3 camDir = vec3(0, 1, 0);
   vec3 camPlaneU = vec3(1, 0, 0);
@@ -296,7 +309,7 @@ void main() {
     vec3 baseCol = color(res.cellPos, res.fractPos);
 
     // Mix in any glass we hit along the way
-    vec3 glassCol = mix(vec3(0.3, 0.5, 0.7), vec3(1), exp(-float(res.glass)));
+    vec3 glassCol = mix(vec3(0.3, 0.5, 0.7), vec3(1), exp(-res.glass));
 
     // A touch of brightness for tall things
     vec3 heightCol = vec3(float(clamp(res.rayPos.z, 0., 1.))/Zf + 5.)/6.;
@@ -347,7 +360,7 @@ void main() {
 
 #if QUALITY > 1
     // Do cheap ambient occlusion by interpolating SDFs
-    float ambFactor = pow(sdf(res.cellPos, res.fractPos)*2., 0.5);
+    float ambFactor = pow(sdf(res.cellPos, res.fractPos, res.normal)*2., 0.5);
     vec3 ambCol = mix(shadeCol, vec3(1), ambFactor);
 #else
     vec3 ambCol = vec3(1);
@@ -381,8 +394,7 @@ void main() {
       * normalCol
       * heightCol
       * lightCol
-      * ambCol
-      * 1.0;
+      * ambCol;
 
     // Make far-away objects fade to the sky color,
     // also add the sky if we reached the void
