@@ -62,7 +62,7 @@ maps/texture.ppm: bin/sdf maps/map.ppm
 	# results in a combined SDF + voxel color texture
 	bin/sdf
 
-maps/texture.png:
+maps/texture.png: maps/texture.ppm
 	### PPM to PNG
 	convert maps/texture.ppm -profile src/srgb.v4.icc png24:maps/texture.png
 

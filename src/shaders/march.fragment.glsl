@@ -115,7 +115,7 @@ float sdf(ivec3 c, vec3 f) {
 
 // Get color from texture's palette index
 vec3 palette(int p) {
-  return p==0?vec3(0,0,0):p==1?vec3(0.0431373,0.0627451,0.0745098):p==2?vec3(0.133333,0.490196,0.317647):p==3?vec3(0.392157,0.211765,0.235294):p==4?vec3(0.439216,0.486275,0.454902):p==5?vec3(0.505882,0.780392,0.831373):p==6?vec3(0.52549,0.65098,0.592157):p==7?vec3(0.666667,0.666667,0.666667):p==8?vec3(0.741176,0.752941,0.729412):p==9?vec3(0.768627,0.384314,0.262745):p==10?vec3(0.780392,0.243137,0.227451):p==11?vec3(0.854902,0.788235,0.65098):p==12?vec3(0.964706,0.772549,0.333333):p==13?vec3(1,1,1):vec3(1);
+  return p==0?vec3(0,0,0):p==1?vec3(0.0431373,0.0627451,0.0745098):p==2?vec3(0.133333,0.490196,0.317647):p==3?vec3(0.180392,0.662745,0.87451):p==4?vec3(0.337255,0.423529,0.45098):p==5?vec3(0.392157,0.211765,0.235294):p==6?vec3(0.439216,0.486275,0.454902):p==7?vec3(0.505882,0.780392,0.831373):p==8?vec3(0.52549,0.65098,0.592157):p==9?vec3(0.666667,0.666667,0.666667):p==10?vec3(0.741176,0.752941,0.729412):p==11?vec3(0.768627,0.384314,0.262745):p==12?vec3(0.780392,0.243137,0.227451):p==13?vec3(0.854902,0.788235,0.65098):p==14?vec3(0.964706,0.772549,0.333333):p==15?vec3(0.984314,0.886275,0.317647):p==16?vec3(1,1,1):vec3(1);
 }
 vec3 color(ivec3 c){
   return palette(tex(c).b);
@@ -204,12 +204,12 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
       res.material = tex(res.cellPos).b;
 
       // Glass stuff
-      if (res.material == 5) { // If glass
+      if (res.material == 7) { // If glass
 
 	// Go through the glass
 	dist++;
 
-	if(lastMaterial != 5) {
+	if(lastMaterial != 7) {
 	  // Refract ray
 	  res.glass += 1.0 - 0.5*abs(dot(rayDir, res.normal));
 	  rayDir = refract(rayDir, res.normal, 0.8);
@@ -261,6 +261,8 @@ void main() {
   vec3 camPlaneU = vec3(1, 0, 0);
   vec3 camPlaneV = vec3(0, 0, 1) * iResolution.y / iResolution.x;
 
+  vec3 noise = 1.0 + 0.1 * hash(gl_FragCoord.xyx);
+
   // Distinguish regular camera & minimap 
   float miniSize = 1./4.;
   float miniPos = 1. - miniSize;
@@ -297,7 +299,6 @@ void main() {
 
     // Get result of marching
     March res = march(camCellPos, camFractPos, rayDir, MAX_RAY_STEPS);
-    vec3 noise = 1.0 + 0.1 * hash(100.0 * res.fractPos);
     
     // Intersection distance
     float dist = length(res.rayPos.xy - vec2(camCellPos.xy));
@@ -305,7 +306,7 @@ void main() {
     // Start coloring!
 
     // Get base color (matte & shadowless) from texture
-    vec3 baseCol = palette(res.material) * noise.xxx;
+    vec3 baseCol = palette(res.material);
 
     // Mix in any glass we hit along the way
     vec3 glassCol = mix(vec3(0.3, 0.5, 0.7), vec3(1), exp(-res.glass));
