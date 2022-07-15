@@ -66,7 +66,8 @@ async function main() {
     const frag = (await (await fetch("src/shaders/march.fragment.glsl"))
             .text())
         .replace("#version 330 core", "#version 300 es")
-        .replace("#define QUALITY 3", "#define QUALITY " + (url.searchParams.get("quality") || "3") )
+        .replace("#define QUALITY 3", "#define QUALITY " + (url.searchParams
+            .get("quality") || "3"))
 
     // setup GLSL program
     const program = createProgramFromSources(gl, [vert, frag])
@@ -116,10 +117,15 @@ async function main() {
 }
 
 async function map_texture() {
-    
+
     let texture_buffer
-    if (url.protocol === 'https:') {
-        const encrypted_blob = await (await fetch("src/map.blob")).blob()
+    if (url.protocol == 'https:') {
+        const compressed_blob = await (await fetch("src/map.blob")).blob()
+
+        const encrypted_stream = compressed_blob.stream()
+        .pipeThrough(new DecompressionStream('gzip'))
+
+        const encrypted_blob = await new Response(encrypted_stream).blob()
 
         const crypto_initial = Uint8Array.from([
             55, 44, 146, 89,
@@ -150,7 +156,8 @@ async function map_texture() {
         }, crypto_key, await encrypted_blob.arrayBuffer())
 
     } else {
-        texture_buffer = new Uint8Array(await (await fetch("maps/texture.bin")).arrayBuffer())
+        texture_buffer = new Uint8Array(await (await fetch(
+            "maps/texture.bin")).arrayBuffer())
         console.log(texture_buffer)
     }
 
@@ -246,7 +253,8 @@ async function add_listeners() {
         if (delta < 5 && delta > -15) return;
 
         upSample *= target / fps
-        upSample = Math.pow(2, Math.round(Math.max(-2,Math.log(upSample))))
+        upSample = Math.pow(2, Math.round(Math.max(-2, Math.log(
+            upSample))))
         resize()
     }, 1000)
     resize()
@@ -255,6 +263,7 @@ async function add_listeners() {
 function floor(x) {
     return Math.floor(x)
 }
+
 function fract(x) {
     return x - floor(x)
 }
@@ -272,8 +281,10 @@ function render(now) {
 
     gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
     gl.uniform1f(handles.time, times[0])
-    gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos.y), fract(camera.pos.z))
-    gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos.y), floor(camera.pos.z))
+    gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos.y),
+        fract(camera.pos.z))
+    gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos.y),
+        floor(camera.pos.z))
     gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera.rot.z)
     gl.uniform1i(handles.frame, frame)
 
