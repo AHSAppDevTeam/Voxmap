@@ -66,7 +66,7 @@ async function main() {
     const frag = (await (await fetch("src/shaders/march.fragment.glsl"))
             .text())
         .replace("#version 330 core", "#version 300 es")
-        .replace("#define QUALITY 2", "#define QUALITY " + (url.searchParams.get("quality") || "2") )
+        .replace("#define QUALITY 3", "#define QUALITY " + (url.searchParams.get("quality") || "3") )
 
     // setup GLSL program
     const program = createProgramFromSources(gl, [vert, frag])
@@ -117,8 +117,7 @@ async function main() {
 
 async function map_texture() {
     
-    const image = new Image()
-
+    let texture_buffer
     if (url.protocol === 'https:') {
         const encrypted_blob = await (await fetch("src/map.blob")).blob()
 
@@ -150,23 +149,18 @@ async function map_texture() {
             'iv': crypto_initial
         }, crypto_key, await encrypted_blob.arrayBuffer())
 
-        const decrypted_blob = new Blob([decrypted_buffer], {
-            type: "image/png"
-        })
-
-        image.src = URL.createObjectURL(decrypted_blob)
     } else {
-        image.src = "maps/texture.png"
+        texture_buffer = new Uint8Array(await (await fetch("maps/texture.bin")).arrayBuffer())
+        console.log(texture_buffer)
     }
-
-    await image.decode() // let load
 
     const texture = gl.createTexture()
 
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
-        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, image)
+        1024, 4096, 0,
+        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, texture_buffer)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);

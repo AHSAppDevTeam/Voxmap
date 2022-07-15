@@ -26,6 +26,9 @@ precision highp int;
 #endif
 
 #if QUALITY > 2
+#endif
+
+#if QUALITY > 3
 #define JITTER
 #endif
 
@@ -51,6 +54,8 @@ const int Z = 16;
 const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
+
+const float FoV = 1.0;
 
 // Quality-adjustable raytracing parameters
 const int MAX_BOUNCES = max(QUALITY - 1, 1);
@@ -96,21 +101,17 @@ int sdf_dir(ivec3 c, int dir) {
   ivec2 d = tex(c).rg;
   return (d.r + max(0, c.z - Z))*dir + d.g*(1-dir);
 }
-// Return regular SDF for certain applications,
-// like ambient occlusion
-int sdf(ivec3 c) {
-  return min(sdf_dir(c,0), sdf_dir(c,1));
-}
 // Fancy trilinear interpolator (stolen from Wikipedia)
 float sdf(ivec3 c, vec3 f) {
   f = f - 0.5;
   ivec3 dir = ivec3(sign(f));
   f = abs(f);
-#define D3(X,Y,Z) ( float(sdf(c + dir * ivec3(X,Y,Z))) )
+#define D3(X,Y,Z) ( vec3(tex(c + dir * ivec3(X,Y,Z))) )
 #define D2(Y,Z) ( mix(D3(0,Y,Z), D3(1,Y,Z), f.x) )
 #define D1(Z)   ( mix(D2(0,Z),   D2(1,Z),   f.y) )
 #define D0      ( mix(D1(0),     D1(1),     f.z) )
-  return D0;
+  vec3 o = D0;
+  return min(o.r, o.g);
 }
 
 // Get color from texture's palette index
@@ -212,6 +213,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 	if(lastMaterial != 7) {
 	  // Refract ray
 	  res.glass += 1.0 - 0.5*abs(dot(rayDir, res.normal));
+	  res.glass += sqrt(length(res.fractPos - 0.5));
 	  rayDir = refract(rayDir, res.normal, 0.8);
 	}
       }
@@ -230,7 +232,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
 // Signed distance field to make the triangular pointer
 // in the minimap.
-float sdTriangleIsosceles( in vec2 p, in vec2 q )
+float sdTriangle( in vec2 p, in vec2 q )
 {
   p.x = abs(p.x);
   vec2 a = p - q*clamp( dot(p,q)/dot(q,q), 0.0, 1.0 );
@@ -255,24 +257,28 @@ void main() {
   vec3 camRot = iCamRot;
   vec3 rayDir;
 
-  vec2 screenPos = TexCoord * 0.6;
+  vec2 screenPos = TexCoord * FoV;
 
   vec3 camDir = vec3(0, 1, 0);
   vec3 camPlaneU = vec3(1, 0, 0);
   vec3 camPlaneV = vec3(0, 0, 1) * iResolution.y / iResolution.x;
 
+#ifdef JITTER
   vec3 noise = 1.0 + 0.1 * hash(gl_FragCoord.xyx);
+#else
+  vec3 noise = vec3(1.0);
+#endif
 
   // Distinguish regular camera & minimap 
-  float miniSize = 1./4.;
-  float miniPos = 1. - miniSize;
-  bool inMini = all(greaterThan(TexCoord, vec2(miniPos - miniSize)));
+  vec2 miniPos = vec2(0, 0.7);
+  screenPos += 0.5 * miniPos;
+  bool inMini = TexCoord.y > 0.4;
   if( inMini ) {
     // Orthographic overhead minimap camera
     camFractPos.xyz = vec3(0.5);
     camCellPos.xy += ivec2((TexCoord - miniPos)*Yf);
     camCellPos.z = Z + 1;
-    rayDir = normalize(vec3(.01,.01,-1.));
+    rayDir = normalize(vec3(-1,3,-6));
   } else {
     // First-person rectilinear perspective camera
     rayDir = normalize(
@@ -299,6 +305,7 @@ void main() {
 
     // Get result of marching
     March res = march(camCellPos, camFractPos, rayDir, MAX_RAY_STEPS);
+
     
     // Intersection distance
     float dist = length(res.rayPos.xy - vec2(camCellPos.xy));
@@ -310,9 +317,6 @@ void main() {
 
     // Mix in any glass we hit along the way
     vec3 glassCol = mix(vec3(0.3, 0.5, 0.7), vec3(1), exp(-res.glass));
-
-    // A touch of brightness for tall things
-    vec3 heightCol = vec3(float(clamp(res.rayPos.z, 0., 1.))/Zf + 5.)/6.;
 
     // Darken faces with ±X, ±Y, or -Z normals
     vec3 normalCol = mat3x3(
@@ -394,7 +398,6 @@ void main() {
     // Multiply everything together
     vec3 objCol = baseCol
       * normalCol
-      * heightCol
       * lightCol
       * ambCol;
 
@@ -408,13 +411,13 @@ void main() {
 
     // If too much sky, stop bouncing
     bounceFactor = 1.0 - 2.0 * sqrt(dot(-res.normal, rayDir));
-    if(skyFactor > 0.95 || bounceFactor < 0.0) break;
+    if(inMini || skyFactor > 0.95 || bounceFactor < 0.0) break;
 
     rayDir = reflect(rayDir, res.normal) * noise;
   }
 
   // Highlight viewing range triangle
-  if(inMini && sdTriangleIsosceles(rotate2d(TexCoord - miniPos, -camRot.z), vec2(0.2,0.6)) < 0.) {
+  if(inMini && sdTriangle(rotate2d(TexCoord - miniPos, -camRot.z), vec2(0.5,1.5)) < 0.) {
     col *= 1.5;
   }
 
