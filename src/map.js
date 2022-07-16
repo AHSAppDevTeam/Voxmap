@@ -137,7 +137,9 @@ async function main() {
 async function map_texture() {
 
     if(url.protocol === "http:")
-        return new Uint8Array(await (await fetch("maps/texture.bin")).arrayBuffer())
+        return fetch("maps/texture.bin")
+        .then(response => response.arrayBuffer())
+        .then(buffer => new Uint8Array(buffer))
 
     const crypto_initial = Uint8Array.from([
         55, 44, 146, 89,
@@ -159,7 +161,7 @@ async function map_texture() {
         ["encrypt", "decrypt"]
     )
 
-    const texture_buffer = await fetch("src/map.blob")
+    return fetch("src/map.blob")
         .then(response => response.blob())
         .then(blob => blob.arrayBuffer())
         .then(buffer => crypto.subtle.decrypt({
@@ -172,7 +174,6 @@ async function map_texture() {
         .then(stream => new Response(stream).arrayBuffer())
         .then(buffer => new Uint8Array(buffer))
 
-    const texture = gl.createTexture()
 }
 
 async function add_listeners() {
