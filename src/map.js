@@ -133,14 +133,7 @@ async function main() {
     start()
     add_listeners()
 }
-
-async function map_texture() {
-
-    if(url.protocol === "http:")
-        return fetch("maps/texture.bin")
-        .then(response => response.arrayBuffer())
-        .then(buffer => new Uint8Array(buffer))
-
+async function decrypt(blob){
     const crypto_initial = Uint8Array.from([
         55, 44, 146, 89,
         30, 93, 68, 30,
@@ -161,14 +154,22 @@ async function map_texture() {
         ["encrypt", "decrypt"]
     )
 
-    return fetch("src/map.blob")
-        .then(response => response.blob())
-        .then(blob => blob.arrayBuffer())
+    return blob.arrayBuffer()
         .then(buffer => crypto.subtle.decrypt({
             'name': 'AES-CBC',
             'iv': crypto_initial
         }, crypto_key, buffer))
-        .then(buffer => new Blob([buffer]).stream())
+        .then(buffer => new Blob([buffer]))
+}
+
+async function map_texture() {
+
+    const encrypted = url.protocol === "https:"
+
+    return fetch(encrypted ? "src/map.blob" : "maps/texture.bin.gz")
+        .then(response => response.blob())
+        .then(blob => encrypted ? decrypt(blob) : blob)
+        .then(blob => blob.stream())
         .then(stream => stream.pipeThrough(new DecompressionStream(
             'gzip')))
         .then(stream => new Response(stream).arrayBuffer())

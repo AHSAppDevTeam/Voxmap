@@ -150,6 +150,7 @@
 	<script src=src/url.js></script>
 	<script>
 const map = document.getElementById("map")
+const search = document.getElementById("search")
 map.src = "map.html?quality=3&clean=1&password=" 
 + (get_param("password") || prompt("password"))
 map.focus()

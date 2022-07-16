@@ -62,7 +62,10 @@ maps/texture.bin: bin/sdf maps/map.ppm
 	# results in a combined SDF + voxel color texture
 	bin/sdf
 
-src/map.blob: maps/texture.bin
+maps/texture.bin.gz: maps/texture.bin
+	gzip maps/texture.bin.gz
+
+src/map.blob: maps/texture.bin.gz
 	### (MANUAL STEP) Encrypt PNG
 	# Open encrypt.html
 	# Enter encryption key
