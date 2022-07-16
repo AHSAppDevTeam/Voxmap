@@ -19,65 +19,27 @@
 			font-size: 16px;
 		}
 
+		body {
+			display: flex;
+			flex-direction: column;
+		}
+
+		#map {
+			flex-grow: 1;
+			width: 100%;
+			border: 0;
+		}
+
 		body *{
 			box-sizing: border-box;
 		}
 
-		#debug {
-			opacity: 0;
-			font-family: Monospace, Monospace;
-			font-size: 0.8rem;
-			position: fixed;
-			color: white;
-			text-shadow: 0 0 2px black;
-			bottom: 1rem;
-			left: 1rem;
-		}
-
-		#canvas,
-		#joystick,
 		#form {
-			position: fixed;
-			touch-action: none;
-		}
-
-		#canvas {
-			right: 0;
-			top: 0;
-			width: 100vmin;
-			height: 100vmin;
-		}
-
-		#joystick {
-			left: 0;
-			bottom: 0;
-			width: 50vmin;
-			height: 50vmin;
-			background: radial-gradient(closest-side at center,
-					#0008,
-					#0000);
-		}
-
-		#joystick>:first-child {
-			width: 100%;
-			height: 100%;
-			border-radius: 100%;
-			background: radial-gradient(closest-side at center,
-					#fff8,
-					#fff6,
-					#ffff 49%,
-					#fff0 50%);
-		}
-
-		#form {
-			width: 100vmin;
-			height: auto;
 			padding-top: 1rem;
 			bottom: 0;
 			background: white;
 			display: flex;
 			flex-direction: column;
-			border-radius: 1rem 1rem 0 0;
 		}
 
 		#form label {
@@ -129,13 +91,10 @@
 </head>
 
 <body>
-	<canvas id=canvas></canvas>
-	<div id=joystick>
-		<div></div>
-	</div>
+	<iframe id="map"></iframe>
 	<form id="form">
 		<label>
-			<input id="search" placeholder="Oh please just type inside me">
+			<input id="search" placeholder="Search...">
 		</label>
 		<label>
 			<ul id="categories">
@@ -188,9 +147,13 @@
 			</ul>
 		</label>
 	</form>
-	<div id=debug></div>
-	<script src="src/webgl.js"></script>
-	<script src="src/main.js"></script>
+	<script src=src/url.js></script>
+	<script>
+const map = document.getElementById("map")
+map.src = "map.html?quality=3&clean=1&password=" 
++ (get_param("password") || prompt("password"))
+map.focus()
+	</script>
 </body>
 
 </html>

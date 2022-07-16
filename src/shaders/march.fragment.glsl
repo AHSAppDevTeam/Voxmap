@@ -44,6 +44,8 @@ uniform vec3 iCamRot;
 uniform ivec3 iCamCellPos;
 uniform vec3 iCamFractPos;
 
+uniform vec3 iSunDir;
+
 uniform int iFrame;
 
 // Dimensions
@@ -230,19 +232,6 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
   return res;
 }
 
-// Signed distance field to make the triangular pointer
-// in the minimap.
-float sdTriangle( in vec2 p, in vec2 q )
-{
-  p.x = abs(p.x);
-  vec2 a = p - q*clamp( dot(p,q)/dot(q,q), 0.0, 1.0 );
-  vec2 b = p - q*vec2( clamp( p.x/q.x, 0.0, 1.0 ), 1.0 );
-  float s = -sign( q.y );
-  vec2 d = min( vec2( dot(a,a), s*(p.x*q.y-p.y*q.x) ),
-      vec2( dot(b,b), s*(p.y-q.y)  ));
-  return -sqrt(d.x)*sign(d.y);
-}
-
 // Colorizer
 //-----------
 
@@ -269,32 +258,17 @@ void main() {
   vec3 noise = vec3(1.0);
 #endif
 
-  // Distinguish regular camera & minimap 
-  vec2 miniPos = vec2(0, 0.7);
-  screenPos += 0.5 * miniPos;
-  bool inMini = TexCoord.y > 0.4;
-  if( inMini ) {
-    // Orthographic overhead minimap camera
-    camFractPos.xyz = vec3(0.5);
-    camCellPos.xy += ivec2((TexCoord - miniPos)*Yf);
-    camCellPos.z = Z + 1;
-    rayDir = normalize(vec3(-1,3,-6));
-  } else {
-    // First-person rectilinear perspective camera
-    rayDir = normalize(
-	camDir
-	+ screenPos.x * camPlaneU
-	+ screenPos.y * camPlaneV
-	);
-    rayDir.yz = rotate2d(rayDir.yz, camRot.x);
-    rayDir.xy = rotate2d(rayDir.xy, camRot.z);
-  }
+  // First-person rectilinear perspective camera
+  rayDir = normalize(
+      camDir
+      + screenPos.x * camPlaneU
+      + screenPos.y * camPlaneV
+      );
+  rayDir.yz = rotate2d(rayDir.yz, camRot.x);
+  rayDir.xy = rotate2d(rayDir.xy, camRot.z);
 
   // Set up the Sun
-  vec3 sunDir = normalize(vec3(0,0,1));
-  sunDir.xz = rotate2d(sunDir.xz, iTime/17.);
-  sunDir.xy = rotate2d(sunDir.xy, sin(iTime/31.)/3.);
-  sunDir.z = abs(sunDir.z);
+  vec3 sunDir = iSunDir;
 
   // Shorthand for FragColor.rgb
   vec3 col;
@@ -411,17 +385,11 @@ void main() {
 
     // If too much sky, stop bouncing
     bounceFactor = 1.0 - 2.0 * sqrt(dot(-res.normal, rayDir));
-    if(inMini || skyFactor > 0.95 || bounceFactor < 0.0) break;
+    if(skyFactor > 0.95 || bounceFactor < 0.0) break;
 
     rayDir = reflect(rayDir, res.normal) * noise;
   }
 
-  // Highlight viewing range triangle
-  if(inMini && sdTriangle(rotate2d(TexCoord - miniPos, -camRot.z), vec2(0.5,1.5)) < 0.) {
-    col *= 1.5;
-  }
-
   // And we're done!
   FragColor.rgb = col;
-  FragColor.a = 1.0;
 }

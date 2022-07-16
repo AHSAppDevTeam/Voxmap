@@ -22,7 +22,14 @@ let upSample = 2
 let running = false
 let frame = 0
 
-const camera = {
+const weather = get_json_param("weather") || {
+    sun: {
+        x: 0.0,
+        y: 0.0,
+        z: 1.0
+    }
+}
+const camera = get_json_param("camera") || {
     pos: {
         x: 381.5,
         y: 128.1,
@@ -53,8 +60,6 @@ const controls = {
     },
 }
 
-const url = new URL(window.location)
-
 main()
 
 
@@ -66,8 +71,7 @@ async function main() {
     const frag = (await (await fetch("src/shaders/march.fragment.glsl"))
             .text())
         .replace("#version 330 core", "#version 300 es")
-        .replace("#define QUALITY 3", "#define QUALITY " + (url.searchParams
-            .get("quality") || "3"))
+        .replace("#define QUALITY 3", "#define QUALITY " + (get_param("quality") || "3"))
 
     // setup GLSL program
     const program = createProgramFromSources(gl, [vert, frag])
@@ -79,9 +83,23 @@ async function main() {
     handles.rotation = gl.getUniformLocation(program, "iCamRot")
     handles.cellPos = gl.getUniformLocation(program, "iCamCellPos")
     handles.fractPos = gl.getUniformLocation(program, "iCamFractPos")
+    handles.sun = gl.getUniformLocation(program, "iSunDir")
     handles.frame = gl.getUniformLocation(program, "iFrame")
 
-    map_texture()
+    const texture = gl.createTexture()
+
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
+        1024, 4096, 0,
+        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, await map_texture())
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.uniform1i(handles.textureSampler, 0)
 
     const positionBuffer = gl.createBuffer();
 
@@ -118,77 +136,49 @@ async function main() {
 
 async function map_texture() {
 
-    let texture_buffer
+    if(url.protocol === "http:")
+        return new Uint8Array(await (await fetch("maps/texture.bin")).arrayBuffer())
 
-    if (url.protocol === 'https:') {
+    const crypto_initial = Uint8Array.from([
+        55, 44, 146, 89,
+        30, 93, 68, 30,
+        209, 23, 56, 140,
+        88, 149, 55, 221
+    ])
 
-        const crypto_initial = Uint8Array.from([
-            55, 44, 146, 89,
-            30, 93, 68, 30,
-            209, 23, 56, 140,
-            88, 149, 55, 221
-        ])
+    const crypto_key = await crypto.subtle.importKey("jwk", {
+            "alg": "A256CBC",
+            "ext": true,
+            "k": url.searchParams.get("password") || prompt("password"),
+            "key_ops": ["encrypt", "decrypt"],
+            "kty": "oct"
+        }, {
+            "name": "AES-CBC"
+        },
+        false,
+        ["encrypt", "decrypt"]
+    )
 
-        const crypto_key = await crypto.subtle.importKey("jwk", {
-                "alg": "A256CBC",
-                "ext": true,
-                "k": url.searchParams.get("password") || prompt(
-                    "password"),
-                "key_ops": ["encrypt", "decrypt"],
-                "kty": "oct"
-            }, {
-                "name": "AES-CBC"
-            },
-            false,
-            ["encrypt", "decrypt"]
-        )
-
-        url.searchParams.set("password", "")
-        //window.history.replaceState(null, "", url.toString())
-
-        texture_buffer = await fetch("src/map.blob")
-            .then(response => response.blob())
-            .then(blob => blob.arrayBuffer())
-            .then(buffer => crypto.subtle.decrypt({
-                'name': 'AES-CBC',
-                'iv': crypto_initial
-            }, crypto_key, buffer))
-            .then(buffer => new Blob([buffer]).stream())
-            .then(stream => stream.pipeThrough(new DecompressionStream(
-                'gzip')))
-            .then(stream => new Response(stream).arrayBuffer())
-            .then(buffer => new Uint8Array(buffer))
-
-    } else {
-        texture_buffer = new Uint8Array(await (await fetch(
-            "maps/texture.bin")).arrayBuffer())
-        console.log(texture_buffer)
-    }
+    const texture_buffer = await fetch("src/map.blob")
+        .then(response => response.blob())
+        .then(blob => blob.arrayBuffer())
+        .then(buffer => crypto.subtle.decrypt({
+            'name': 'AES-CBC',
+            'iv': crypto_initial
+        }, crypto_key, buffer))
+        .then(buffer => new Blob([buffer]).stream())
+        .then(stream => stream.pipeThrough(new DecompressionStream(
+            'gzip')))
+        .then(stream => new Response(stream).arrayBuffer())
+        .then(buffer => new Uint8Array(buffer))
 
     const texture = gl.createTexture()
-
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
-        1024, 4096, 0,
-        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, texture_buffer)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.uniform1i(handles.textureSampler, 0)
 }
 
 async function add_listeners() {
-    canvas.addEventListener('contextmenu', (event) => {
-        event.preventDefault()
-        canvas.requestPointerLock()
-    })
     canvas.addEventListener('click', (event) => {
         event.preventDefault()
-        document.body.requestFullscreen()
+        canvas.requestPointerLock()
     })
     canvas.addEventListener('pointermove', (event) => {
         controls.rot.z -= event.movementX / size
@@ -289,14 +279,10 @@ function render(now) {
 
     gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
     gl.uniform1f(handles.time, times[0])
-    gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos
-            .y),
-        fract(camera.pos.z))
-    gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos
-            .y),
-        floor(camera.pos.z))
-    gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera
-        .rot.z)
+    gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos.y), fract(camera.pos.z))
+    gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos.y), floor(camera.pos.z))
+    gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera.rot.z)
+    gl.uniform3f(handles.sun, weather.sun.x, weather.sun.y, weather.sun.z)
     gl.uniform1i(handles.frame, frame)
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
@@ -329,17 +315,27 @@ async function update_state(time, delta) {
     camera.rot.x = controls.rot.x * Math.PI * 2
     camera.rot.z = controls.rot.z * Math.PI
 
+    let hour = 1 + time / 60 / 60 * Math.PI / 180
+    weather.sun.x = Math.cos(hour) / Math.sqrt(2)
+    weather.sun.y = Math.cos(hour) / Math.sqrt(2)
+    weather.sun.z = Math.abs(Math.sin(hour))
+
     joystick.firstElementChild.style.transform =
         `translate(${controls.move.x*15}%, ${-controls.move.y*15}%)`
 
     const num = x => x.toFixed(1)
     const ft = x => num(x * 3)
 
-    debug.innerText = `${num(fps)} fps, ${num(upSample)} upscaling
+    if(!get_param("clean")) debug.innerText = `${num(fps)} fps, ${num(upSample)} upscaling
         position (ft): ${ft(camera.pos.x)}, ${ft(camera.pos.y)}, ${ft(camera.pos.z)}
         velocity (ft/s): ${ft(camera.vel.x)}, ${ft(camera.vel.y)}, ${ft(camera.vel.z)}
         by: Xing :D
     `
+
+    if(frame % 10 == 0) {
+        url.searchParams.set("camera", encodeURIComponent(JSON.stringify(camera)))
+        window.history.replaceState(null, "", url.toString())
+    }
 }
 
 function stop() {
@@ -353,7 +349,7 @@ function start() {
 }
 
 async function resize() {
-    size = Math.min(window.innerWidth, window.innerHeight)
+    size = Math.min(window.innerWidth, window.innerHeight) * 0.5
     resizeCanvasToDisplaySize(gl.canvas, 1 / upSample)
     canvas.style.imageRendering = upSample > 1 ? 'pixelated' :
         'auto'
