@@ -299,8 +299,10 @@ async function update_state(time, delta) {
     cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
     cam.pos = cam.pos.map((p, i) => p + cam.vel[i] * delta)
 
-    const [above, below, color] = await tex(cam.pos.map(floor))
-    console.log(above, below, color)
+    const feet_pos = cam.pos
+    feet_pos.z -= HEIGHT;
+    const [above, below, color] = await tex(feet_pos.map(floor))
+    cam.pos[z] -= Math.round(below - HEIGHT) * 2 * delta;
 
     cam.rot[x] = controls.rot[x] * Math.PI * 2
     cam.rot[z] = controls.rot[z] * Math.PI
