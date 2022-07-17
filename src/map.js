@@ -60,6 +60,7 @@ const tex = ([_x, _y, _z]) => Promise.all(
     .map( _c => map_texture.then(map => map[C*(X*(Y*(_z)+_y)+_x)+_c]) )
 )
 
+
 main()
 
 async function main() {
@@ -174,18 +175,17 @@ async function add_listeners() {
         canvas.requestPointerLock()
     })
     canvas.addEventListener('pointermove', (event) => {
-        controls.rot[z] -= event.movementX / size
-        controls.rot[x] -= event.movementY / size
-        controls.rot[x] = Math.max(-0.2, Math.min(controls.rot[x],
-            0.2))
+        controls.rot[z] -= 2 * event.movementX / size
+        controls.rot[x] -= 4 * event.movementY / size
+        controls.rot[x] = clamp(controls.rot[x], 0.8)
     })
     joystick.addEventListener('touchstart', () => {
         controls.active = true
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.active) {
-            controls.move[x] = +2 * (event.offsetX * 2 / size - 1)
-            controls.move[y] = -2 * (event.offsetY * 2 / size - 1)
+            controls.move[x] = +2 * clamp(event.offsetX * 2 / size - 1, 1)
+            controls.move[y] = -2 * clamp(event.offsetY * 2 / size - 1, 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -246,13 +246,10 @@ async function add_listeners() {
     resize()
 }
 
-function floor(x) {
-    return Math.floor(x)
-}
-
-function fract(x) {
-    return x - floor(x)
-}
+const floor = x => Math.floor(x)
+const fract = x => x - floor(x)
+const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
+const clamp = (x, a) => Math.min(Math.max(x, -a), a)
 
 function render(now) {
     times.pop()
@@ -304,8 +301,10 @@ async function update_state(time, delta) {
     const [above, below, color] = await tex(feet_pos.map(floor))
     cam.pos[z] -= Math.round(below - HEIGHT) * 2 * delta;
 
-    cam.rot[x] = controls.rot[x] * Math.PI * 2
-    cam.rot[z] = controls.rot[z] * Math.PI
+    cam.rot = cam.rot.map( 
+        (a, i) => cam.rot[i] + 
+        clamp( pow(controls.rot[i] - cam.rot[i], 1.5), 10*delta)
+    )
 
     let hour = time / 60 / 60 / 12 * Math.PI
     weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)
