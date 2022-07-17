@@ -310,7 +310,7 @@ void main() {
     float sunFactor = max(0., dot(sunDir, rayDir));
     float sun = sunFactor;
     float glow = sun;
-    sun = 0.5 * pow(sun,800.0);
+    sun = pow(sun,800.0);
     glow = pow(glow,6.0) * 1.0;
     glow = clamp(glow,0.0,1.0);
     sun += glow / 4.;

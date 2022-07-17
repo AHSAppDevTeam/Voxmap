@@ -22,6 +22,8 @@ let upSample = 2
 let running = false
 let frame = 0
 
+const start_time = Date.now() - new Date().getTimezoneOffset()*60*1000
+
 const weather = get_json_param("weather") || {
     sun: {
         x: 0.0,
@@ -133,6 +135,7 @@ async function main() {
     start()
     add_listeners()
 }
+
 async function decrypt(blob){
     const crypto_initial = Uint8Array.from([
         55, 44, 146, 89,
@@ -170,8 +173,7 @@ async function map_texture() {
         .then(response => response.blob())
         .then(blob => encrypted ? decrypt(blob) : blob)
         .then(blob => blob.stream())
-        .then(stream => stream.pipeThrough(new DecompressionStream(
-            'gzip')))
+        .then(stream => stream.pipeThrough(new DecompressionStream('gzip')))
         .then(stream => new Response(stream).arrayBuffer())
         .then(buffer => new Uint8Array(buffer))
 
@@ -270,7 +272,7 @@ function fract(x) {
 
 function render(now) {
     times.pop()
-    times.unshift(now / 1000)
+    times.unshift((start_time + now) / 1000)
 
     deltas.pop()
     deltas.unshift(times[0] - times[1])
@@ -317,10 +319,10 @@ async function update_state(time, delta) {
     camera.rot.x = controls.rot.x * Math.PI * 2
     camera.rot.z = controls.rot.z * Math.PI
 
-    let hour = 1 + time / 60 / 60 * Math.PI / 180
-    weather.sun.x = Math.cos(hour) / Math.sqrt(2)
-    weather.sun.y = Math.cos(hour) / Math.sqrt(2)
-    weather.sun.z = Math.abs(Math.sin(hour))
+    let hour = time / 60 / 60 / 12 * Math.PI
+    weather.sun.x = Math.sin(hour) * Math.sqrt(3/4)
+    weather.sun.y = Math.sin(hour) * Math.sqrt(1/4)
+    weather.sun.z = Math.abs(Math.cos(hour))
 
     joystick.firstElementChild.style.transform =
         `translate(${controls.move.x*15}%, ${-controls.move.y*15}%)`
