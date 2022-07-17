@@ -3,17 +3,17 @@ precision highp float;
 precision highp int;
 
 /* Quality settings:
-+---+---------+-------------------+-------------+-----------------+
-|   | Shadows | Ambient Occlusion | Reflections | Render distance |
-+---+---------+-------------------+-------------+-----------------+
-| 0 | No      | No                | No          | Short           |
-+---+---------+-------------------+-------------+-----------------+
-| 1 | Yes     | No                | No          | Medium          |
-+---+---------+-------------------+-------------+-----------------+
-| 2 | Yes     | Yes               | No          | Medium          |
-+---+---------+-------------------+-------------+-----------------+
-| 3 | Yes     | Yes               | Yes         | Long            |
-+---+---------+-------------------+-------------+-----------------+*/
+   +---+---------+-------------------+-------------+-----------------+
+   |   | Shadows | Ambient Occlusion | Reflections | Render distance |
+   +---+---------+-------------------+-------------+-----------------+
+   | 0 | No      | No                | No          | Short           |
+   +---+---------+-------------------+-------------+-----------------+
+   | 1 | Yes     | No                | No          | Medium          |
+   +---+---------+-------------------+-------------+-----------------+
+   | 2 | Yes     | Yes               | No          | Medium          |
+   +---+---------+-------------------+-------------+-----------------+
+   | 3 | Yes     | Yes               | Yes         | Long            |
+   +---+---------+-------------------+-------------+-----------------+*/
 #define QUALITY 3
 
 #if QUALITY > 0
@@ -69,9 +69,9 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 
 vec3 hash(vec3 p3)
 {
-    p3 = fract(p3 * vec3(.1031, .1030, .0973));
-    p3 += dot(p3, p3.yxz+33.33);
-    return fract((p3.xxy + p3.yxx)*p3.zyx) - 0.5;
+  p3 = fract(p3 * vec3(.1031, .1030, .0973));
+  p3 += dot(p3, p3.yxz+33.33);
+  return fract((p3.xxy + p3.yxx)*p3.zyx) - 0.5;
 }
 
 // Vector rotater
@@ -243,11 +243,7 @@ void main() {
   vec3 camRot = iCamRot;
   vec3 rayDir;
 
-  vec2 screenPos = TexCoord * FoV;
-
-  vec3 camDir = vec3(0, 1, 0);
-  vec3 camPlaneU = vec3(1, 0, 0);
-  vec3 camPlaneV = vec3(0, 0, 1) * iResolution.y / iResolution.x;
+  vec2 screenPos = TexCoord * FoV * iResolution.xy / length(iResolution);
 
 #ifdef JITTER
   vec3 noise = 1.0 + 0.1 * hash(gl_FragCoord.xyx);
@@ -256,11 +252,7 @@ void main() {
 #endif
 
   // First-person rectilinear perspective camera
-  rayDir = normalize(
-      camDir
-      + screenPos.x * camPlaneU
-      + screenPos.y * camPlaneV
-      );
+  rayDir = normalize(vec3(screenPos.x, 1.0, screenPos.y));
   rayDir.yz = rotate2d(rayDir.yz, camRot.x);
   rayDir.xy = rotate2d(rayDir.xy, camRot.z);
 
@@ -277,7 +269,6 @@ void main() {
     // Get result of marching
     March res = march(camCellPos, camFractPos, rayDir, MAX_RAY_STEPS);
 
-    
     // Intersection distance
     float dist = length(res.rayPos.xy - vec2(camCellPos.xy));
 
@@ -304,22 +295,18 @@ void main() {
     // Fancy sky!
 
     // Color of the sky where the Sun is
-    float sunFactor = max(0., dot(sunDir, rayDir));
-    float sun = sunFactor;
-    float glow = sun;
-    sun = pow(sun,800.0);
-    glow = pow(glow,6.0) * 1.0;
-    glow = clamp(glow,0.0,1.0);
-    sun += glow / 4.;
+    float sunFactor = max(0.0, dot(sunDir, rayDir)) - 1.0;
+    float glow = exp2(8.0 * sunFactor);
+    sunFactor = exp2(800.0 * sunFactor) + 0.25 * glow;
 
     // Color of the sky where the Sun isn't
-    float scatter = 1.0 - pow(max(0.0, sunDir.z), 0.3);
+    float scatter = 1.0 - sqrt(max(0.0, sunDir.z));
     vec3 spaceCol = mix(vec3(0.1,0.3,0.5),vec3(0.0), scatter);
     vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.0), scatter);
-    vec3 atmCol = mix(scatterCol, spaceCol, pow(max(0.0, rayDir.z), 0.5));
+    vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, rayDir.z)));
 
     // Mix where the Sun is and where the Sun isn't
-    vec3 skyCol = vec3(1.4, 1.0, 0.5)*sun + atmCol;
+    vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol;
 
     // Make sure values don't overflow (the Sun can be very bright)
     skyCol = clamp(skyCol, vec3(0), vec3(1));
@@ -336,15 +323,15 @@ void main() {
 #ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
     float ambDist = sdf(
-	res.cellPos + ivec3(res.normal), 
+	res.cellPos + ivec3(res.normal),
 	res.fractPos
-      );
+	);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
     vec3 ambCol = vec3(1);
 #endif
-    
+
     // Bounce the ray across the surface
     MAX_RAY_STEPS /= 2;
     MAX_SUN_STEPS /= 2;
@@ -375,14 +362,14 @@ void main() {
     // Make far-away objects fade to the sky color,
     // also add the sky if we reached the void
     float skyFactor = (res.step == MAX_RAY_STEPS || res.minDist > Zf) ? 1.
-      : pow(clamp(dist/Yf, 0., 1.), 3.);
+      : min(dist*dist*dist*1e-7, 1.0);
     vec3 bounceCol = mix( objCol, skyCol, skyFactor ) * glassCol;
 
     col = mix(col, bounceCol, exp(-float(i)) * bounceFactor);
 
     // If too much sky, stop bouncing
-    bounceFactor = 1.0 - 2.0 * sqrt(dot(-res.normal, rayDir));
-    if(skyFactor > 0.95 || bounceFactor < 0.0) break;
+    bounceFactor = exp2(13.0 * dot(res.normal, rayDir));
+    if(skyFactor > 0.95 || bounceFactor < 0.05) break;
 
     rayDir = reflect(rayDir, res.normal) * noise;
   }
