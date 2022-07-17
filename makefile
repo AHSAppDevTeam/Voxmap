@@ -74,6 +74,9 @@ src/map.blob: maps/texture.bin.gz
 	# Rename file to map.blob
 	# And move it to src/
 
+src/noise.bin: bin/noise
+	bin/noise
+
 bin/VoxWriter.o:
 	clang++ -I libs/MagicaVoxel_File_Writer -Og -g -std=gnu++20 \
 		-o bin/VoxWriter.o -c libs/MagicaVoxel_File_Writer/VoxWriter.cpp
@@ -94,6 +97,9 @@ bin/vox-reverse: bin/VoxWriter.o bin/vox-reverse.o
 
 bin/sdf: src/sdf-pass.cpp
 	clang++ src/sdf-pass.cpp -g -Og -std=gnu++20 -o bin/sdf
+
+bin/noise: src/noise-gen.cpp
+	clang++ src/noise-gen.cpp -g -Og -std=gnu++20 -o bin/noise
 
 bin/viewer: src/viewer.cpp libs/glad.c
 	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw -O3 -o bin/viewer

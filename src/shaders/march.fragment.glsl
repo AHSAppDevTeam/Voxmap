@@ -37,6 +37,7 @@ out vec4 FragColor;
 in vec2 TexCoord;
 
 uniform highp usampler2D mapTexture;
+uniform highp usampler2D noiseTexture;
 uniform vec2 iResolution;
 uniform float iTime;
 uniform vec3 iCamRot;
@@ -67,9 +68,9 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 // Utility functions
 //-------------------
 
-vec3 hash(vec3 p3)
+vec3 hash(vec2 p)
 {
-  p3 = fract(p3 * vec3(.1031, .1030, .0973));
+  vec3 p3 = fract(p.xyx * vec3(.1031, .1030, .0973));
   p3 += dot(p3, p3.yxz+33.33);
   return fract((p3.xxy + p3.yxx)*p3.zyx) - 0.5;
 }
@@ -246,7 +247,7 @@ void main() {
   vec2 screenPos = TexCoord * FoV * iResolution.xy / length(iResolution);
 
 #ifdef JITTER
-  vec3 noise = 1.0 + 0.1 * hash(gl_FragCoord.xyx);
+  vec3 noise = 1.0 + 0.1 * hash(TexCoord*100.0);
 #else
   vec3 noise = vec3(1.0);
 #endif

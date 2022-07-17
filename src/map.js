@@ -23,7 +23,6 @@ let size = 100
 
 const time_samples = 10
 const times = Array(time_samples).fill(0)
-const deltas = Array(time_samples).fill(0)
 
 let target_fps = get_param("fps") || 30
 let fps = target_fps
@@ -50,11 +49,13 @@ const controls = {
 
 
 const map_texture = fetch(encrypted ? "src/map.blob" : "maps/texture.bin.gz")
-    .then(response => response.blob())
-    .then(blob => encrypted ? decrypt(blob) : blob)
-    .then(blob => blob.stream())
-    .then(stream => stream.pipeThrough(new DecompressionStream('gzip')))
-    .then(stream => new Response(stream).arrayBuffer())
+    .then(response => response.arrayBuffer())
+    .then(buffer => encrypted ? decrypt(buffer) : buffer)
+    .then(buffer => new Uint8Array(buffer))
+    .then(array => pako.ungzip(array))
+
+const noise_texture = fetch("src/noise.bin")
+    .then(response => response.arrayBuffer())
     .then(buffer => new Uint8Array(buffer))
 
 const tex = ([_x, _y, _z]) => Promise.all(
@@ -84,6 +85,10 @@ async function main() {
 
     // setup GLSL program
     const program = createProgramFromSources(gl, await Promise.all(sources))
+    gl.useProgram(program)
+
+    handles.mapSampler = gl.getUniformLocation(program, "mapTexture")
+    handles.noiseSampler = gl.getUniformLocation(program, "noiseTexture")
 
     handles.position = gl.getUniformLocation(program, "vPosition")
     handles.coord = gl.getAttribLocation(program, "TexCoord")
@@ -107,7 +112,23 @@ async function main() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.uniform1i(handles.textureSampler, 0)
+    gl.uniform1i(handles.mapSampler, 0)
+
+    /*
+    const noise = gl.createTexture()
+
+    gl.bindTexture(gl.TEXTURE_2D, noise)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
+        128, 128, 0,
+        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, await noise_texture)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, noise)
+    gl.uniform1i(handles.noiseSampler, 1)
+    */
 
     const positionBuffer = gl.createBuffer();
 
@@ -142,7 +163,7 @@ async function main() {
     add_listeners()
 }
 
-async function decrypt(blob) {
+async function decrypt(buffer) {
     const crypto_initial = Uint8Array.from([
         55, 44, 146, 89,
         30, 93, 68, 30,
@@ -163,12 +184,10 @@ async function decrypt(blob) {
         ["encrypt", "decrypt"]
     )
 
-    return blob.arrayBuffer()
-        .then(buffer => crypto.subtle.decrypt({
+    return crypto.subtle.decrypt({
             'name': 'AES-CBC',
             'iv': crypto_initial
-        }, crypto_key, buffer))
-        .then(buffer => new Blob([buffer]))
+        }, crypto_key, buffer)
 }
 
 async function add_listeners() {
@@ -256,10 +275,7 @@ function render(now) {
     times.pop()
     times.unshift((start_time + now) / 1000)
 
-    deltas.pop()
-    deltas.unshift(times[0] - times[1])
-
-    update_state(times[0], deltas[0])
+    update_state(times[0], times[0] - times[1])
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
@@ -279,7 +295,7 @@ function render(now) {
 async function update_state(time, delta) {
 
     frame++
-    fps = time_samples / (time - times[time_samples - 1])
+    fps = (time_samples - 1) / (time - times[time_samples - 1])
     let sin = Math.sin(cam.rot[z])
     let cos = Math.cos(cam.rot[z])
 
