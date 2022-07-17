@@ -4,79 +4,83 @@ const joystick = document.getElementById("joystick")
 const form = document.getElementById("form")
 const gl = canvas.getContext("webgl2")
 
-const Z = 16
-const Y = 256
-const X = 1024
+const x = 0
+const y = 1
+const z = 2
+
+const Z = 16 // height
+const Y = 256 // N-S length
+const X = 1024 // E-W width
+const C = 3 // 3 channels
+
+const encrypted = url.protocol === "https:"
 
 // look up where the vertex data needs to go.
 const handles = {}
 
-const N = 10
 const HEIGHT = 1.6
 let size = 100
-const times = Array(N).fill(0)
-const deltas = Array(N).fill(0)
-let delta = 1
+
+const time_samples = 10
+const times = Array(time_samples).fill(0)
+const deltas = Array(time_samples).fill(0)
+
 let fps = 30
-let upSample = 2
-let running = false
+let upsample = 2
 let frame = 0
 
-const start_time = Date.now() - new Date().getTimezoneOffset()*60*1000
+const start_time = Date.now() - new Date().getTimezoneOffset() * 60 * 1000
 
 const weather = get_json_param("weather") || {
-    sun: {
-        x: 0.0,
-        y: 0.0,
-        z: 1.0
-    }
+    sun: [0.0, 0.0, 1.0]
 }
-const camera = get_json_param("camera") || {
-    pos: {
-        x: 381.5,
-        y: 128.1,
-        z: 1 + HEIGHT
-    },
-    vel: {
-        x: 0,
-        y: 0,
-        z: 0
-    },
-    rot: {
-        x: 0,
-        y: 0,
-        z: 0
-    },
+const cam = get_json_param("cam") || {
+    pos: [381.5, 128.1, 1 + HEIGHT],
+    vel: [0, 0, 0],
+    acc: [0, 0, 0],
+    rot: [0, 0, 0],
 }
 
 const controls = {
-    move: {
-        x: 0,
-        y: 0,
-        z: 0
-    },
-    rot: {
-        x: 0.01,
-        y: 0,
-        z: -0.2
-    },
+    move: [0, 0, 0],
+    rot: [0.01, 0, -0.2]
 }
+
+
+const map_texture = fetch(encrypted ? "src/map.blob" : "maps/texture.bin.gz")
+    .then(response => response.blob())
+    .then(blob => encrypted ? decrypt(blob) : blob)
+    .then(blob => blob.stream())
+    .then(stream => stream.pipeThrough(new DecompressionStream('gzip')))
+    .then(stream => new Response(stream).arrayBuffer())
+    .then(buffer => new Uint8Array(buffer))
+
+const tex = ([_x, _y, _z]) => Promise.all(
+    [0,1,2]
+    .map( _c => map_texture.then(map => map[C*(X*(Y*(_z)+_y)+_x)+_c]) )
+)
 
 main()
 
-
 async function main() {
-    const vert = (await (await fetch("src/shaders/march.vertex.glsl"))
-            .text())
-        .replace("#version 330 core", "#version 300 es")
-
-    const frag = (await (await fetch("src/shaders/march.fragment.glsl"))
-            .text())
-        .replace("#version 330 core", "#version 300 es")
-        .replace("#define QUALITY 3", "#define QUALITY " + (get_param("quality") || "3"))
+    const sources = ["vertex.glsl", "fragment.glsl"]
+        .map(type =>
+            fetch("src/shaders/march." + type)
+            .then(response => response.text())
+            .then(text => text
+                .replace(
+                    "#version 330 core",
+                    "#version 300 es"
+                )
+                .replace(
+                    "#define QUALITY 3",
+                    "#define QUALITY " + (get_param("quality") || "3")
+                )
+            )
+        )
 
     // setup GLSL program
-    const program = createProgramFromSources(gl, [vert, frag])
+    const program = createProgramFromSources(gl, await Promise.all(sources))
 
     handles.position = gl.getUniformLocation(program, "vPosition")
     handles.coord = gl.getAttribLocation(program, "TexCoord")
@@ -90,11 +94,10 @@ async function main() {
 
     const texture = gl.createTexture()
 
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
         1024, 4096, 0,
-        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, await map_texture())
+        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, await map_texture)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -132,11 +135,11 @@ async function main() {
     gl.useProgram(program)
     gl.enableVertexAttribArray(handles.position)
 
-    start()
+    requestAnimationFrame(render)
     add_listeners()
 }
 
-async function decrypt(blob){
+async function decrypt(blob) {
     const crypto_initial = Uint8Array.from([
         55, 44, 146, 89,
         30, 93, 68, 30,
@@ -165,69 +168,52 @@ async function decrypt(blob){
         .then(buffer => new Blob([buffer]))
 }
 
-async function map_texture() {
-
-    const encrypted = url.protocol === "https:"
-
-    return fetch(encrypted ? "src/map.blob" : "maps/texture.bin.gz")
-        .then(response => response.blob())
-        .then(blob => encrypted ? decrypt(blob) : blob)
-        .then(blob => blob.stream())
-        .then(stream => stream.pipeThrough(new DecompressionStream('gzip')))
-        .then(stream => new Response(stream).arrayBuffer())
-        .then(buffer => new Uint8Array(buffer))
-
-}
-
 async function add_listeners() {
     canvas.addEventListener('click', (event) => {
         event.preventDefault()
         canvas.requestPointerLock()
     })
     canvas.addEventListener('pointermove', (event) => {
-        controls.rot.z -= event.movementX / size
-        controls.rot.x -= event.movementY / size
-        controls.rot.x = Math.max(-0.2, Math.min(controls
-            .rot.x,
+        controls.rot[z] -= event.movementX / size
+        controls.rot[x] -= event.movementY / size
+        controls.rot[x] = Math.max(-0.2, Math.min(controls.rot[x],
             0.2))
     })
     joystick.addEventListener('touchstart', () => {
-        controls.move.active = true
+        controls.active = true
     })
     joystick.addEventListener('pointermove', (event) => {
-        if (controls.move.active) {
-            controls.move.x = +2 * (event.offsetX * 2 /
-                size - 1)
-            controls.move.y = -2 * (event.offsetY * 2 /
-                size - 1)
+        if (controls.active) {
+            controls.move[x] = +2 * (event.offsetX * 2 / size - 1)
+            controls.move[y] = -2 * (event.offsetY * 2 / size - 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
-        controls.move.active = false
-        controls.move.x = 0
-        controls.move.y = 0
+        controls.active = false
+        controls.move[x] = 0
+        controls.move[y] = 0
     })
     window.addEventListener('keydown', (event) => {
         const power = event.shiftKey ? 1.2 : 0.8
         switch (event.code) {
             case "KeyW":
             case "ArrowUp":
-                controls.move.y = power
+                controls.move[y] = power
                 break;
             case "KeyS":
             case "ArrowDown":
-                controls.move.y = -power
+                controls.move[y] = -power
                 break;
             case "KeyA":
             case "ArrowLeft":
-                controls.move.x = -power
+                controls.move[x] = -power
                 break;
             case "KeyD":
             case "ArrowRight":
-                controls.move.x = power
+                controls.move[x] = power
                 break;
             case "Space":
-                camera.pos.z += (event.shiftKey) ? -1 : 1
+                cam.pos[z] += (event.shiftKey) ? -1 : 1
                 break;
         }
     })
@@ -237,13 +223,13 @@ async function add_listeners() {
             case "KeyS":
             case "ArrowUp":
             case "ArrowDown":
-                controls.move.y = 0
+                controls.move[y] = 0
                 break;
             case "KeyA":
             case "KeyD":
             case "ArrowLeft":
             case "ArrowRight":
-                controls.move.x = 0
+                controls.move[x] = 0
                 break;
         }
     })
@@ -253,10 +239,8 @@ async function add_listeners() {
         let delta = fps - target
         if (delta < 5 && delta > -15) return;
 
-        upSample *= target / fps
-        upSample = Math.pow(2, Math.round(Math.max(-2, Math
-            .log(
-                upSample))))
+        upsample *= target / fps
+        upsample = Math.pow(2, Math.round(Math.max(-1, Math.log(upsample))))
         resize()
     }, 1000)
     resize()
@@ -283,78 +267,70 @@ function render(now) {
 
     gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
     gl.uniform1f(handles.time, times[0])
-    gl.uniform3f(handles.fractPos, fract(camera.pos.x), fract(camera.pos.y), fract(camera.pos.z))
-    gl.uniform3i(handles.cellPos, floor(camera.pos.x), floor(camera.pos.y), floor(camera.pos.z))
-    gl.uniform3f(handles.rotation, camera.rot.x, camera.rot.y, camera.rot.z)
-    gl.uniform3f(handles.sun, weather.sun.x, weather.sun.y, weather.sun.z)
+    gl.uniform3f(handles.fractPos, ...cam.pos.map(fract))
+    gl.uniform3i(handles.cellPos, ...cam.pos.map(floor))
+    gl.uniform3f(handles.rotation, ...cam.rot)
+    gl.uniform3f(handles.sun, ...weather.sun)
     gl.uniform1i(handles.frame, frame)
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
 
-    if (running) requestAnimationFrame(render)
+    requestAnimationFrame(render)
 }
 
 async function update_state(time, delta) {
 
     frame++
-    fps = N / deltas.reduce((a, b) => a + b, 0)
-    let Fx = Math.pow(controls.move.x, 3)
-    let Fy = Math.pow(controls.move.y, 3)
-    let sin = Math.sin(camera.rot.z)
-    let cos = Math.cos(camera.rot.z)
-    let ax = 100 * (Fx * cos - Fy * sin)
-    let ay = 100 * (Fx * sin + Fy * cos)
+    fps = time_samples / deltas.reduce((a, b) => a + b, 0)
+    let sin = Math.sin(cam.rot[z])
+    let cos = Math.cos(cam.rot[z])
+
+    let f = controls.move.map(f => f * 100)
+
+    cam.acc = [
+        f[x] * cos - f[y] * sin,
+        f[x] * sin + f[y] * cos,
+        0,
+    ]
 
     let drag = 1 / 8
-    ax -= camera.vel.x / delta * drag
-    ay -= camera.vel.y / delta * drag
 
-    camera.vel.x += ax * delta
-    camera.vel.y += ay * delta
+    cam.acc = cam.acc.map((a, i) => a - cam.vel[i] * drag / delta)
+    cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
+    cam.pos = cam.pos.map((p, i) => p + cam.vel[i] * delta)
 
-    camera.pos.x += camera.vel.x * delta
-    camera.pos.y += camera.vel.y * delta
-    camera.pos.z += camera.vel.z * delta
+    const [above, below, color] = await tex(cam.pos.map(floor))
+    console.log(above, below, color)
 
-    camera.rot.x = controls.rot.x * Math.PI * 2
-    camera.rot.z = controls.rot.z * Math.PI
+    cam.rot[x] = controls.rot[x] * Math.PI * 2
+    cam.rot[z] = controls.rot[z] * Math.PI
 
     let hour = time / 60 / 60 / 12 * Math.PI
-    weather.sun.x = Math.sin(hour) * Math.sqrt(3/4)
-    weather.sun.y = Math.sin(hour) * Math.sqrt(1/4)
-    weather.sun.z = Math.abs(Math.cos(hour))
+    weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)
+    weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
+    weather.sun[z] = Math.abs(Math.cos(hour))
 
     joystick.firstElementChild.style.transform =
-        `translate(${controls.move.x*15}%, ${-controls.move.y*15}%)`
+        `translate(${controls.move[x]*15}%, ${-controls.move[y]*15}%)`
 
     const num = x => x.toFixed(1)
     const ft = x => num(x * 3)
 
-    if(!get_param("clean")) debug.innerText = `${num(fps)} fps, ${num(upSample)} upscaling
-        position (ft): ${ft(camera.pos.x)}, ${ft(camera.pos.y)}, ${ft(camera.pos.z)}
-        velocity (ft/s): ${ft(camera.vel.x)}, ${ft(camera.vel.y)}, ${ft(camera.vel.z)}
+    if (!get_param("clean")) debug.innerText = `${num(fps)} fps, ${num(upsample)} upscaling
+        position (ft): ${cam.pos.map(ft).join(", ")}
+        velocity (ft/s): ${cam.vel.map(ft).join(", ")}
         by: Xing :D
     `
 
-    if(frame % 10 == 0) {
-        url.searchParams.set("camera", encodeURIComponent(JSON.stringify(camera)))
+    if (frame % 10 == 0) {
+        url.searchParams.set("cam", encodeURIComponent(JSON.stringify(cam)))
         window.history.replaceState(null, "", url.toString())
     }
 }
 
-function stop() {
-    running = false
-}
-
-function start() {
-    if (running) return
-    running = true
-    requestAnimationFrame(render)
-}
-
 async function resize() {
     size = Math.min(window.innerWidth, window.innerHeight) * 0.5
-    resizeCanvasToDisplaySize(gl.canvas, 1 / upSample)
-    canvas.style.imageRendering = upSample > 1 ? 'pixelated' :
+    resizeCanvasToDisplaySize(gl.canvas, 1 / upsample)
+    canvas.style.imageRendering = upsample > 1 ? 'pixelated' :
         'auto'
 }

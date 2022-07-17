@@ -49,6 +49,7 @@ int main()
 	std::cout << "Done." << std::endl;
 	std::cout << "Generating palette..." << std::endl;
 
+	std::cout << "\treturn ";
 	{
 		int i = 0;
 		for (pnm::rgb_pixel pixel : pal_set) {
@@ -118,25 +119,25 @@ int main()
 			continue;
 		} else {
 			sdf[z][y][x][0] = Z;
-			sdf[z][y][x][1] = Z;
+			sdf[z][y][x][1] = z;
 		}
 
 		// compute volume with summed volume table
 		for(int r = 1; r < Z; r++){
 			// stop if there exists a block
 			if(vol(
-				x-r,y-r,z-r,
-				x+r,y+r,z
+				x-r,y-r,z,
+				x+r,y+r,z+r
 			)) {
 				sdf[z][y][x][0] = r;
 				break;
 			}
 		}
-		for(int r = 1; r < Z; r++){
+		for(int r = 1; r < z; r++){
 			// stop if there exists a block
 			if(vol(
-				x-r,y-r,z,
-				x+r,y+r,z+r
+				x-r,y-r,z-r,
+				x+r,y+r,z
 			)) {
 				sdf[z][y][x][1] = r;
 				break;
@@ -157,11 +158,12 @@ int main()
 		out.put((char) sdf[z][y][x][1]);
 		out.put((char) col_index);
 	}
+
 	out.close();
 
 	std::cout << "Done." << std::endl;
 	std::cout << "^_^" << std::endl;;
 
 	return 0;
-}
 
+}

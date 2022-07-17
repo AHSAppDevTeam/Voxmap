@@ -55,7 +55,7 @@ maps/map.png: maps/map.vox
 
 maps/map.ppm: maps/map.png
 	### PNG slices to PAM
-	convert maps/map.png -rotate 270 maps/map.ppm
+	convert maps/map.png -rotate 90 -flop maps/map.ppm
 
 maps/texture.bin: bin/sdf maps/map.ppm
 	### PBM to SDF
@@ -63,7 +63,7 @@ maps/texture.bin: bin/sdf maps/map.ppm
 	bin/sdf
 
 maps/texture.bin.gz: maps/texture.bin
-	gzip maps/texture.bin.gz
+	gzip -f maps/texture.bin
 
 src/map.blob: maps/texture.bin.gz
 	### (MANUAL STEP) Encrypt PNG
