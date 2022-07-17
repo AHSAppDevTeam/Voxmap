@@ -21,8 +21,14 @@
 
 		body {
 			display: flex;
-			flex-direction: column;
 		}
+
+		@media (max-aspect-ratio: 1/1) {
+			body {
+				flex-direction: column;
+			}
+		}
+
 
 		#map {
 			flex-grow: 1;
@@ -30,7 +36,7 @@
 			border: 0;
 		}
 
-		body *{
+		body * {
 			box-sizing: border-box;
 		}
 
@@ -49,7 +55,7 @@
 
 		#form ul {
 			display: flex;
-			overflow-x: scroll;
+			flex-wrap: wrap;
 			gap: 1rem;
 		}
 
@@ -120,10 +126,6 @@
 					Restrooms
 				</li>
 				<li>
-					<span class="material-symbols-outlined"> school </span>
-					Classrooms
-				</li>
-				<li>
 					<span class="material-symbols-outlined"> checkroom </span>
 					Lockers
 				</li>
@@ -149,11 +151,11 @@
 	</form>
 	<script src=src/url.js></script>
 	<script>
-const map = document.getElementById("map")
-const search = document.getElementById("search")
-map.src = "map.html?quality=3&clean=1&password=" 
-+ (get_param("password") || prompt("password"))
-map.focus()
+		const map = document.getElementById("map")
+		const search = document.getElementById("search")
+		map.src = "map.html?quality=3&clean=1&password=" +
+			(get_param("password") || prompt("password"))
+		map.focus()
 	</script>
 </body>
 
