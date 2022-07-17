@@ -1,6 +1,6 @@
 #version 330 core
 precision highp float;
-precision highp int;
+precision lowp int;
 
 /* Quality settings:
    +---+---------+-------------------+-------------+-----------------+
@@ -278,7 +278,7 @@ void main() {
     vec3 baseCol = palette(res.material);
 
     // Mix in any glass we hit along the way
-    vec3 glassCol = mix(vec3(0.3, 0.5, 0.7), vec3(1), exp(-res.glass));
+    vec3 glassCol = mix(vec3(0.3, 0.5, 0.7), vec3(1), exp2(-1.5 * res.glass));
 
     // Darken faces with ±X, ±Y, or -Z normals
     vec3 normalCol = mat3x3(
@@ -362,13 +362,13 @@ void main() {
     // Make far-away objects fade to the sky color,
     // also add the sky if we reached the void
     float skyFactor = (res.step == MAX_RAY_STEPS || res.minDist > Zf) ? 1.
-      : min(dist*dist*dist*1e-7, 1.0);
+      : min(dist*dist*dist*1e-8, 1.0);
     vec3 bounceCol = mix( objCol, skyCol, skyFactor ) * glassCol;
 
-    col = mix(col, bounceCol, exp(-float(i)) * bounceFactor);
+    col = mix(col, bounceCol, exp2(-float(i)) * bounceFactor);
 
     // If too much sky, stop bouncing
-    bounceFactor = exp2(13.0 * dot(res.normal, rayDir));
+    bounceFactor = exp2(20.0 * dot(res.normal, rayDir));
     if(skyFactor > 0.95 || bounceFactor < 0.05) break;
 
     rayDir = reflect(rayDir, res.normal) * noise;

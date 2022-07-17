@@ -25,7 +25,9 @@ const time_samples = 10
 const times = Array(time_samples).fill(0)
 const deltas = Array(time_samples).fill(0)
 
-let fps = 30
+let target_fps = get_param("fps") || 30
+let fps = target_fps
+
 let upsample = 2
 let frame = 0
 
@@ -235,11 +237,10 @@ async function add_listeners() {
     })
     window.addEventListener('resize', resize)
     setInterval(() => {
-        let target = 30
-        let delta = fps - target
+        let delta = fps - target_fps
         if (delta < 5 && delta > -15) return;
 
-        upsample *= target / fps
+        upsample *= target_fps / fps
         upsample = Math.pow(2, Math.round(Math.max(-1, Math.log(upsample))))
         resize()
     }, 1000)
@@ -278,7 +279,7 @@ function render(now) {
 async function update_state(time, delta) {
 
     frame++
-    fps = time_samples / deltas.reduce((a, b) => a + b, 0)
+    fps = time_samples / (time - times[time_samples - 1])
     let sin = Math.sin(cam.rot[z])
     let cos = Math.cos(cam.rot[z])
 
