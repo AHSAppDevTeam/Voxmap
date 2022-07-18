@@ -41,11 +41,18 @@
 		}
 
 		#form {
-			padding-top: 1rem;
+			padding: 2rem;
 			bottom: 0;
 			background: white;
 			display: flex;
 			flex-direction: column;
+			flex-basis: 50rem;
+			max-width: 100vmin;
+		}
+
+		#form #search {
+			width: 100%;
+			border-radius: 100vmin;
 		}
 
 		#form label {
@@ -54,8 +61,11 @@
 		}
 
 		#form ul {
-			display: flex;
-			flex-wrap: wrap;
+		  display: grid;
+		  justify-content: center;
+		  padding: 0;
+		  grid-template-columns: repeat(auto-fit, 4rem);
+		  grid-auto-rows: auto;
 			gap: 1rem;
 		}
 
@@ -67,23 +77,19 @@
 			gap: 0.5rem;
 		}
 
-		#categories li span {
+		#form li span {
 			display: flex;
-			flex: 3rem 0 0;
-			width: 3rem;
-			height: 3rem;
+			flex: 4rem 0 0;
+			width: 4rem;
+			height: 4rem;
 			justify-content: center;
 			align-items: center;
 			background: #acf;
 			border-radius: 100%;
 		}
 
-		#buildings li {
-			flex: 3rem 0 0;
-			width: 3rem;
-			height: 3rem;
+		#buildings li span {
 			background: #fca;
-			border-radius: 100%;
 		}
 
 		.material-symbols-outlined {
@@ -125,27 +131,23 @@
 					<span class="material-symbols-outlined"> wc </span>
 					Restrooms
 				</li>
-				<li>
-					<span class="material-symbols-outlined"> checkroom </span>
-					Lockers
-				</li>
 			</ul>
 		</label>
 		<label>
 			<ul id="buildings">
-				<li>A</li>
-				<li>B</li>
-				<li>C</li>
-				<li>D</li>
-				<li>E</li>
-				<li>F</li>
-				<li>G</li>
-				<li>H</li>
-				<li>I</li>
-				<li>J</li>
-				<li>Library</li>
-				<li>MPC</li>
-				<li>PAC</li>
+				<li><span></span>A</li>
+				<li><span></span>B</li>
+				<li><span></span>C</li>
+				<li><span></span>D</li>
+				<li><span></span>E</li>
+				<li><span></span>F</li>
+				<li><span></span>G</li>
+				<li><span></span>H</li>
+				<li><span></span>I</li>
+				<li><span></span>J</li>
+				<li><span></span>Library</li>
+				<li><span></span>MPC</li>
+				<li><span></span>PAC</li>
 			</ul>
 		</label>
 	</form>
