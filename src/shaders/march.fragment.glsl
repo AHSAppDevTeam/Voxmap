@@ -34,10 +34,7 @@ precision lowp int;
 
 out vec4 FragColor;
 
-in vec2 TexCoord;
-
 uniform highp usampler2D mapTexture;
-uniform highp usampler2D noiseTexture;
 uniform vec2 iResolution;
 uniform float iTime;
 uniform vec3 iCamRot;
@@ -68,11 +65,23 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 // Utility functions
 //-------------------
 
-vec3 hash(vec2 p)
-{
-  vec3 p3 = fract(p.xyx * vec3(.1031, .1030, .0973));
-  p3 += dot(p3, p3.yxz+33.33);
-  return fract((p3.xxy + p3.yxx)*p3.zyx) - 0.5;
+// Collection of noises
+// shift 0: multi-octave fractal noise
+// shift 1: white noise
+vec3 noise(vec2 p, int shift, int t) {
+  ivec2 q = ivec2(p) + X/2;
+  ivec2 y = ivec2(0, shift * X);
+  return 0.0039 * vec3(
+    texelFetch(mapTexture, (q + 100 + t*ivec2(1, 3)) % X + y, 0).a,
+    texelFetch(mapTexture, (q + 200 + t*ivec2(3, 1)) % X + y, 0).a,
+    texelFetch(mapTexture, (q - 100 - t*ivec2(2, 2)) % X + y, 0).a
+  );
+}
+vec3 noise(vec2 p, int shift) {
+  return noise(p, shift, 0);
+}
+vec3 noise(vec2 p, int shift, float t) {
+  return mix(noise(p, shift, int(t)), noise(p, shift, int(t)+1), fract(t));
 }
 
 // Vector rotater
@@ -94,7 +103,6 @@ ivec2 project(ivec3 c){
 // Read 2D texture from 3D coordinate
 ivec3 tex(ivec3 c) {
   return ivec3(texelFetch(mapTexture, project(c), 0).rgb);
-  // TODO: this gives the wrong color for Firefox
 }
 // SDF texture is split into two directions:
 // one for the distance to the closest thing above
@@ -191,7 +199,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
     // Break early if sky
     if(any(greaterThan(c, ivec3(X,Y,Z))) || any(lessThan(c, ivec3(0)))) {
-      res.minDist = Zf+1.;
+      res.step = MAX_STEPS;
       break;
     }
 
@@ -240,22 +248,21 @@ void main() {
 
   // Marching setup
   ivec3 camCellPos = iCamCellPos;
-  vec3 camFractPos = iCamFractPos + 1e-3;
-  vec3 camRot = iCamRot;
+  vec3 camFractPos = iCamFractPos;
   vec3 rayDir;
 
-  vec2 screenPos = TexCoord * FoV * iResolution.xy / length(iResolution);
+  vec2 screenPos = (2.0 * gl_FragCoord.xy - iResolution.xy) * FoV / length(iResolution.xy);
 
 #ifdef JITTER
-  vec3 noise = 1.0 + 0.1 * hash(TexCoord*100.0);
+  vec3 jitter = 1.0 + 0.1 * noise(gl_FragCoord.xy, 1);
 #else
-  vec3 noise = vec3(1.0);
+  vec3 jitter = vec3(1.0);
 #endif
 
   // First-person rectilinear perspective camera
   rayDir = normalize(vec3(screenPos.x, 1.0, screenPos.y));
-  rayDir.yz = rotate2d(rayDir.yz, camRot.x);
-  rayDir.xy = rotate2d(rayDir.xy, camRot.z);
+  rayDir.yz = rotate2d(rayDir.yz, iCamRot.x);
+  rayDir.xy = rotate2d(rayDir.xy, iCamRot.z);
 
   // Set up the Sun
   vec3 sunDir = iSunDir;
@@ -306,8 +313,18 @@ void main() {
     vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.0), scatter);
     vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, rayDir.z)));
 
+    vec2 skyPos = rayDir.xy / sqrt(rayDir.z);
+    vec3 cloudVec = noise(skyPos*100.0 + 0.1*vec2(iCamCellPos.xy), 0, iTime);
+    float cloudFactor = length(max(cloudVec.r * cloudVec.g * cloudVec.b * 8.0 - 1.0, 0.0));
+    //float cloudFactor = 0.0;
+
     // Mix where the Sun is and where the Sun isn't
-    vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol;
+    vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol + scatterCol*cloudFactor;
+
+    // Make far-away objects fade to the sky color,
+    // also add the sky if we reached the void
+    float skyFactor = (res.step == MAX_RAY_STEPS) ? 1.
+      : min(dist*dist*dist*1e-8, 1.0);
 
     // Make sure values don't overflow (the Sun can be very bright)
     skyCol = clamp(skyCol, vec3(0), vec3(1));
@@ -344,7 +361,7 @@ void main() {
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
-      March sun = march(camCellPos, camFractPos, sunDir * noise, MAX_SUN_STEPS);
+      March sun = march(camCellPos, camFractPos, sunDir * jitter, MAX_SUN_STEPS);
       shadeFactor *= clamp(sun.minDist, 0., 1.);
     }
     // TODO: soft shadows (aaa)
@@ -360,10 +377,6 @@ void main() {
       * lightCol
       * ambCol;
 
-    // Make far-away objects fade to the sky color,
-    // also add the sky if we reached the void
-    float skyFactor = (res.step == MAX_RAY_STEPS || res.minDist > Zf) ? 1.
-      : min(dist*dist*dist*1e-8, 1.0);
     vec3 bounceCol = mix( objCol, skyCol, skyFactor ) * glassCol;
 
     col = mix(col, bounceCol, exp2(-float(i)) * bounceFactor);
@@ -372,7 +385,7 @@ void main() {
     bounceFactor = exp2(20.0 * dot(res.normal, rayDir));
     if(skyFactor > 0.95 || bounceFactor < 0.05) break;
 
-    rayDir = reflect(rayDir, res.normal) * noise;
+    rayDir = reflect(rayDir, res.normal) * jitter;
   }
 
   // And we're done!

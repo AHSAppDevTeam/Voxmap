@@ -11,7 +11,7 @@ const z = 2
 const Z = 16 // height
 const Y = 256 // N-S length
 const X = 1024 // E-W width
-const C = 3 // 3 channels
+const C = 4 // 4 channels
 
 const encrypted = url.protocol === "https:"
 
@@ -54,13 +54,9 @@ const map_texture = fetch(encrypted ? "src/map.blob" : "maps/texture.bin.gz")
     .then(buffer => new Uint8Array(buffer))
     .then(array => pako.ungzip(array))
 
-const noise_texture = fetch("src/noise.bin")
-    .then(response => response.arrayBuffer())
-    .then(buffer => new Uint8Array(buffer))
-
 const tex = ([_x, _y, _z]) => Promise.all(
     [0,1,2]
-    .map( _c => map_texture.then(map => map[C*(X*(Y*(_z)+_y)+_x)+_c]) )
+    .map( _c => map_texture.then(map => map[C*(X*(Y*(_z)+_y)+_x)+_c]))
 )
 
 
@@ -88,7 +84,6 @@ async function main() {
     gl.useProgram(program)
 
     handles.mapSampler = gl.getUniformLocation(program, "mapTexture")
-    handles.noiseSampler = gl.getUniformLocation(program, "noiseTexture")
 
     handles.position = gl.getUniformLocation(program, "vPosition")
     handles.coord = gl.getAttribLocation(program, "TexCoord")
@@ -103,32 +98,16 @@ async function main() {
     const texture = gl.createTexture()
 
     gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8UI,
         1024, 4096, 0,
-        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, await map_texture)
+        gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, await map_texture)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.uniform1i(handles.mapSampler, 0)
-
-    /*
-    const noise = gl.createTexture()
-
-    gl.bindTexture(gl.TEXTURE_2D, noise)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8UI,
-        128, 128, 0,
-        gl.RGB_INTEGER, gl.UNSIGNED_BYTE, await noise_texture)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.activeTexture(gl.TEXTURE1)
-    gl.bindTexture(gl.TEXTURE_2D, noise)
-    gl.uniform1i(handles.noiseSampler, 1)
-    */
 
     const positionBuffer = gl.createBuffer();
 
@@ -280,7 +259,7 @@ function render(now) {
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
     gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
-    gl.uniform1f(handles.time, times[0])
+    gl.uniform1f(handles.time, times[0] - start_time/1000)
     gl.uniform3f(handles.fractPos, ...cam.pos.map(fract))
     gl.uniform3i(handles.cellPos, ...cam.pos.map(floor))
     gl.uniform3f(handles.rotation, ...cam.rot)
@@ -332,15 +311,15 @@ async function update_state(time, delta) {
         `translate(${controls.move[x]*15}%, ${-controls.move[y]*15}%)`
 
     const num = x => x.toFixed(1)
-    const ft = x => num(x * 3)
+    const ft = x => num(x)
 
     if (!get_param("clean")) debug.innerText = `${num(fps)} fps, ${num(upsample)} upscaling
-        position (ft): ${cam.pos.map(ft).join(", ")}
-        velocity (ft/s): ${cam.vel.map(ft).join(", ")}
+        position: ${cam.pos.map(ft).join(", ")}
+        velocity: ${cam.vel.map(ft).join(", ")}
         by: Xing :D
     `
 
-    if (frame % 10 == 0) {
+    if (frame % 60 == 0) {
         url.searchParams.set("cam", encodeURIComponent(JSON.stringify(cam)))
         window.history.replaceState(null, "", url.toString())
     }

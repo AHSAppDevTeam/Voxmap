@@ -1,6 +1,7 @@
 #include "voxmap.h"
 #include "../libs/pnm.hpp"
 #include <iostream>
+#include <cstdlib>
 #include <fstream>
 #include <cassert>
 #include <set>
@@ -84,14 +85,14 @@ int main()
 			;
 		//std::cout << sum[z][y][x] << " ";
 	}
-	
+
 	std::cout << "Done." << std::endl;
 	std::cout << "Generating signed distance fields..." << std::flush;
 
 	auto vol = [&](
 			int x0, int y0, int z0,
 			int x1, int y1, int z1
-	){
+			){
 		x0--;
 		y0--;
 		z0--;
@@ -126,9 +127,9 @@ int main()
 		for(int r = 1; r < Z; r++){
 			// stop if there exists a block
 			if(vol(
-				x-r,y-r,z,
-				x+r,y+r,z+r
-			)) {
+						x-r,y-r,z,
+						x+r,y+r,z+r
+					)) {
 				sdf[z][y][x][0] = r;
 				break;
 			}
@@ -136,9 +137,9 @@ int main()
 		for(int r = 1; r < z; r++){
 			// stop if there exists a block
 			if(vol(
-				x-r,y-r,z-r,
-				x+r,y+r,z
-			)) {
+						x-r,y-r,z-r,
+						x+r,y+r,z
+					)) {
 				sdf[z][y][x][1] = r;
 				break;
 			}
@@ -150,13 +151,25 @@ int main()
 
 	std::ofstream out("maps/texture.bin", std::ios::binary);
 
+	pnm::image<pnm::rgb_pixel> noise = pnm::read("src/noise.pgm");
+
 	FOR_XYZ {
 		int col_index = 0;
 		for (; col_index < MAX && pal[col_index] != col[z][y][x]; col_index++) { continue; }
-		
+
+		int _x = x;
+		int _y = Y*z + y;
+
 		out.put((char) sdf[z][y][x][0]);
 		out.put((char) sdf[z][y][x][1]);
 		out.put((char) col_index);
+		out.put(
+			(char) (
+				_y/X < 1 ? noise[_y][_x].red :
+				_y/X < 2 ? std::rand() % 256 :
+				0
+			)
+		);
 	}
 
 	out.close();
