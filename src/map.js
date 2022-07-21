@@ -97,16 +97,17 @@ async function main() {
 
     const texture = gl.createTexture()
 
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
-        1024, 4096, 0,
+    gl.bindTexture(gl.TEXTURE_3D, texture)
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
+        1024, 256, 16, 0,
         gl.RGBA, gl.UNSIGNED_BYTE, await map_texture)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.bindTexture(gl.TEXTURE_3D, texture)
     gl.uniform1i(handles.mapSampler, 0)
 
     const positionBuffer = gl.createBuffer();
@@ -176,8 +177,8 @@ async function add_listeners() {
     })
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))
     canvas.addEventListener('pointermove', (event) => {
-        controls.rot[z] -= 2 * event.movementX / size
-        controls.rot[x] -= 4 * event.movementY / size
+        controls.rot[z] -= 8 * event.movementX / size
+        controls.rot[x] -= 2 * event.movementY / size
         controls.rot[x] = clamp(controls.rot[x], 0.8)
     })
     joystick.addEventListener('touchstart', () => {
@@ -185,8 +186,8 @@ async function add_listeners() {
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.active) {
-            controls.move[x] = +2 * clamp(event.offsetX * 2 / size - 1, 1)
-            controls.move[y] = -2 * clamp(event.offsetY * 2 / size - 1, 1)
+            controls.move[x] = + clamp(event.offsetX * 2 / size - 1, 1)
+            controls.move[y] = - clamp(event.offsetY * 2 / size - 1, 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -279,7 +280,7 @@ async function update_state(time, delta) {
     let sin = Math.sin(cam.rot[z])
     let cos = Math.cos(cam.rot[z])
 
-    let f = controls.move.map(f => f * 100)
+    let f = controls.move.map(f => f * 30)
 
     cam.acc = [
         f[x] * cos - f[y] * sin,
@@ -300,7 +301,7 @@ async function update_state(time, delta) {
 
     cam.rot = cam.rot.map( 
         (a, i) => cam.rot[i] + 
-        clamp( pow(controls.rot[i] - cam.rot[i], 1.5), 10*delta)
+        clamp( pow(controls.rot[i] - cam.rot[i], 3), 10*delta)
     )
 
     let hour = time / 60 / 60 / 12 * Math.PI

@@ -34,7 +34,7 @@ precision lowp int;
 
 out vec4 FragColor;
 
-uniform highp sampler2D mapTexture;
+uniform highp sampler3D mapTexture;
 uniform vec2 iResolution;
 uniform float iTime;
 uniform vec3 iCamRot;
@@ -55,7 +55,7 @@ const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
 
-const vec2 Mf = vec2(Xf, Yf * Zf);
+const vec3 Mf = 1.0 / vec3(Xf, Yf, Zf);
 
 const float FoV = 1.0;
 
@@ -70,14 +70,18 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 // Collection of noises
 // shift 0: multi-octave fractal noise
 // shift 1: white noise
+vec3 project(vec2 p, int shift){
+  p = Xf * (Xf*fract(p) + 2.0) / (Xf + 4.0);
+  p += vec2(0, X*shift);
+  float y = mod(p.y, Yf);
+  return vec3(p.x, y, (p.y - y) / Yf) * Mf;
+}
 vec3 noise(vec2 p, int shift, float t) {
   t *= 1e-3;
-  vec2 y = vec2(0, float(shift) * Xf / Mf);
-#define OFFSET(P) ((fract(P) + 1.0/Xf)/(1.0 + 2.0/Xf)*Xf/Mf + y)
   return vec3(
-    texture(mapTexture, OFFSET(p + t*vec2(0,-9))).a,
-    texture(mapTexture, OFFSET(p*2.0 + 0.1 + t*vec2(-1,-3))).a,
-    texture(mapTexture, OFFSET(p*4.0 + 0.4 + t*vec2( 1, 5))).a
+      texture(mapTexture, project(1.0*p + 0.0 + vec2(0, -9)*t, shift)).a,
+      texture(mapTexture, project(2.0*p + 0.1 + vec2(-1,-3)*t, shift)).a,
+      texture(mapTexture, project(4.0*p + 0.4 + vec2( 1, 5)*t, shift)).a
   );
 }
 vec3 noise(vec2 p, int shift) {
@@ -94,26 +98,11 @@ vec2 rotate2d(vec2 v, float a) {
 // Read data from texture
 //------------------------
 
-ivec2 project(ivec3 c){
-  c.x = clamp(c.x, 0, X-1);
-  c.y = clamp(c.y, 0, Y-1);
-  c.z = clamp(c.z, 0, Z-1);
-  return ivec2(c.x, c.y + Y*c.z);
-}
-// Read 2D texture from 3D coordinate
 ivec3 tex(ivec3 c) {
-  return ivec3(texelFetch(mapTexture, project(c), 0).rgb * 255.);
+  return ivec3(texelFetch(mapTexture, c, 0).rgb * 255.);
 }
 vec3 tex(ivec3 c, vec3 f) {
-  f = f - 0.5;
-  vec2 p = vec2(project(c)) + f.xy;
-  vec2 shift = vec2(0, sign(f.z)) * Yf;
-  f = abs(f);
-  return 255.0 * mix(
-      texture(mapTexture, (p)/Mf),
-      texture(mapTexture, (p + shift)/Mf),
-      f.z
-    ).rgb;
+  return texture(mapTexture, (vec3(c) + f)*Mf).rgb * 255.;
 }
 // SDF texture is split into two directions:
 // one for the distance to the closest thing above
@@ -202,7 +191,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
     ivec3 n = ivec3(res.normal);
 
     // Break early if sky
-    if(any(greaterThan(c, ivec3(X,Y,Z))) || any(lessThan(c, ivec3(0)))) {
+    if(any(greaterThanEqual(c, ivec3(X,Y,Z))) || any(lessThan(c, ivec3(0)))) {
       res.step = MAX_STEPS;
       break;
     }
@@ -320,7 +309,10 @@ void main() {
     vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
     skyPos *= 0.04 * sqrt(length(skyPos));
     skyPos += 1e-5 * vec2(iCamCellPos.xy);
+
+#if QUALITY > 3
     skyPos *= 1.0 + 4.0 * noise(skyPos, 0, iTime).xy;
+#endif
 
     vec3 cloudVec = sqrt(noise(skyPos, 0, iTime));
     float cloudFactor = cloudVec.r + cloudVec.g * 0.5 + cloudVec.b * 0.25;
@@ -354,6 +346,7 @@ void main() {
 	res.fractPos
 	);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
+    FragColor.rgb = vec3(ambDist);
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
     vec3 ambCol = vec3(1);
