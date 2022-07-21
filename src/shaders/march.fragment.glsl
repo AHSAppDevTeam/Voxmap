@@ -70,12 +70,12 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 // shift 1: white noise
 vec3 noise(vec2 p, int shift, float t) {
   const vec2 M = vec2(1, Xf / Yf / Zf);
-  t *= 1e-3;
+  t *= 1e-4;
   vec2 y = vec2(0, float(shift) / M);
   return vec3(
-    texture(mapTexture, fract(p + t*vec2(1, 3))*M + y).a,
-    texture(mapTexture, fract(p*2.0 + t*vec2(1, 3))*M + y).a,
-    texture(mapTexture, fract(p*4.0 + t*vec2(1, 3))*M + y).a
+    texture(mapTexture, fract(p + t*vec2(0,-9))*M + y).a,
+    texture(mapTexture, fract(p*2.0 + 0.1 + t*vec2(-1,-3))*M + y).a,
+    texture(mapTexture, fract(p*4.0 + 0.4 + t*vec2( 1, 5))*M + y).a
   );
 }
 vec3 noise(vec2 p, int shift) {
@@ -312,13 +312,13 @@ void main() {
     vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, rayDir.z)));
 
     vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
-    skyPos += 0.1 * noise(skyPos, 0, iTime).xy;
-    skyPos *= 0.02 * sqrt(length(skyPos));
+    skyPos *= 0.04 * sqrt(length(skyPos));
     skyPos += 1e-5 * vec2(iCamCellPos.xy);
+    skyPos *= 1.0 + 4.0 * noise(skyPos, 0, iTime).xy;
 
     vec3 cloudVec = sqrt(noise(skyPos, 0, iTime));
     float cloudFactor = cloudVec.r + cloudVec.g * 0.5 + cloudVec.b * 0.25;
-    cloudFactor = clamp(exp2(8.0 * (cloudFactor - 1.3)) - 1.0, 0.0, 0.8);
+    cloudFactor = clamp(64.0*(cloudFactor - 1.3), 0.0, 1.0);
     vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, cloudVec.g - cloudVec.b);
 
     // Mix where the Sun is and where the Sun isn't

@@ -49,15 +49,18 @@ int vol( int x0, int y0, int z0,
 };
 
 
-int simplex(int _x, int _y)
+float arc(int a)
 {
-	double arc = 6.28318530718 / X;
+	return 6.283185 * a / X;
+}
+int simplex(int x, int y)
+{
 	double r = 1.0;
 	return (int) (100.0 * noise.eval(
-			r * cos(arc * _x) + 1.0, 
-			r * sin(arc * _x) + 2.0, 
-			r * cos(arc * _y) + 3.0, 
-			r * sin(arc * _y) + 4.0
+			r * cos(arc(x)) + 1.0, 
+			r * sin(arc(x)) + 2.0, 
+			r * cos(arc(y)) + 3.0, 
+			r * sin(arc(y)) + 4.0
 		));
 }
 
