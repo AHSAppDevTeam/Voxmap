@@ -94,8 +94,11 @@ bin/vox: bin/VoxWriter.o bin/vox-pass.o
 bin/vox-reverse: bin/VoxWriter.o bin/vox-reverse.o
 	clang++ $(cppflags) -o bin/vox-reverse bin/vox-reverse.o bin/VoxWriter.o
 
-bin/sdf: src/sdf-pass.cpp bin/OpenSimplexNoise.o
-	clang++ src/sdf-pass.cpp bin/OpenSimplexNoise.o $(cppflags) -o bin/sdf
+bin/sdf-pass.o: src/sdf-pass.cpp
+	clang++ $(cppflags) -o bin/sdf-pass.o -c src/sdf-pass.cpp
+
+bin/sdf: bin/sdf-pass.o bin/OpenSimplexNoise.o
+	clang++ $(cppflags) -o bin/sdf bin/sdf-pass.o bin/OpenSimplexNoise.o
 
 bin/viewer: src/viewer.cpp libs/glad.c
 	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw $(cppflags) -o bin/viewer

@@ -98,13 +98,13 @@ async function main() {
     const texture = gl.createTexture()
 
     gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8UI,
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
         1024, 4096, 0,
-        gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, await map_texture)
+        gl.RGBA, gl.UNSIGNED_BYTE, await map_texture)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.uniform1i(handles.mapSampler, 0)
@@ -174,6 +174,7 @@ async function add_listeners() {
         event.preventDefault()
         canvas.requestPointerLock()
     })
+    cam.rot = cam.rot.map(a => a % (2 * Math.PI))
     canvas.addEventListener('pointermove', (event) => {
         controls.rot[z] -= 2 * event.movementX / size
         controls.rot[x] -= 4 * event.movementY / size

@@ -4,3 +4,6 @@
 [submodule "libs/OpenSimplexNoise"]
 	path = libs/OpenSimplexNoise
 	url = https://github.com/deerel/OpenSimplexNoise.git
+[submodule "libs/MagicaVoxel_File_Writer"]
+	path = libs/MagicaVoxel_File_Writer
+	url = https://github.com/aiekick/MagicaVoxel_File_Writer

@@ -34,7 +34,7 @@ precision lowp int;
 
 out vec4 FragColor;
 
-uniform highp usampler2D mapTexture;
+uniform highp sampler2D mapTexture;
 uniform vec2 iResolution;
 uniform float iTime;
 uniform vec3 iCamRot;
@@ -68,20 +68,18 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 // Collection of noises
 // shift 0: multi-octave fractal noise
 // shift 1: white noise
-vec3 noise(vec2 p, int shift, int t) {
-  ivec2 q = ivec2(p) + X/2;
-  ivec2 y = ivec2(0, shift * X);
-  return 0.0039 * vec3(
-    texelFetch(mapTexture, (q + 100 + t*ivec2(1, 3)) % X + y, 0).a,
-    texelFetch(mapTexture, (q + 200 + t*ivec2(3, 1)) % X + y, 0).a,
-    texelFetch(mapTexture, (q - 100 - t*ivec2(2, 2)) % X + y, 0).a
+vec3 noise(vec2 p, int shift, float t) {
+  const vec2 M = vec2(1, Xf / Yf / Zf);
+  t *= 1e-3;
+  vec2 y = vec2(0, float(shift) / M);
+  return vec3(
+    texture(mapTexture, fract(p + t*vec2(1, 3))*M + y).a,
+    texture(mapTexture, fract(p*2.0 + t*vec2(1, 3))*M + y).a,
+    texture(mapTexture, fract(p*4.0 + t*vec2(1, 3))*M + y).a
   );
 }
 vec3 noise(vec2 p, int shift) {
-  return noise(p, shift, 0);
-}
-vec3 noise(vec2 p, int shift, float t) {
-  return mix(noise(p, shift, int(t)), noise(p, shift, int(t)+1), fract(t));
+  return noise(p, shift, 0.0);
 }
 
 // Vector rotater
@@ -102,7 +100,7 @@ ivec2 project(ivec3 c){
 }
 // Read 2D texture from 3D coordinate
 ivec3 tex(ivec3 c) {
-  return ivec3(texelFetch(mapTexture, project(c), 0).rgb);
+  return ivec3(texelFetch(mapTexture, project(c), 0).rgb * 255.);
 }
 // SDF texture is split into two directions:
 // one for the distance to the closest thing above
@@ -313,13 +311,18 @@ void main() {
     vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.0), scatter);
     vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, rayDir.z)));
 
-    vec2 skyPos = rayDir.xy / sqrt(rayDir.z);
-    vec3 cloudVec = noise(skyPos*100.0 + 0.1*vec2(iCamCellPos.xy), 0, iTime);
-    float cloudFactor = length(max(cloudVec.r * cloudVec.g * cloudVec.b * 8.0 - 1.0, 0.0));
-    //float cloudFactor = 0.0;
+    vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
+    skyPos += 0.1 * noise(skyPos, 0, iTime).xy;
+    skyPos *= 0.02 * sqrt(length(skyPos));
+    skyPos += 1e-5 * vec2(iCamCellPos.xy);
+
+    vec3 cloudVec = sqrt(noise(skyPos, 0, iTime));
+    float cloudFactor = cloudVec.r + cloudVec.g * 0.5 + cloudVec.b * 0.25;
+    cloudFactor = clamp(exp2(8.0 * (cloudFactor - 1.3)) - 1.0, 0.0, 0.8);
+    vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, cloudVec.g - cloudVec.b);
 
     // Mix where the Sun is and where the Sun isn't
-    vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol + scatterCol*cloudFactor;
+    vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol + cloudCol*cloudFactor;
 
     // Make far-away objects fade to the sky color,
     // also add the sky if we reached the void
