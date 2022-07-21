@@ -55,6 +55,8 @@ const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
 
+const vec2 Mf = vec2(Xf, Yf * Zf);
+
 const float FoV = 1.0;
 
 // Quality-adjustable raytracing parameters
@@ -69,13 +71,13 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 // shift 0: multi-octave fractal noise
 // shift 1: white noise
 vec3 noise(vec2 p, int shift, float t) {
-  const vec2 M = vec2(1, Xf / Yf / Zf);
-  t *= 1e-4;
-  vec2 y = vec2(0, float(shift) / M);
+  t *= 1e-3;
+  vec2 y = vec2(0, float(shift) * Xf / Mf);
+#define OFFSET(P) ((fract(P) + 1.0/Xf)/(1.0 + 2.0/Xf)*Xf/Mf + y)
   return vec3(
-    texture(mapTexture, fract(p + t*vec2(0,-9))*M + y).a,
-    texture(mapTexture, fract(p*2.0 + 0.1 + t*vec2(-1,-3))*M + y).a,
-    texture(mapTexture, fract(p*4.0 + 0.4 + t*vec2( 1, 5))*M + y).a
+    texture(mapTexture, OFFSET(p + t*vec2(0,-9))).a,
+    texture(mapTexture, OFFSET(p*2.0 + 0.1 + t*vec2(-1,-3))).a,
+    texture(mapTexture, OFFSET(p*4.0 + 0.4 + t*vec2( 1, 5))).a
   );
 }
 vec3 noise(vec2 p, int shift) {
@@ -102,6 +104,17 @@ ivec2 project(ivec3 c){
 ivec3 tex(ivec3 c) {
   return ivec3(texelFetch(mapTexture, project(c), 0).rgb * 255.);
 }
+vec3 tex(ivec3 c, vec3 f) {
+  f = f - 0.5;
+  vec2 p = vec2(project(c)) + f.xy;
+  vec2 shift = vec2(0, sign(f.z)) * Yf;
+  f = abs(f);
+  return 255.0 * mix(
+      texture(mapTexture, (p)/Mf),
+      texture(mapTexture, (p + shift)/Mf),
+      f.z
+    ).rgb;
+}
 // SDF texture is split into two directions:
 // one for the distance to the closest thing above
 // and one for the distance to the closest thing below,
@@ -112,15 +125,8 @@ int sdf_dir(ivec3 c, int dir) {
 }
 // Fancy trilinear interpolator (stolen from Wikipedia)
 float sdf(ivec3 c, vec3 f) {
-  f = f - 0.5;
-  ivec3 dir = ivec3(sign(f));
-  f = abs(f);
-#define D3(X,Y,Z) ( vec3(tex(c + dir * ivec3(X,Y,Z))) )
-#define D2(Y,Z) ( mix(D3(0,Y,Z), D3(1,Y,Z), f.x) )
-#define D1(Z)   ( mix(D2(0,Z),   D2(1,Z),   f.y) )
-#define D0      ( mix(D1(0),     D1(1),     f.z) )
-  vec3 o = D0;
-  return min(o.r, o.g);
+  vec3 d = tex(c, f);
+  return min(d.r, d.g);
 }
 
 // Get color from texture's palette index

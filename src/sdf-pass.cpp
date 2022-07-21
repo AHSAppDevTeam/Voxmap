@@ -51,7 +51,7 @@ int vol( int x0, int y0, int z0,
 
 float arc(int a)
 {
-	return 6.283185 * a / X;
+	return 6.283185 * (a + 2.0) / (X + 4.0);
 }
 int simplex(int x, int y)
 {
