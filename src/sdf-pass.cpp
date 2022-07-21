@@ -1,5 +1,6 @@
 #include "voxmap.h"
 #include "../libs/pnm.hpp"
+#include "OpenSimplexNoise/OpenSimplexNoise.h"
 #include <iostream>
 #include <cstdlib>
 #include <fstream>
@@ -19,7 +20,7 @@ int sdf[Z][Y][X][O]; // radius of largest fittng cube centered at block
 int main()
 {
 	using namespace pnm::literals;
-
+	OpenSimplexNoise::Noise simplex;
 	std::cout << "Loading png slices..." << std::flush;
 
 	pnm::image<pnm::rgb_pixel> img = pnm::read("maps/map.ppm");

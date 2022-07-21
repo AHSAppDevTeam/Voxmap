@@ -74,27 +74,28 @@ src/map.blob: maps/texture.bin.gz
 	# Rename file to map.blob
 	# And move it to src/
 
+cppflags = -O3 -g -std=c++20 -Ilibs/MagicaVoxel_file_writer -Ilibs/OpenSimplexNoise -I.
+
+bin/OpenSimplexNoise.o:
+	clang++ $(cppflags) -o bin/OpenSimplexNoise.o -c libs/OpenSimplexNoise/OpenSimplexNoise/OpenSimplexNoise.cpp
+
 bin/VoxWriter.o:
-	clang++ -I libs/MagicaVoxel_File_Writer -Og -g -std=gnu++20 \
-		-o bin/VoxWriter.o -c libs/MagicaVoxel_File_Writer/VoxWriter.cpp
+	clang++ $(cppflags) -o bin/VoxWriter.o -c libs/MagicaVoxel_File_Writer/VoxWriter.cpp
 
 bin/vox-pass.o: src/vox-pass.cpp
-	clang++ -I libs/MagicaVoxel_File_Writer -Og -g -std=gnu++20 \
-		-o bin/vox-pass.o -c src/vox-pass.cpp
+	clang++ $(cppflags) -o bin/vox-pass.o -c src/vox-pass.cpp
 
 bin/vox-reverse.o: src/vox-reverse.cpp
-	clang++ -I libs/MagicaVoxel_File_Writer -Og -g -std=gnu++20 \
-		-o bin/vox-reverse.o -c src/vox-reverse.cpp
+	clang++ $(cppflags) -o bin/vox-reverse.o -c src/vox-reverse.cpp
 
 bin/vox: bin/VoxWriter.o bin/vox-pass.o
-	clang++ -I. -g -Og -std=gnu++20 -o bin/vox bin/vox-pass.o bin/VoxWriter.o
+	clang++ $(cppflags) -o bin/vox bin/vox-pass.o bin/VoxWriter.o
 
 bin/vox-reverse: bin/VoxWriter.o bin/vox-reverse.o
-	clang++ -I. -g -Og -std=gnu++20 -o bin/vox-reverse bin/vox-reverse.o bin/VoxWriter.o
+	clang++ $(cppflags) -o bin/vox-reverse bin/vox-reverse.o bin/VoxWriter.o
 
-bin/sdf: src/sdf-pass.cpp
-	clang++ src/sdf-pass.cpp -g -Og -std=gnu++20 -o bin/sdf
+bin/sdf: src/sdf-pass.cpp bin/OpenSimplexNoise.o
+	clang++ src/sdf-pass.cpp bin/OpenSimplexNoise.o $(cppflags) -o bin/sdf
 
 bin/viewer: src/viewer.cpp libs/glad.c
-	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw -O3 -o bin/viewer
-
+	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw $(cppflags) -o bin/viewer
