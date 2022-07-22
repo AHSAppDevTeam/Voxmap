@@ -167,7 +167,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
   // Start marchin'
   while(res.step < MAX_STEPS && dist != 0) {
     // Distances to each axis
-    axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-5;
+    axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-4;
 
     // How quickly the ray would reach each axis
     axisRayDist = axisCellDist / abs(rayDir);

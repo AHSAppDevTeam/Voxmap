@@ -31,7 +31,7 @@ maps/map.pgm: maps/map.ora
 	mv maps/ora/data/*.pgm maps/pgm
 	touch maps/pgm/*.pgm
 
-maps/map.vox: bin/vox maps/map.pgm
+maps/map.old.vox: bin/vox maps/map.pgm
 	### PGM to 3D MagicaVoxel volume
 	bin/vox
 
