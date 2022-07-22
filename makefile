@@ -49,13 +49,8 @@ maps/texture.bin.gz: maps/texture.bin
 	gzip -f maps/texture.bin
 
 src/map.blob: maps/texture.bin.gz
-	### (MANUAL STEP) Encrypt PNG
-	# Open encrypt.html
-	# Enter encryption key
-	# Encrypt image
-	# Download
-	# Rename file to map.blob
-	# And move it to src/
+	### Encrypt PNG
+	node src/encrypt.js
 
 cppflags = -O3 -g -std=c++20 -Ilibs/MagicaVoxel_file_writer -Ilibs/OpenSimplexNoise -I.
 
