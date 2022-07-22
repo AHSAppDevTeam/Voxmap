@@ -18,35 +18,6 @@ int sum[Z][Y][X]; // summed volume table
 int sdf[Z][Y][X][O]; // radius of largest fittng cube centered at block
 OpenSimplexNoise::Noise noise;
 
-// clamped sum access
-int csum(int z, int y, int x)
-{
-	return sum
-		[std::clamp(z,0,Z-1)]
-		[std::clamp(y,0,Y-1)]
-		[std::clamp(x,0,X-1)] ;
-};
-
-int vol( int x0, int y0, int z0,
-			int x1, int y1, int z1 )
-{
-	x0--;
-	y0--;
-	z0--;
-	return 0
-		- csum(z0, y1, x1)
-		- csum(z1, y0, x1)
-		- csum(z1, y1, x0)
-
-		+ csum(z1, y1, x1)
-
-		+ csum(z1, y0, x0)
-		+ csum(z0, y1, x0)
-		+ csum(z0, y0, x1)
-
-		- csum(z0, y0, x0);
-};
-
 
 float arc(int a)
 {
@@ -62,7 +33,6 @@ double simplex(int x, int y)
 			r * sin(arc(y)) + 4.0
 		);
 }
-
 int fractal(int x, int y, int octaves)
 {
 	double n = 0;
@@ -74,6 +44,35 @@ int fractal(int x, int y, int octaves)
 
 int main()
 {
+	// clamped sum access
+	auto csum = [&](int z, int y, int x)
+	{
+		return sum
+			[std::clamp(z,0,Z-1)]
+			[std::clamp(y,0,Y-1)]
+			[std::clamp(x,0,X-1)] ;
+	};
+
+	auto vol = [&]( int x0, int y0, int z0,
+				int x1, int y1, int z1 )
+	{
+		x0--;
+		y0--;
+		z0--;
+		return 0
+			- csum(z0, y1, x1)
+			- csum(z1, y0, x1)
+			- csum(z1, y1, x0)
+
+			+ csum(z1, y1, x1)
+
+			+ csum(z1, y0, x0)
+			+ csum(z0, y1, x0)
+			+ csum(z0, y0, x1)
+
+			- csum(z0, y0, x0);
+	};
+
 	std::cout << "Loading voxel map..." << std::flush;
 
 	std::ifstream in("maps/map.txt");
@@ -96,7 +95,7 @@ int main()
 
 	std::cout << "Generating palette..." << std::endl;
 
-	std::cout << "\treturn ";
+	std::cout << "  return ";
 	{
 		int i = 0;
 		for (int color : pal_set) {
@@ -110,6 +109,22 @@ int main()
 		}
 		std::cout << "vec3(1);" << std::endl;
 	}
+
+	FOR_XYZ {
+		int i = 0;
+		for (; i < MAX && pal[i] != col[z][y][x]; i++) continue;
+		col[z][y][x] = i;
+	}
+
+	std::cout << "Done." << std::endl;
+
+	std::cout << "Writing to vertex file..." << std::flush;
+
+	FOR_XYZ {
+		if(bin[z][y][x] == 0) continue;
+	}
+
+	std::cout << "Done." << std::endl;
 
 	std::cout << "Generating summed volume table..." << std::flush;
 
@@ -133,60 +148,42 @@ int main()
 	}
 
 	std::cout << "Done." << std::endl;
+
 	std::cout << "Generating signed distance fields..." << std::flush;
 
 	FOR_XYZ {
 		// find greatest allowable cube's radius as sdf
 
-		if(bin[z][y][x] > 0){
-			// no cube inside blocks
-			sdf[z][y][x][0] = 0;
-			sdf[z][y][x][1] = 0;
-			continue;
-		} else {
-			sdf[z][y][x][0] = Z;
-			sdf[z][y][x][1] = z;
-		}
+		if(bin[z][y][x] > 0) continue;
 
 		// compute volume with summed volume table
-		for(int r = 1; r < Z; r++){
-			// stop if there exists a block
-			if(vol(
-						x-r,y-r,z,
-						x+r,y+r,z+r
-					)) {
-				sdf[z][y][x][0] = r;
-				break;
-			}
-		}
-		for(int r = 1; r < z; r++){
-			// stop if there exists a block
-			if(vol(
-						x-r,y-r,z-r,
-						x+r,y+r,z
-					)) {
-				sdf[z][y][x][1] = r;
-				break;
-			}
-		}
+		int r;
+		for(r = 1; vol(
+					x-r,y-r,z,
+					x+r,y+r,z+r
+				) == 0 && r < Z; r++) continue;
+		sdf[z][y][x][0] = r;
+
+		for(r = 1; vol(
+					x-r,y-r,z-r,
+					x+r,y+r,z
+				) == 0 && r < z; r++) continue;
+		sdf[z][y][x][1] = r;
 	}
 
 	std::cout << "Done." << std::endl;
-	std::cout << "Writing to file..." << std::flush;
+	std::cout << "Writing to texture file..." << std::flush;
 
-	std::ofstream out("maps/texture.bin", std::ios::binary);
+	std::ofstream texture("maps/texture.bin", std::ios::binary);
 
 	FOR_XYZ {
-		int col_index = 0;
-		for (; col_index < MAX && pal[col_index] != col[z][y][x]; col_index++) { continue; }
-
 		int _x = x;
 		int _y = Y*z + y;
 
-		out.put((char) sdf[z][y][x][0]);
-		out.put((char) sdf[z][y][x][1]);
-		out.put((char) col_index);
-		out.put(
+		texture.put((char) sdf[z][y][x][0]);
+		texture.put((char) sdf[z][y][x][1]);
+		texture.put((char) col[z][y][x]);
+		texture.put(
 			(char) (
 				_y/Y < 1 ? fractal(_x, _y, 8) :
 				_y/Y < 2 ? std::rand() % 256 :
@@ -195,7 +192,7 @@ int main()
 		);
 	}
 
-	out.close();
+	texture.close();
 
 	std::cout << "Done." << std::endl;
 	std::cout << "^_^" << std::endl;;
