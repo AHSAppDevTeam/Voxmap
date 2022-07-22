@@ -75,15 +75,8 @@ vec3 project(vec2 p, int shift){
   p = fract(p) * (Yf - 4.0) + 2.0;
   return vec3(p.x, p.y, float(shift)) * Mf;
 }
-vec3 noise(vec2 p, int shift, float t) {
-  t *= 2e-4;
-  float r = texture(mapTexture, project(1.0*p + vec2(0, -9)*t, shift)).a;
-  float g = texture(mapTexture, project(8.0*p*r + vec2(-1,-3)*t, shift)).a;
-  float b = texture(mapTexture, project(64.0*p*g + vec2( 1, 5)*t, shift)).a;
-  return vec3(r,g,b);
-}
-vec3 noise(vec2 p, int shift) {
-  return noise(p, shift, 0.0);
+float noise(vec2 p, int shift) {
+  return texture(mapTexture, project(p, shift)).a;
 }
 
 // Vector rotater
@@ -315,17 +308,29 @@ void main() {
     skyPos *= sqrt(length(skyPos));
     skyPos += 1e-5 * vec2(iCamCellPos.xy);
 
-    vec3 cloudVec = sqrt(noise(skyPos, 0, iTime));
-    float cloudFactor = cloudVec.r + cloudVec.g/8.0 + cloudVec.b/64.0;
+    float cloudTime = iTime * 2e-4;
+    float cloudA = noise(1.0*skyPos + vec2(0, -9)*cloudTime, 0);
+    float cloudB = noise(8.0*skyPos*cloudA + vec2(-1, -3)*cloudTime, 0);
+    float cloudC = noise(64.0*skyPos*cloudB + vec2(1, 5)*cloudTime, 0);
+    float cloudFactor = cloudA + cloudB/8.0 + cloudC/64.0;
     cloudFactor = clamp(4.0*(cloudFactor - 0.95), 0.0, 1.0);
-    vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, 0.05*(cloudVec.r - cloudVec.g));
+    vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, 0.05*(cloudA - cloudB));
 #else
     vec3 cloudCol = vec3(1);
     float cloudFactor = 0.0;
 #endif
 
     // Mix where the Sun is and where the Sun isn't
-    vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol + cloudCol*cloudFactor;
+    vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol;
+
+    float mountainPos = 0.1 * rayDir.x / rayDir.y;
+    float mountainHeight = 0.4 + min(rayDir.y, noise(vec2(mountainPos), 0));
+    mountainHeight /= exp(64.0 * mountainPos * mountainPos) * 4.0;
+    if(mountainHeight > rayDir.z) {
+      skyCol = mix(skyCol, skyCol*vec3(0.1, 0.2, 0.1), noise(mountainPos + rayDir.yz, 0) * rayDir.z);
+    } else {
+      skyCol += cloudCol*cloudFactor;
+    }
 
     // Make sure values don't overflow (the Sun can be very bright)
     skyCol = clamp(skyCol, vec3(0), vec3(1));
