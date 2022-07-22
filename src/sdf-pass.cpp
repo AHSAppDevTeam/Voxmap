@@ -50,26 +50,26 @@ int vol( int x0, int y0, int z0,
 
 float arc(int a)
 {
-	return 6.283185 * (a + 2.0) / (X + 4.0);
+	return 6.283185 * (a - 2.0) / (Y - 4.0);
 }
-int simplex(int x, int y)
+double simplex(int x, int y)
 {
 	double r = 1.0;
-	return (int) (100.0 * noise.eval(
+	return noise.eval(
 			r * cos(arc(x)) + 1.0, 
 			r * sin(arc(x)) + 2.0, 
 			r * cos(arc(y)) + 3.0, 
 			r * sin(arc(y)) + 4.0
-		));
+		);
 }
 
-int fractal(int _x, int _y, int octaves)
+int fractal(int x, int y, int octaves)
 {
-	int n = 0;
+	double n = 0;
 	for(int o = 0; o < octaves; o++){
-		n += simplex(_x << o, _y << o) >> o;
+		n += simplex(x << o, y << o) / (1 << o);
 	}
-	return 128 + std::clamp(n, -128, 127);
+	return 128 + std::clamp((int)(300 * n), -128, 127);
 }
 
 int main()
@@ -188,8 +188,8 @@ int main()
 		out.put((char) col_index);
 		out.put(
 			(char) (
-				_y/X < 1 ? fractal(_x, _y, 8) :
-				_y/X < 2 ? std::rand() % 256 :
+				_y/Y < 1 ? fractal(_x, _y, 8) :
+				_y/Y < 2 ? std::rand() % 256 :
 				0
 			)
 		);

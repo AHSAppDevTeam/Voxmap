@@ -72,17 +72,15 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 // shift 0: multi-octave fractal noise
 // shift 1: white noise
 vec3 project(vec2 p, int shift){
-  p = Xf * (Xf*fract(p) + 2.0) / (Xf + 4.0);
-  p += vec2(0, X*shift);
-  return vec3(p.x, mod(p.y,Yf), floor(p.y/Yf)) * Mf;
+  p = fract(p) * (Yf - 4.0) + 2.0;
+  return vec3(p.x, p.y, float(shift)) * Mf;
 }
 vec3 noise(vec2 p, int shift, float t) {
-  t *= 1e-3;
-  return vec3(
-      texture(mapTexture, project(1.0*p + 0.0 + vec2(0, -9)*t, shift)).a,
-      texture(mapTexture, project(2.0*p + 0.1 + vec2(-1,-3)*t, shift)).a,
-      texture(mapTexture, project(4.0*p + 0.4 + vec2( 1, 5)*t, shift)).a
-  );
+  t *= 2e-4;
+  float r = texture(mapTexture, project(1.0*p + vec2(0, -9)*t, shift)).a;
+  float g = texture(mapTexture, project(8.0*p*r + vec2(-1,-3)*t, shift)).a;
+  float b = texture(mapTexture, project(64.0*p*g + vec2( 1, 5)*t, shift)).a;
+  return vec3(r,g,b);
 }
 vec3 noise(vec2 p, int shift) {
   return noise(p, shift, 0.0);
@@ -313,18 +311,14 @@ void main() {
 
 #ifdef CLOUDS
     vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
-    skyPos *= 0.04;
-    //skyPos *= sqrt(length(skyPos));
+    skyPos *= 0.2;
+    skyPos *= sqrt(length(skyPos));
     skyPos += 1e-5 * vec2(iCamCellPos.xy);
 
-#if QUALITY > 3
-    skyPos *= 1.0 + 4.0 * noise(skyPos, 0, iTime).xy;
-#endif
-
     vec3 cloudVec = sqrt(noise(skyPos, 0, iTime));
-    float cloudFactor = cloudVec.r + cloudVec.g * 0.5 + cloudVec.b * 0.25;
-    cloudFactor = clamp(64.0*(cloudFactor - 1.3), 0.0, 1.0);
-    vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, cloudVec.g - cloudVec.b);
+    float cloudFactor = cloudVec.r + cloudVec.g/8.0 + cloudVec.b/64.0;
+    cloudFactor = clamp(4.0*(cloudFactor - 0.95), 0.0, 1.0);
+    vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, 0.05*(cloudVec.r - cloudVec.g));
 #else
     vec3 cloudCol = vec3(1);
     float cloudFactor = 0.0;
