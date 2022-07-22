@@ -26,6 +26,7 @@ precision lowp int;
 #endif
 
 #if QUALITY > 2
+#define CLOUDS
 #endif
 
 #if QUALITY > 3
@@ -73,8 +74,7 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 vec3 project(vec2 p, int shift){
   p = Xf * (Xf*fract(p) + 2.0) / (Xf + 4.0);
   p += vec2(0, X*shift);
-  float y = mod(p.y, Yf);
-  return vec3(p.x, y, (p.y - y) / Yf) * Mf;
+  return vec3(p.x, mod(p.y,Yf), floor(p.y/Yf)) * Mf;
 }
 vec3 noise(vec2 p, int shift, float t) {
   t *= 1e-3;
@@ -167,7 +167,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
   // Start marchin'
   while(res.step < MAX_STEPS && dist != 0) {
     // Distances to each axis
-    axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-4;
+    axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-5;
 
     // How quickly the ray would reach each axis
     axisRayDist = axisCellDist / abs(rayDir);
@@ -273,6 +273,11 @@ void main() {
     // Intersection distance
     float dist = length(res.rayPos.xy - vec2(camCellPos.xy));
 
+    // Make far-away objects fade to the sky color,
+    // also add the sky if we reached the void
+    float skyFactor = (res.step == MAX_RAY_STEPS) ? 1.
+      : min(dist*dist*dist*1e-8, 1.0);
+
     // Start coloring!
 
     // Get base color (matte & shadowless) from texture
@@ -306,8 +311,10 @@ void main() {
     vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.0), scatter);
     vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, rayDir.z)));
 
+#ifdef CLOUDS
     vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
-    skyPos *= 0.04 * sqrt(length(skyPos));
+    skyPos *= 0.04;
+    //skyPos *= sqrt(length(skyPos));
     skyPos += 1e-5 * vec2(iCamCellPos.xy);
 
 #if QUALITY > 3
@@ -318,14 +325,13 @@ void main() {
     float cloudFactor = cloudVec.r + cloudVec.g * 0.5 + cloudVec.b * 0.25;
     cloudFactor = clamp(64.0*(cloudFactor - 1.3), 0.0, 1.0);
     vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, cloudVec.g - cloudVec.b);
+#else
+    vec3 cloudCol = vec3(1);
+    float cloudFactor = 0.0;
+#endif
 
     // Mix where the Sun is and where the Sun isn't
     vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol + cloudCol*cloudFactor;
-
-    // Make far-away objects fade to the sky color,
-    // also add the sky if we reached the void
-    float skyFactor = (res.step == MAX_RAY_STEPS) ? 1.
-      : min(dist*dist*dist*1e-8, 1.0);
 
     // Make sure values don't overflow (the Sun can be very bright)
     skyCol = clamp(skyCol, vec3(0), vec3(1));
