@@ -116,17 +116,17 @@ async function main() {
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
 
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        -1, -1, // first triangle
-        +1, -1,
-        -1, +1,
-        -1, +1, // second triangle
-        +1, -1,
-        +1, +1,
+        -1, -1, 0, // first triangle
+        +1, -1, 1,
+        -1, +1, 0,
+        -1, +1, 0, // second triangle
+        +1, -1, 0,
+        +1, +1, 0,
     ]), gl.STATIC_DRAW)
 
     gl.vertexAttribPointer(
         handles.position,
-        2, // 2 components per iteration
+        3, // 3 components per iteration
         gl.FLOAT, // the data is 32bit floats
         false, // don't normalize the data
         0, // 0 = move forward size * sizeof(type) each iteration to get the next position
@@ -177,7 +177,7 @@ async function add_listeners() {
     })
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))
     canvas.addEventListener('pointermove', (event) => {
-        controls.rot[z] -= 8 * event.movementX / size
+        controls.rot[z] -= 4 * event.movementX / size
         controls.rot[x] -= 2 * event.movementY / size
         controls.rot[x] = clamp(controls.rot[x], 0.8)
     })
@@ -186,8 +186,8 @@ async function add_listeners() {
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.active) {
-            controls.move[x] = + clamp(event.offsetX * 2 / size - 1, 1)
-            controls.move[y] = - clamp(event.offsetY * 2 / size - 1, 1)
+            controls.move[x] = +2*clamp(event.offsetX * 2 / size - 1, 1)
+            controls.move[y] = -2*clamp(event.offsetY * 2 / size - 1, 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -280,7 +280,7 @@ async function update_state(time, delta) {
     let sin = Math.sin(cam.rot[z])
     let cos = Math.cos(cam.rot[z])
 
-    let f = controls.move.map(f => f * 30)
+    let f = controls.move.map(f => f * 100)
 
     cam.acc = [
         f[x] * cos - f[y] * sin,
@@ -301,7 +301,7 @@ async function update_state(time, delta) {
 
     cam.rot = cam.rot.map( 
         (a, i) => cam.rot[i] + 
-        clamp( pow(controls.rot[i] - cam.rot[i], 3), 10*delta)
+        clamp( pow(controls.rot[i] - cam.rot[i], 1.5), 10*delta)
     )
 
     let hour = time / 60 / 60 / 12 * Math.PI
