@@ -40,15 +40,15 @@ maps/map.txt: maps/map.vox
 	### x y z RRGGBB
 	goxel maps/map.vox --export maps/map.txt
 
-maps/texture.bin: bin/sdf maps/map.txt
+out: bin/sdf maps/map.txt
 	### PBM to SDF
 	# results in a combined SDF + voxel color texture
 	bin/sdf
 
-maps/texture.bin.gz: maps/texture.bin
-	gzip -f maps/texture.bin
+out.gz: out
+	gzip -f out/*.bin
 
-src/map.blob: maps/texture.bin.gz
+src/map.blob: out.gz
 	### Encrypt PNG
 	node src/encrypt.js
 

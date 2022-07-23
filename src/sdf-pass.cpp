@@ -10,6 +10,55 @@
 const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
 
+const int N_FACES = 6;
+const int N_VERTS = 6;
+const int N_AXES = 3;
+const int CUBE[N_FACES][N_VERTS][N_AXES] = { // Triangles of a cube
+	{
+		{ 0, 0, 1 }, // +Z
+		{ 0, 1, 1 },
+		{ 1, 1, 1 },
+		{ 1, 1, 1 },
+		{ 1, 0, 1 },
+		{ 0, 0, 1 }
+	}, {
+		{ 0, 0, 0 }, // -Z
+		{ 1, 0, 0 },
+		{ 1, 1, 0 },
+		{ 1, 1, 0 },
+		{ 0, 1, 0 },
+		{ 0, 0, 0 }
+	}, {
+		{ 0, 1, 0 },
+		{ 0, 1, 1 },
+		{ 1, 1, 1 },
+		{ 1, 1, 1 },
+		{ 1, 1, 0 },
+		{ 0, 1, 0 }
+	}, {
+		{ 0, 0, 0 },
+		{ 1, 0, 0 },
+		{ 1, 0, 1 },
+		{ 1, 0, 1 },
+		{ 0, 0, 1 },
+		{ 0, 0, 0 }
+	}, {
+		{ 1, 0, 0 },
+		{ 1, 0, 1 },
+		{ 1, 1, 1 },
+		{ 1, 1, 1 },
+		{ 1, 1, 0 },
+		{ 1, 0, 0 }
+	}, {
+		{ 0, 0, 0 }, // -X
+		{ 0, 1, 0 },
+		{ 0, 1, 1 },
+		{ 0, 1, 1 },
+		{ 0, 0, 1 },
+		{ 0, 0, 0 }
+	}
+};
+
 int col[Z][Y][X]; // color
 int pal[MAX]; // palette
 std::set <int> pal_set; // palette set
@@ -27,11 +76,11 @@ double simplex(int x, int y)
 {
 	double r = 1.0;
 	return noise.eval(
-			r * cos(arc(x)) + 1.0, 
-			r * sin(arc(x)) + 2.0, 
-			r * cos(arc(y)) + 3.0, 
+			r * cos(arc(x)) + 1.0,
+			r * sin(arc(x)) + 2.0,
+			r * cos(arc(y)) + 3.0,
 			r * sin(arc(y)) + 4.0
-		);
+			);
 }
 int fractal(int x, int y, int octaves)
 {
@@ -50,11 +99,11 @@ int main()
 		return sum
 			[std::clamp(z,0,Z-1)]
 			[std::clamp(y,0,Y-1)]
-			[std::clamp(x,0,X-1)] ;
+				[std::clamp(x,0,X-1)] ;
 	};
 
 	auto vol = [&]( int x0, int y0, int z0,
-				int x1, int y1, int z1 )
+			int x1, int y1, int z1 )
 	{
 		x0--;
 		y0--;
@@ -77,26 +126,26 @@ int main()
 
 	std::ifstream in("maps/map.txt");
 
-	{
-		// Skip first 3 lines
-		for(int i = 0; i < 3; i++) in.ignore(256, '\n');
+	// Skip first 3 lines
+	for(int i = 0; i < 3; i++) in.ignore(256, '\n');
 
-		int x, y, z, color;
-		while ( in >> std::dec >> x >> y >> z >> std::hex >> color ) {
-			if(x > X || y > Y || z > Z) break;
-			x += 512; y += 5; z += 0; // Goxel default offset
-			pal_set.insert(color);
-			col[z][y][x] = color;
-			bin[z][y][x] = 1;
-		}
+	// Read input stream
+	for (
+			int x, y, z, color; 
+			in >> std::dec >> x >> y >> z >> std::hex >> color;
+	) {
+		x += 512; y += 5; z += 0;
+		pal_set.insert(color);
+		col[z][y][x] = color;
+		bin[z][y][x] = 1;
 	}
 
 	std::cout << "Done." << std::endl;
 
 	std::cout << "Generating palette..." << std::endl;
 
-	std::cout << "  return ";
 	{
+		std::cout << "  return ";
 		int i = 0;
 		for (int color : pal_set) {
 			std::cout << "p==" << i << "?";
@@ -120,9 +169,37 @@ int main()
 
 	std::cout << "Writing to vertex file..." << std::flush;
 
+	std::ofstream o_position("out/position.bin", std::ios::binary);
+	std::ofstream o_color("out/color.bin", std::ios::binary);
+
+	auto o_position_put = [&](int x)
+	{
+		o_position.put((char)(x & 0xFF));
+		o_position.put((char)(x >> 8));
+	};
+	auto quad = [&](int x, int y, int z, int c, int i)
+	{
+		for(int v = 0; v < N_VERTS; v++) {
+			o_position_put(x + CUBE[i][v][0]);
+			o_position_put(y + CUBE[i][v][1]);
+			o_position_put(z + CUBE[i][v][2]);
+			o_color.put((char) c);
+		}
+	};
+
 	FOR_XYZ {
 		if(bin[z][y][x] == 0) continue;
+		int c = col[z][y][x];
+		if(z == Z-1 || c != col[z+1][y][x]) quad(x,y,z,c,0);
+		if(z == 0   || c != col[z-1][y][x]) quad(x,y,z,c,1);
+		if(y == Y-1 || c != col[z][y+1][x]) quad(x,y,z,c,2);
+		if(y == 0   || c != col[z][y-1][x]) quad(x,y,z,c,3);
+		if(x == X-1 || c != col[z][y][x+1]) quad(x,y,z,c,4);
+		if(x == 0   || c != col[z][y][x-1]) quad(x,y,z,c,5);
 	}
+
+	o_position.close();
+	o_color.close();
 
 	std::cout << "Done." << std::endl;
 
@@ -157,42 +234,51 @@ int main()
 		if(bin[z][y][x] > 0) continue;
 
 		// compute volume with summed volume table
-		int r;
-		for(r = 1; vol(
-					x-r,y-r,z,
-					x+r,y+r,z+r
-				) == 0 && r < Z; r++) continue;
+		int r = 1;
+		while(
+			(r < Z) &&
+			(0 == vol(
+				x-r,y-r,z,
+				x+r,y+r,z+r
+			))
+		) r++;
+
 		sdf[z][y][x][0] = r;
 
-		for(r = 1; vol(
-					x-r,y-r,z-r,
-					x+r,y+r,z
-				) == 0 && r < z; r++) continue;
+		r = 1;
+		while(
+			(r < z) && 
+			(0 == vol(
+				x-r,y-r,z-r,
+				x+r,y+r,z
+			))
+		) r++;
+
 		sdf[z][y][x][1] = r;
 	}
 
 	std::cout << "Done." << std::endl;
 	std::cout << "Writing to texture file..." << std::flush;
 
-	std::ofstream texture("maps/texture.bin", std::ios::binary);
+	std::ofstream o_texture("out/texture.bin", std::ios::binary);
 
 	FOR_XYZ {
 		int _x = x;
 		int _y = Y*z + y;
 
-		texture.put((char) sdf[z][y][x][0]);
-		texture.put((char) sdf[z][y][x][1]);
-		texture.put((char) col[z][y][x]);
-		texture.put(
-			(char) (
-				_y/Y < 1 ? fractal(_x, _y, 8) :
-				_y/Y < 2 ? std::rand() % 256 :
-				0
-			)
-		);
+		o_texture.put((char) sdf[z][y][x][0]);
+		o_texture.put((char) sdf[z][y][x][1]);
+		o_texture.put((char) col[z][y][x]);
+		o_texture.put(
+				(char) (
+					_y/Y < 1 ? fractal(_x, _y, 8) :
+					_y/Y < 2 ? std::rand() % 256 :
+					0
+					)
+				);
 	}
 
-	texture.close();
+	o_texture.close();
 
 	std::cout << "Done." << std::endl;
 	std::cout << "^_^" << std::endl;;

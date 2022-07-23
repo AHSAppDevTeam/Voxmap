@@ -27,7 +27,6 @@ const times = Array(time_samples).fill(0)
 let target_fps = get_param("fps") || 30
 let fps = target_fps
 
-let upsample = 2
 let frame = 0
 
 const start_time = Date.now() - new Date().getTimezoneOffset() * 60 * 1000
@@ -48,7 +47,21 @@ const controls = {
 }
 
 
-const map_texture = fetch(encrypted ? "src/map.blob" : "maps/texture.bin.gz")
+const map_texture = fetch(encrypted ? "src/map.blob" : "out/texture.bin.gz")
+    .then(response => response.arrayBuffer())
+    .then(buffer => encrypted ? decrypt(buffer) : buffer)
+    .then(buffer => new Uint8Array(buffer))
+    .then(array => pako.ungzip(array))
+
+const positionArray = fetch(encrypted ? "src/position.blob" : "out/position.bin.gz")
+    .then(response => response.arrayBuffer())
+    .then(buffer => encrypted ? decrypt(buffer) : buffer)
+    .then(buffer => new Uint8Array(buffer))
+    .then(array => pako.ungzip(array))
+    .then(array => new Uint16Array(array.buffer))
+    .then(array => new Float32Array(array))
+
+const colorArray = fetch(encrypted ? "src/color.blob" : "out/color.bin.gz")
     .then(response => response.arrayBuffer())
     .then(buffer => encrypted ? decrypt(buffer) : buffer)
     .then(buffer => new Uint8Array(buffer))
@@ -63,9 +76,9 @@ const tex = ([_x, _y, _z]) => Promise.all(
 main()
 
 async function main() {
-    const sources = ["vertex.glsl", "fragment.glsl"]
+    const sources = ["march.vertex.glsl", "test.fragment.glsl"]
         .map(type =>
-            fetch("src/shaders/march." + type)
+            fetch("src/shaders/" + type)
             .then(response => response.text())
             .then(text => text
                 .replace(
@@ -83,17 +96,9 @@ async function main() {
     const program = createProgramFromSources(gl, await Promise.all(sources))
     gl.useProgram(program)
 
-    handles.mapSampler = gl.getUniformLocation(program, "mapTexture")
-
-    handles.position = gl.getUniformLocation(program, "vPosition")
-    handles.coord = gl.getAttribLocation(program, "TexCoord")
-    handles.resolution = gl.getUniformLocation(program, "iResolution")
-    handles.time = gl.getUniformLocation(program, "iTime")
-    handles.rotation = gl.getUniformLocation(program, "iCamRot")
-    handles.cellPos = gl.getUniformLocation(program, "iCamCellPos")
-    handles.fractPos = gl.getUniformLocation(program, "iCamFractPos")
-    handles.sun = gl.getUniformLocation(program, "iSunDir")
-    handles.frame = gl.getUniformLocation(program, "iFrame")
+    handles.a_position = gl.getAttribLocation(program, "a_position")
+    handles.a_color = gl.getAttribLocation(program, "a_color")
+    handles.u_matrix = gl.getUniformLocation(program, "u_matrix")
 
     const texture = gl.createTexture()
 
@@ -110,34 +115,30 @@ async function main() {
     gl.bindTexture(gl.TEXTURE_3D, texture)
     gl.uniform1i(handles.mapSampler, 0)
 
-    const positionBuffer = gl.createBuffer();
-
-    // Bind it to ARRAY_BUFFER (think of it as ARRAY_BUFFER = positionBuffer)
+    const positionBuffer = gl.createBuffer()
+    const vertexArrayObject = gl.createVertexArray()
+    gl.bindVertexArray(vertexArrayObject)
+    gl.enableVertexAttribArray(handles.a_position)
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        -1, -1, 0, // first triangle
-        +1, -1, 1,
-        -1, +1, 0,
-        -1, +1, 0, // second triangle
-        +1, -1, 0,
-        +1, +1, 0,
-    ]), gl.STATIC_DRAW)
-
+    gl.bufferData(gl.ARRAY_BUFFER, await positionArray, gl.STATIC_DRAW)
     gl.vertexAttribPointer(
-        handles.position,
-        3, // 3 components per iteration
-        gl.FLOAT, // the data is 32bit floats
-        false, // don't normalize the data
-        0, // 0 = move forward size * sizeof(type) each iteration to get the next position
-        0, // start at the beginning of the buffer
+        handles.a_position, 3, gl.FLOAT,
+        false, 0, 0
+    )
+
+    const colorBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, await colorArray, gl.STATIC_DRAW)
+    gl.enableVertexAttribArray(handles.a_color)
+    gl.vertexAttribPointer(
+        handles.a_color, 1, gl.UNSIGNED_BYTE,
+        true, 0, 0
     )
 
     gl.enable(gl.CULL_FACE)
     gl.cullFace(gl.BACK)
 
     gl.useProgram(program)
-    gl.enableVertexAttribArray(handles.position)
 
     requestAnimationFrame(render)
     add_listeners()
@@ -236,14 +237,6 @@ async function add_listeners() {
         }
     })
     window.addEventListener('resize', resize)
-    setInterval(() => {
-        let delta = fps - target_fps
-        if (delta < 5 && delta > -15) return;
-
-        upsample *= target_fps / fps
-        upsample = Math.pow(2, Math.round(Math.max(-1, Math.log(upsample))))
-        resize()
-    }, 1000)
     resize()
 }
 
@@ -252,7 +245,7 @@ const fract = x => x - floor(x)
 const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
 const clamp = (x, a) => Math.min(Math.max(x, -a), a)
 
-function render(now) {
+async function render(now) {
     times.pop()
     times.unshift((start_time + now) / 1000)
 
@@ -260,15 +253,17 @@ function render(now) {
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
-    gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
-    gl.uniform1f(handles.time, times[0] - start_time/1000)
-    gl.uniform3f(handles.fractPos, ...cam.pos.map(fract))
-    gl.uniform3i(handles.cellPos, ...cam.pos.map(floor))
-    gl.uniform3f(handles.rotation, ...cam.rot)
-    gl.uniform3f(handles.sun, ...weather.sun)
-    gl.uniform1i(handles.frame, frame)
+    gl.drawArrays(gl.TRIANGLES, 0, (await positionArray).length / 3)
+    
+    let matrix = m4.translation(-cam.pos[x], -cam.pos[y], 0)
+    matrix = m4.scale(matrix, 0.005, 0.005, 0.005)
+    matrix = m4.zRotate(matrix, cam.rot[z])
+    matrix = m4.xRotate(matrix, -cam.rot[x])
+    matrix = m4.xRotate(matrix, -Math.PI/2)
 
-    gl.drawArrays(gl.TRIANGLES, 0, 6)
+    // Set the matrix.
+    gl.uniformMatrix4fv(handles.u_matrix, false, matrix);
+
 
     requestAnimationFrame(render)
 }
@@ -315,7 +310,7 @@ async function update_state(time, delta) {
     const num = x => x.toFixed(1)
     const ft = x => num(x)
 
-    if (!get_param("clean")) debug.innerText = `${num(fps)} fps, ${num(upsample)} upscaling
+    if (!get_param("clean")) debug.innerText = `${num(fps)} fps
         position: ${cam.pos.map(ft).join(", ")}
         velocity: ${cam.vel.map(ft).join(", ")}
         by: Xing :D
@@ -329,7 +324,5 @@ async function update_state(time, delta) {
 
 async function resize() {
     size = Math.min(window.innerWidth, window.innerHeight) * 0.5
-    resizeCanvasToDisplaySize(gl.canvas, 1 / upsample)
-    canvas.style.imageRendering = upsample > 1 ? 'pixelated' :
-        'auto'
+    resizeCanvasToDisplaySize(gl.canvas, 1)
 }

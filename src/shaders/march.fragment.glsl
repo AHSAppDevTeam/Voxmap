@@ -33,6 +33,7 @@ precision lowp int;
 #define JITTER
 #endif
 
+in vec3 v_color;
 out vec4 FragColor;
 
 uniform highp sampler3D mapTexture;
