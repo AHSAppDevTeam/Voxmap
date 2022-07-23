@@ -6,6 +6,7 @@
 #include <fstream>
 #include <cassert>
 #include <set>
+#include <algorithm>
 
 const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
