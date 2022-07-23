@@ -2,7 +2,7 @@ const debug = document.getElementById("debug")
 const canvas = document.getElementById("canvas")
 const joystick = document.getElementById("joystick")
 const form = document.getElementById("form")
-const gl = canvas.getContext("webgl2")
+const gl = canvas.getContext("webgl2", { alpha: false, antialias: true } )
 
 const x = 0
 const y = 1
@@ -76,7 +76,7 @@ const tex = ([_x, _y, _z]) => Promise.all(
 main()
 
 async function main() {
-    const sources = ["march.vertex.glsl", "test.fragment.glsl"]
+    const sources = ["march.vertex.glsl", "march.fragment.glsl"]
         .map(type =>
             fetch("src/shaders/" + type)
             .then(response => response.text())
@@ -135,6 +135,7 @@ async function main() {
         true, 0, 0
     )
 
+    gl.enable(gl.DEPTH_TEST)
     gl.enable(gl.CULL_FACE)
     gl.cullFace(gl.BACK)
 
@@ -255,11 +256,16 @@ async function render(now) {
 
     gl.drawArrays(gl.TRIANGLES, 0, (await positionArray).length / 3)
     
-    let matrix = m4.translation(-cam.pos[x], -cam.pos[y], 0)
-    matrix = m4.scale(matrix, 0.005, 0.005, 0.005)
-    matrix = m4.zRotate(matrix, cam.rot[z])
-    matrix = m4.xRotate(matrix, -cam.rot[x])
-    matrix = m4.xRotate(matrix, -Math.PI/2)
+    const distance = (x, y) => Math.sqrt(x*x + y*y)
+    const l = distance(gl.canvas.clientHeight, canvas.clientWidth)
+    const matrix = m4.multiply(
+        m4.projection(gl.canvas.clientWidth, gl.canvas.clientHeight, 400),
+        m4.xRotation(-Math.PI/2),
+        m4.xRotation(-cam.rot[x]),
+        m4.zRotation(-cam.rot[z]),
+        m4.scaling(10,10,10),
+        m4.translation(...cam.pos.map(a=>-a))
+    )
 
     // Set the matrix.
     gl.uniformMatrix4fv(handles.u_matrix, false, matrix);
@@ -324,5 +330,5 @@ async function update_state(time, delta) {
 
 async function resize() {
     size = Math.min(window.innerWidth, window.innerHeight) * 0.5
-    resizeCanvasToDisplaySize(gl.canvas, 1)
+    resizeCanvasToDisplaySize(gl.canvas, 2)
 }

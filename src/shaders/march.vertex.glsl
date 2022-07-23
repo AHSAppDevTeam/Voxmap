@@ -4,6 +4,7 @@ precision highp float;
 in vec4 a_position;
 in float a_color;
 out vec3 v_color;
+out vec3 v_position;
 
 uniform mat4 u_matrix;
 
@@ -13,6 +14,7 @@ vec3 palette(int p) {
 
 void main() {
     vec4 position = u_matrix * a_position;
-    gl_Position = vec4(position.xyz, 1.0 - 0.1 * position.z);
+    gl_Position = vec4(position.xyz, position.z + 0.1);
     v_color = palette(int(a_color * 255.0));
+    v_position = a_position.xyz;
 }

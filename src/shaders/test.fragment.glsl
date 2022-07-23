@@ -2,6 +2,7 @@
 precision highp float;
 
 in vec3 v_color;
+in vec3 v_position;
 out vec4 FragColor;
 
 void main() {

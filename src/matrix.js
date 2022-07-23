@@ -3,11 +3,11 @@ const m4 = {
   projection: (width, height, depth) => ([
     2 / width, 0, 0, 0,
     0, 2 / height, 0, 0,
-    0, 0, 2 / depth, 0,
-    1, 1, 0, 1,
+    0, 0, -2 / depth, 0,
+    0, 0, 0, 1,
   ]),
 
-  multiply: (b, a) => {
+  _multiply: (a, b) => {
     const a00 = a[0 * 4 + 0];
     const a01 = a[0 * 4 + 1];
     const a02 = a[0 * 4 + 2];
@@ -60,6 +60,8 @@ const m4 = {
     ];
   },
 
+  multiply: (...m) => m.reduce(m4._multiply),
+
   translation: (tx, ty, tz) => ([
     1, 0, 0, 0,
     0, 1, 0, 0,
@@ -109,13 +111,4 @@ const m4 = {
     0, 0, sz, 0,
     0, 0, 0, 1,
   ]),
-
-  translate: (m, tx, ty, tz) => m4.multiply(m, m4.translation(tx, ty, tz)),
-
-  xRotate: (m, angleInRadians) => m4.multiply(m, m4.xRotation(angleInRadians)),
-  yRotate: (m, angleInRadians) => m4.multiply(m, m4.yRotation(angleInRadians)),
-  zRotate: (m, angleInRadians) => m4.multiply(m, m4.zRotation(angleInRadians)),
-
-  scale: (m, sx, sy, sz) => m4.multiply(m, m4.scaling(sx, sy, sz))
-
 }
