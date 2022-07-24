@@ -359,5 +359,5 @@ async function update_state(time, delta) {
 
 async function resize() {
     size = Math.min(window.innerWidth, window.innerHeight) * 0.5
-    resizeCanvasToDisplaySize(gl.canvas, 2)
+    resizeCanvasToDisplaySize(gl.canvas, 1)
 }

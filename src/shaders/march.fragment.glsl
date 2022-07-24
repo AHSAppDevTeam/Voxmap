@@ -26,7 +26,7 @@ precision lowp int;
 #endif
 
 #if QUALITY > 2
-//#define CLOUDS
+#define CLOUDS
 #endif
 
 #if QUALITY > 3
@@ -300,16 +300,21 @@ void main() {
 	0.95, 0.95, 1.00,
 	1.00, 1.00, 1.00
 	) * abs(normal(v_normal));
+    // Down bad
+    if(v_normal == 1) normalCol *= 0.8;
+
 #ifdef SKY
     // Color the shadow the color of the sky
     vec3 shadeCol = mix(scatterCol, spaceCol, rayDir.z*0.5 + 0.5);
 #else
     vec3 shadeCol = skyCol * 0.7;
 #endif
+    // Make shadow more gray
+    shadeCol = mix(shadeCol, vec3(0.8), 0.3);
 
 #ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
-    float ambDist = sdf(v_cellPos, v_fractPos);
+    float ambDist = sdf(v_cellPos + ivec3(normal(v_normal)), v_fractPos);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
@@ -317,7 +322,8 @@ void main() {
 #endif
 
     // Check if we're facing towards Sun
-    float shadeFactor = u_sunDir.z < 0. ? 0.0 : max(0.5, dot(normal(v_normal), u_sunDir));
+    float shadeFactor = u_sunDir.z < 0. ? 0.0 
+      : sqrt(max(0.0, dot(normal(v_normal), u_sunDir)));
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
