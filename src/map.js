@@ -53,15 +53,8 @@ const map_texture = fetch(encrypted ? "src/map.blob" : "out/texture.bin.gz")
     .then(buffer => new Uint8Array(buffer))
     .then(array => pako.ungzip(array))
 
-const positionArray = fetch(encrypted ? "src/position.blob" : "out/position.bin.gz")
-    .then(response => response.arrayBuffer())
-    .then(buffer => encrypted ? decrypt(buffer) : buffer)
-    .then(buffer => new Uint8Array(buffer))
-    .then(array => pako.ungzip(array))
-    .then(array => new Uint16Array(array.buffer))
-    .then(array => new Float32Array(array))
-
-const colorArray = fetch(encrypted ? "src/color.blob" : "out/color.bin.gz")
+const stride = 12
+const vertexArray = fetch(encrypted ? "src/vertex.blob" : "out/vertex.bin.gz")
     .then(response => response.arrayBuffer())
     .then(buffer => encrypted ? decrypt(buffer) : buffer)
     .then(buffer => new Uint8Array(buffer))
@@ -96,9 +89,14 @@ async function main() {
     const program = createProgramFromSources(gl, await Promise.all(sources))
     gl.useProgram(program)
 
-    handles.a_position = gl.getAttribLocation(program, "a_position")
+    handles.a_cellPos = gl.getAttribLocation(program, "a_cellPos")
+    handles.a_fractPos = gl.getAttribLocation(program, "a_fractPos")
     handles.a_color = gl.getAttribLocation(program, "a_color")
+    handles.a_normal = gl.getAttribLocation(program, "a_normal")
+    handles.a_id = gl.getAttribLocation(program, "a_id")
     handles.u_matrix = gl.getUniformLocation(program, "u_matrix")
+    handles.u_position = gl.getUniformLocation(program, "u_position")
+    handles.u_sunDir = gl.getUniformLocation(program, "u_sunDir")
 
     const texture = gl.createTexture()
 
@@ -115,24 +113,52 @@ async function main() {
     gl.bindTexture(gl.TEXTURE_3D, texture)
     gl.uniform1i(handles.mapSampler, 0)
 
-    const positionBuffer = gl.createBuffer()
     const vertexArrayObject = gl.createVertexArray()
     gl.bindVertexArray(vertexArrayObject)
-    gl.enableVertexAttribArray(handles.a_position)
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, await positionArray, gl.STATIC_DRAW)
-    gl.vertexAttribPointer(
-        handles.a_position, 3, gl.FLOAT,
-        false, 0, 0
+
+    const cellPosBuffer = gl.createBuffer()
+    gl.enableVertexAttribArray(handles.a_cellPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, cellPosBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        handles.a_cellPos, 3, gl.SHORT,
+        stride, 0
+    )
+
+    const fractPosBuffer = gl.createBuffer()
+    gl.enableVertexAttribArray(handles.a_fractPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, fractPosBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        handles.a_fractPos, 3, gl.BYTE,
+        stride, 6
     )
 
     const colorBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, await colorArray, gl.STATIC_DRAW)
     gl.enableVertexAttribArray(handles.a_color)
-    gl.vertexAttribPointer(
-        handles.a_color, 1, gl.UNSIGNED_BYTE,
-        true, 0, 0
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        handles.a_color, 1, gl.BYTE,
+        stride, 9
+    )
+
+    const normalBuffer = gl.createBuffer()
+    gl.enableVertexAttribArray(handles.a_normal)
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        handles.a_normal, 1, gl.BYTE,
+        stride, 10
+    )
+
+    const idBuffer = gl.createBuffer()
+    gl.enableVertexAttribArray(handles.a_id)
+    gl.bindBuffer(gl.ARRAY_BUFFER, idBuffer)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        handles.a_id, 1, gl.BYTE,
+        stride, 11
     )
 
     gl.enable(gl.DEPTH_TEST)
@@ -254,22 +280,22 @@ async function render(now) {
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
-    gl.drawArrays(gl.TRIANGLES, 0, (await positionArray).length / 3)
+    gl.drawArrays(gl.TRIANGLES, 0, (await vertexArray).length / stride)
     
     const distance = (x, y) => Math.sqrt(x*x + y*y)
-    const l = distance(gl.canvas.clientHeight, canvas.clientWidth)
+    const l = distance(gl.canvas.width, canvas.height)
     const matrix = m4.multiply(
-        m4.projection(gl.canvas.clientWidth, gl.canvas.clientHeight, 400),
+        m4.projection(gl.canvas.width, gl.canvas.height, l),
         m4.xRotation(-Math.PI/2),
         m4.xRotation(-cam.rot[x]),
         m4.zRotation(-cam.rot[z]),
-        m4.scaling(10,10,10),
-        m4.translation(...cam.pos.map(a=>-a))
+        m4.translation(...cam.pos.map(a=>-a/2))
     )
 
     // Set the matrix.
-    gl.uniformMatrix4fv(handles.u_matrix, false, matrix);
-
+    gl.uniformMatrix4fv(handles.u_matrix, false, matrix)
+    gl.uniform3f(handles.u_position, ...cam.pos)
+    gl.uniform3f(handles.u_sunDir, ...weather.sun)
 
     requestAnimationFrame(render)
 }
@@ -304,6 +330,7 @@ async function update_state(time, delta) {
         (a, i) => cam.rot[i] + 
         clamp( pow(controls.rot[i] - cam.rot[i], 1.5), 10*delta)
     )
+    cam.rot = controls.rot
 
     let hour = time / 60 / 60 / 12 * Math.PI
     weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)

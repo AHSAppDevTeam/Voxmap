@@ -170,21 +170,29 @@ int main()
 
 	std::cout << "Writing to vertex file..." << std::flush;
 
-	std::ofstream o_position("out/position.bin", std::ios::binary);
-	std::ofstream o_color("out/color.bin", std::ios::binary);
+	std::ofstream o_vertex("out/vertex.bin", std::ios::binary);
 
-	auto o_position_put = [&](int x)
+	auto o_vertex_8 = [&](int x)
 	{
-		o_position.put((char)(x & 0xFF));
-		o_position.put((char)(x >> 8));
+		o_vertex.put((char)(x & 0xFF));
 	};
-	auto quad = [&](int x, int y, int z, int c, int i)
+	auto o_vertex_16 = [&](int x) // Split 2-byte ints
+	{
+		o_vertex_8(x);
+		o_vertex_8(x >> 8);
+	};
+	auto quad = [&](int x, int y, int z, int color, int normal)
 	{
 		for(int v = 0; v < N_VERTS; v++) {
-			o_position_put(x + CUBE[i][v][0]);
-			o_position_put(y + CUBE[i][v][1]);
-			o_position_put(z + CUBE[i][v][2]);
-			o_color.put((char) c);
+			o_vertex_16(x);
+			o_vertex_16(y);
+			o_vertex_16(z);
+			o_vertex_8(CUBE[normal][v][0]);
+			o_vertex_8(CUBE[normal][v][1]);
+			o_vertex_8(CUBE[normal][v][2]);
+			o_vertex_8(color);
+			o_vertex_8(normal);
+			o_vertex_8(v);
 		}
 	};
 
@@ -199,8 +207,7 @@ int main()
 		if(x == 0   || c != col[z][y][x-1]) quad(x,y,z,c,5);
 	}
 
-	o_position.close();
-	o_color.close();
+	o_vertex.close();
 
 	std::cout << "Done." << std::endl;
 

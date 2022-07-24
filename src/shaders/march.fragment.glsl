@@ -33,14 +33,17 @@ precision lowp int;
 #define JITTER
 #endif
 
-in vec3 v_color;
-in vec3 v_position;
+flat in ivec3 v_cellPos;
+in vec3 v_fractPos;
+flat in int v_color;
+flat in int v_normal;
+
 out vec4 FragColor;
 
-uniform highp sampler3D mapTexture;
-uniform float iTime;
-uniform vec3 iSunDir;
-uniform int iFrame;
+uniform highp sampler3D u_map;
+uniform float u_time;
+uniform vec3 u_sunDir;
+uniform int u_frame;
 
 // Dimensions
 const int X = 1024;
@@ -71,7 +74,7 @@ vec3 project(vec2 p, int shift){
   return vec3(p.x, p.y, float(shift)) * Mf;
 }
 float noise(vec2 p, int shift) {
-  return texture(mapTexture, project(p, shift)).a;
+  return texture(u_map, project(p, shift)).a;
 }
 
 // Vector rotater
@@ -85,10 +88,10 @@ vec2 rotate2d(vec2 v, float a) {
 //------------------------
 
 ivec3 tex(ivec3 c) {
-  return ivec3(texelFetch(mapTexture, c, 0).rgb * 255.);
+  return ivec3(texelFetch(u_map, c, 0).rgb * 255.);
 }
-vec3 tex(vec3 c) {
-  return texture(mapTexture, c*Mf).rgb * 255.;
+vec3 tex(ivec3 c, vec3 f) {
+  return texture(u_map, (vec3(c) + f)*Mf).rgb * 255.;
 }
 // SDF texture is split into two directions:
 // one for the distance to the closest thing above
@@ -99,8 +102,8 @@ int sdf_dir(ivec3 c, int dir) {
   return (d.r + max(0, c.z - Z))*dir + d.g*(1-dir);
 }
 // Fancy trilinear interpolator (stolen from Wikipedia)
-float sdf(vec3 c) {
-  vec3 d = tex(c);
+float sdf(ivec3 c, vec3 f) {
+  vec3 d = tex(c, f);
   return min(d.r, d.g);
 }
 
@@ -109,11 +112,17 @@ vec3 palette(int p) {
   return p==0?vec3(0.0431373,0.0627451,0.0745098):p==1?vec3(0.133333,0.490196,0.317647):p==2?vec3(0.180392,0.662745,0.87451):p==3?vec3(0.337255,0.423529,0.45098):p==4?vec3(0.392157,0.211765,0.235294):p==5?vec3(0.439216,0.486275,0.454902):p==6?vec3(0.505882,0.780392,0.831373):p==7?vec3(0.52549,0.65098,0.592157):p==8?vec3(0.666667,0.666667,0.666667):p==9?vec3(0.741176,0.752941,0.729412):p==10?vec3(0.768627,0.384314,0.262745):p==11?vec3(0.780392,0.243137,0.227451):p==12?vec3(0.854902,0.788235,0.65098):p==13?vec3(0.964706,0.772549,0.333333):p==14?vec3(0.984314,0.886275,0.317647):p==15?vec3(1,1,1):vec3(1);
 }
 
+vec3 normal(int n) {
+  return n==0?vec3(0,0,1):n==1?vec3(0,0,-1):n==2?vec3(0,1,0):n==3?vec3(0,-1,0):n==4?vec3(1,0,0):n==5?vec3(-1,0,0):vec3(0);
+}
+
 // Raymarcher
 //------------
 
 // Output object
 struct March {
+  ivec3 cellPos; // integer cell position
+  vec3 fractPos; // floating point fractional cell position [0, 1)
   vec3 rayPos; // total cell position
   vec3 normal; // surface normal
   float minDist; // minimum distance encountered
@@ -125,7 +134,7 @@ struct March {
 // Cube-accelerated code-spaghetti raymarcher
 // Based on Xor's [shadertoy.com/view/fstSRH]
 // and modified in order to support integer coordinates
-March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
+March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
   March res;
 
   // materials encountered (currently: glass or not glass)
@@ -138,7 +147,8 @@ March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
   // other initial values
   res.minDist = Zf;
   res.step = 0;
-  res.rayPos = rayPos;
+  res.cellPos = rayCellPos;
+  res.fractPos = rayFractPos;
 
   vec3 axisCellDist;
   vec3 axisRayDist; vec3 minAxis; float minAxisDist;
@@ -150,7 +160,7 @@ March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
   // Start marchin'
   while(res.step < MAX_STEPS && dist != 0) {
     // Distances to each axis
-    axisCellDist = fract(-res.rayPos * sign(rayDir)) + 1e-4;
+    axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-4;
 
     // How quickly the ray would reach each axis
     axisRayDist = axisCellDist / abs(rayDir);
@@ -164,11 +174,13 @@ March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
     minAxisDist = length(minAxis * axisRayDist);
 
     // March along that axis
-    res.rayPos += rayDir * float(dist) * minAxisDist;
+    res.fractPos += rayDir * float(dist) * minAxisDist;
+    res.cellPos += ivec3(floor(res.fractPos));
+    res.fractPos = fract(res.fractPos);
 
     // Calculate normals
     res.normal = -sign(rayDir * minAxis);
-    ivec3 c = ivec3(res.rayPos);
+    ivec3 c = res.cellPos;
     ivec3 n = ivec3(res.normal);
 
     // Break early if sky
@@ -177,14 +189,14 @@ March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
       break;
     }
 
-    dist = sdf_dir(ivec3(res.rayPos), dir);
+    dist = sdf_dir(res.cellPos, dir);
 
     // TODO: improve floating-point distance
     // currently just casted integer distance
     res.minDist = min(float(dist), res.minDist);
 
     if(dist == 0) {
-      res.material = tex(ivec3(res.rayPos)).b;
+      res.material = tex(res.cellPos).b;
 
       // Glass stuff
       if (res.material == 6) { // If glass
@@ -195,7 +207,7 @@ March march( vec3 rayPos, vec3 rayDir, int MAX_STEPS ) {
 	if(lastMaterial != 6) {
 	  // Refract ray
 	  res.glass += 1.0 - 0.5*abs(dot(rayDir, res.normal));
-	  res.glass += sqrt(length(fract(res.rayPos) - 0.5));
+	  res.glass += sqrt(length(res.fractPos - 0.5));
 	  rayDir = refract(rayDir, res.normal, 0.8);
 	}
       }
@@ -219,15 +231,13 @@ void main() {
   // Set opacity to 1
   FragColor.a = 1.0;
 
-  vec3 sunDir = iSunDir;
-  vec3 shadeCol = vec3(0.8);
-  vec3 baseCol = v_color;
-  vec3 v_normal = vec3(1);
+  vec3 shadeCol = vec3(0.7);
+  vec3 baseCol = palette(v_color);
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
 
 #ifdef AO
   // Do cheap ambient occlusion by interpolating SDFs
-  float ambDist = sdf(v_position);
+  float ambDist = sdf(v_cellPos, v_fractPos);
   float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
   vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
@@ -235,7 +245,16 @@ void main() {
 #endif
 
   // Check if we're facing towards Sun
-  float shadeFactor = sunDir.z < 0. ? 0. : max(0., dot(v_normal, sunDir));
+  float shadeFactor = u_sunDir.z < 0. ? 0. : max(0., dot(normal(v_normal), u_sunDir));
+#ifdef SHADOWS
+  // March to the Sun unless we hit something along the way
+  if( shadeFactor > 0.){
+    March sun = march(v_cellPos, v_fractPos, u_sunDir, MAX_SUN_STEPS);
+    shadeFactor *= clamp(sun.minDist, 0., 1.);
+  }
+  // TODO: soft shadows (aaa)
+  // How to do: calculate the raymarcher's minDist more accurately
+#endif
 
   // Mix sunlight and shade
   vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
