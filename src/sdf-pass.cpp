@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <cassert>
-#include <set>
+#include <vector>
 #include <algorithm>
 
 const int MAX = 255;
@@ -62,7 +62,7 @@ const int CUBE[N_FACES][N_VERTS][N_AXES] = { // Triangles of a cube
 
 int col[Z][Y][X]; // color
 int pal[MAX]; // palette
-std::set <int> pal_set; // palette set
+std::vector<int> pal_set; // palette set
 int bin[Z][Y][X]; // 1 if block, else 0
 int sum[Z][Y][X]; // summed volume table
 int sdf[Z][Y][X][O]; // radius of largest fittng cube centered at block
@@ -136,7 +136,7 @@ int main()
 			in >> std::dec >> x >> y >> z >> std::hex >> color;
 		 ) {
 		x += 512; y += 5; z += 0;
-		pal_set.insert(color);
+		pal_set.push_back(color);
 		col[z][y][x] = color;
 		bin[z][y][x] = 1;
 	}
