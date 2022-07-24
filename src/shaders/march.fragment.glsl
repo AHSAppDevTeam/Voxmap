@@ -35,8 +35,8 @@ precision lowp int;
 
 flat in ivec3 v_cellPos;
 in vec3 v_fractPos;
-flat in int v_color;
-flat in int v_normal;
+in vec3 v_color;
+in vec3 v_normal;
 flat in int v_id;
 
 out vec4 FragColor;
@@ -113,10 +113,6 @@ float sdf(ivec3 c, vec3 f) {
 // Get color from texture's palette index
 vec3 palette(int p) {
   return p==0?vec3(0.0431373,0.0627451,0.0745098):p==1?vec3(0.133333,0.490196,0.317647):p==2?vec3(0.180392,0.662745,0.87451):p==3?vec3(0.337255,0.423529,0.45098):p==4?vec3(0.392157,0.211765,0.235294):p==5?vec3(0.439216,0.486275,0.454902):p==6?vec3(0.505882,0.780392,0.831373):p==7?vec3(0.52549,0.65098,0.592157):p==8?vec3(0.666667,0.666667,0.666667):p==9?vec3(0.741176,0.752941,0.729412):p==10?vec3(0.768627,0.384314,0.262745):p==11?vec3(0.780392,0.243137,0.227451):p==12?vec3(0.854902,0.788235,0.65098):p==13?vec3(0.964706,0.772549,0.333333):p==14?vec3(0.984314,0.886275,0.317647):p==15?vec3(1,1,1):vec3(1);
-}
-
-vec3 normal(int n) {
-  return n==0?vec3(0,0,1):n==1?vec3(0,0,-1):n==2?vec3(0,1,0):n==3?vec3(0,-1,0):n==4?vec3(1,0,0):n==5?vec3(-1,0,0):vec3(0);
 }
 
 // Raymarcher
@@ -233,6 +229,7 @@ void main() {
 
   // Set opacity to 1
   FragColor.a = 1.0;
+  FragColor.rgb = v_color;
 
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
@@ -293,15 +290,15 @@ void main() {
     FragColor.rgb = skyCol;
   } else {
 
-    vec3 baseCol = palette(v_color);
+    vec3 baseCol = v_color;
 
     vec3 normalCol = mat3x3(
 	0.90, 0.90, 0.95,
 	0.95, 0.95, 1.00,
 	1.00, 1.00, 1.00
-	) * abs(normal(v_normal));
+	) * abs(v_normal);
     // Down bad
-    if(v_normal == 1) normalCol *= 0.8;
+    if(v_normal.z < 0.0) normalCol *= 0.8;
 
 #ifdef SKY
     // Color the shadow the color of the sky
@@ -314,7 +311,7 @@ void main() {
 
 #ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
-    float ambDist = sdf(v_cellPos + ivec3(normal(v_normal)), v_fractPos);
+    float ambDist = sdf(v_cellPos + ivec3(v_normal), v_fractPos);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
@@ -323,7 +320,7 @@ void main() {
 
     // Check if we're facing towards Sun
     float shadeFactor = u_sunDir.z < 0. ? 0.0 
-      : sqrt(max(0.0, dot(normal(v_normal), u_sunDir)));
+      : sqrt(max(0.0, dot(v_normal, u_sunDir)));
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){

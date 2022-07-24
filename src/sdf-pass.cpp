@@ -11,55 +11,6 @@
 const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
 
-const int N_FACES = 6;
-const int N_VERTS = 6;
-const int N_AXES = 3;
-const int CUBE[N_FACES][N_VERTS][N_AXES] = { // Triangles of a cube
-	{ // +Z
-		{ 0, 0, 1 },
-		{ 1, 0, 1 },
-		{ 1, 1, 1 },
-		{ 1, 1, 1 },
-		{ 0, 1, 1 },
-		{ 0, 0, 1 },
-	}, { // -Z
-		{ 0, 0, 0 },
-		{ 0, 1, 0 },
-		{ 1, 1, 0 },
-		{ 1, 1, 0 },
-		{ 1, 0, 0 },
-		{ 0, 0, 0 },
-	}, { // +Y
-		{ 0, 1, 0 },
-		{ 0, 1, 1 },
-		{ 1, 1, 1 },
-		{ 1, 1, 1 },
-		{ 1, 1, 0 },
-		{ 0, 1, 0 },
-	}, { // -Y
-		{ 0, 0, 0 },
-			{ 1, 0, 0 },
-			{ 1, 0, 1 },
-			{ 1, 0, 1 },
-			{ 0, 0, 1 },
-			{ 0, 0, 0 },
-	}, { // +X
-		{ 1, 0, 0 },
-			{ 1, 1, 0 },
-			{ 1, 1, 1 },
-			{ 1, 1, 1 },
-			{ 1, 0, 1 },
-			{ 1, 0, 0 },
-	}, { // -X
-		{ 0, 0, 0 },
-			{ 0, 0, 1 },
-			{ 0, 1, 1 },
-			{ 0, 1, 1 },
-			{ 0, 1, 0 },
-			{ 0, 0, 0 },
-	}
-};
-
 int col[Z][Y][X]; // color
 int pal[MAX]; // palette
 std::set <int> pal_set; // palette set
@@ -94,13 +45,22 @@ int fractal(int x, int y, int octaves)
 
 int main()
 {
+	auto clamped = [&](int array[Z][Y][X], int z, int y, int x)
+	{
+		return array
+			[std::clamp(z,0,Z-1)]
+			[std::clamp(y,0,Y-1)]
+			[std::clamp(x,0,X-1)] ;
+	};
 	// clamped sum access
 	auto csum = [&](int z, int y, int x)
 	{
-		return sum
-			[std::clamp(z,0,Z-1)]
-			[std::clamp(y,0,Y-1)]
-				[std::clamp(x,0,X-1)] ;
+		return clamped(sum, z, y, x);
+	};
+	// clamped col access
+	auto ccol = [&](int z, int y, int x)
+	{
+		return clamped(col, z, y, x);
 	};
 
 	auto vol = [&]( int x0, int y0, int z0,
@@ -147,7 +107,7 @@ int main()
 
 	{
 		std::cout << "  return ";
-		int i = 0;
+		int i = 1;
 		for (int color : pal_set) {
 			std::cout << "p==" << i << "?";
 			std::cout << "vec3(";
@@ -160,8 +120,8 @@ int main()
 		std::cout << "vec3(1);" << std::endl;
 	}
 
-	FOR_XYZ {
-		int i = 0;
+	FOR_ZYX {
+		int i = 1;
 		for (; i < MAX && pal[i] != col[z][y][x]; i++) continue;
 		col[z][y][x] = i;
 	}
@@ -181,47 +141,129 @@ int main()
 		o_vertex_8(x);
 		o_vertex_8(x >> 8);
 	};
-	auto cube = [&](
-			bool mask[6],
+	auto vert = [&](int x, int y, int z, int dx, int dy, int dz, int color, int id)
+	{
+		o_vertex_16(x); o_vertex_16(y); o_vertex_16(z);
+		o_vertex_16(dx); o_vertex_16(dy); o_vertex_16(dz);
+		o_vertex_8(color);
+		o_vertex_8(0);
+		o_vertex_8(id);
+		o_vertex_8(0);
+	};
+	auto tri = [&](
 			int x, int y, int z,
-			int dx, int dy, int dz,
+			int dx0, int dy0, int dz0,
+			int dx1, int dy1, int dz1,
+			int dx2, int dy2, int dz2,
 			int color, int id
 			)
 	{
-		for(int n = 0; n < 6; n++) {
-			if(!mask[n]) continue;
-			for(int v = 0; v < N_VERTS; v++) {
-				o_vertex_16(x);
-				o_vertex_16(y);
-				o_vertex_16(z);
-				o_vertex_16(dx*CUBE[n][v][0]);
-				o_vertex_16(dy*CUBE[n][v][1]);
-				o_vertex_16(dz*CUBE[n][v][2]);
-				o_vertex_8(color);
-				o_vertex_8(n);
-				o_vertex_8(id);
-				o_vertex_8(0);
-			}
-		}
+		vert(x, y, z, dx0, dy0, dz0, color, id);
+		vert(x, y, z, dx1, dy1, dz1, color, id);
+		vert(x, y, z, dx2, dy2, dz2, color, id);
+	};
+	auto quad = [&](
+			int x, int y, int z,
+			int dx0, int dy0, int dz0,
+			int dx1, int dy1, int dz1,
+			int color
+			)
+	{
+		int id =0;
+		tri(
+				x, y, z,
+				0, 0, 0,
+				dx0, dy0, dz0,
+				dx1, dy1, dz1,
+				color, id
+			);
+		tri(
+				x, y, z,
+				dx1, dy1, dz1,
+				dx0, dy0, dz0,
+				dx0+dx1, dy0+dy1, dz0+dz1,
+				color, id
+			);
 	};
 
-	FOR_XYZ {
-		if(bin[z][y][x] == 0) continue;
-		int c = col[z][y][x];
-		bool mask[6] = {
-			(z == Z-1 || c != col[z+1][y][x]),
-			(z == 0   || c != col[z-1][y][x]),
-			(y == Y-1 || c != col[z][y+1][x]),
-			(y == 0   || c != col[z][y-1][x]),
-			(x == X-1 || c != col[z][y][x+1]),
-			(x == 0   || c != col[z][y][x-1]),
-		};
-		cube( mask, x, y, z, 1, 1, 1, c, 0 );
-	}
+	// https://gist.github.com/Vercidium/a3002bd083cce2bc854c9ff8f0118d33
+	const int CHUNK = Z;
+	for(int x = 0; x < X; x += CHUNK)
+	for(int y = 0; y < Y; y += CHUNK)
+	for(int z = 0; z < Z; z += CHUNK)
+	for(int d = 0; d < 3; ++d)
+	{
+		int c = 0;
+	for(int color : pal_set) 
+	{
+		c++;
 
-	{ // Skybox
-		bool mask[6] = { 0, 1, 1, 1, 1, 1 };
-		cube( mask, 0, 0, Z, X, Y, -Z, 0, 1);
+		int i = 0, j = 0, k = 0, l = 0, w = 0, h = 0;
+		int u = (d + 1) % 3;
+		int v = (d + 2) % 3;
+
+		int p[3] = { 0, 0, 0 };
+		int q[3] = { 0, 0, 0 };
+
+		bool mask[CHUNK * CHUNK];
+		q[d] = 1;
+
+		for(p[d] = -1; p[d] < CHUNK;) {
+			int n = 0;
+			for(p[v] = 0; p[v] < CHUNK; ++p[v])
+			for(p[u] = 0; p[u] < CHUNK; ++p[u]) {
+				bool block = c == ccol(z+p[2], y+p[1], x+p[0]);
+				bool neighbor = c == ccol(z+p[2]+q[2], y+p[1]+q[1], x+p[0]+q[1]);
+
+				mask[n++] = block != neighbor;
+			}
+
+			++p[d];
+			n = 0;
+
+			for(j = 0; j < CHUNK; ++j) {
+				for(i = 0; i < CHUNK;) {
+					if(mask[n]) {
+						for(w=1; i+w < CHUNK && mask[n+w]; w++) { }
+						bool done = false;
+						for(h=1; j+h < CHUNK; h++) {
+							for(k=0; k < w; ++k) {
+								if(!mask[n+k+h*CHUNK]) {
+									done = true;
+									break;
+								}
+							}
+							if(done) break;
+						}
+						p[u] = i;
+						p[v] = j;
+						int du[3] = {0, 0, 0};
+						du[u] = w;
+						int dv[3] = {0, 0, 0};
+						dv[v] = h;
+
+						quad(
+								x+p[0], y+p[1], z+p[2],
+								du[0], du[1], du[2],
+								dv[0], dv[1], dv[2],
+								c
+							 );
+
+						for (l = 0; l < h; ++l)
+							for (k = 0; k < w; ++k)
+								mask[n + k + l * CHUNK] = false;
+
+						i += w;
+						n += w;
+
+					} else {
+						i++;
+						n++;
+					}
+				}
+			}
+		}
+	}
 	}
 
 	o_vertex.close();
@@ -230,7 +272,7 @@ int main()
 
 	std::cout << "Generating summed volume table..." << std::flush;
 
-	FOR_XYZ {
+	FOR_ZYX {
 		// compute a summed volume table
 		// aka: the number of blocks in the cube
 		// with diagonal (0,0,0)---(z,y,x), inclusive
@@ -253,7 +295,7 @@ int main()
 
 	std::cout << "Generating signed distance fields..." << std::flush;
 
-	FOR_XYZ {
+	FOR_ZYX {
 		// find greatest allowable cube's radius as sdf
 
 		if(bin[z][y][x] > 0) continue;
@@ -287,7 +329,7 @@ int main()
 
 	std::ofstream o_texture("out/texture.bin", std::ios::binary);
 
-	FOR_XYZ {
+	FOR_ZYX {
 		int _x = x;
 		int _y = Y*z + y;
 

@@ -94,6 +94,7 @@ async function main() {
     handles.a_color = gl.getAttribLocation(program, "a_color")
     handles.a_normal = gl.getAttribLocation(program, "a_normal")
     handles.a_id = gl.getAttribLocation(program, "a_id")
+    handles.u_frame = gl.getUniformLocation(program, "u_frame")
     handles.u_matrix = gl.getUniformLocation(program, "u_matrix")
     handles.u_cellPos = gl.getUniformLocation(program, "u_cellPos")
     handles.u_fractPos = gl.getUniformLocation(program, "u_fractPos")
@@ -163,8 +164,8 @@ async function main() {
     )
 
     gl.enable(gl.DEPTH_TEST)
-    gl.enable(gl.CULL_FACE)
-    gl.cullFace(gl.BACK)
+    //gl.enable(gl.CULL_FACE)
+    //gl.cullFace(gl.BACK)
 
     gl.useProgram(program)
 
@@ -282,6 +283,7 @@ async function render(now) {
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
     gl.drawArrays(gl.TRIANGLES, 0, (await vertexArray).length / stride)
+    //gl.drawArrays(gl.TRIANGLES, 0, frame*stride)
     
     const distance = (x, y) => Math.sqrt(x*x + y*y)
     const l = distance(gl.canvas.width, canvas.height)
@@ -298,6 +300,7 @@ async function render(now) {
     gl.uniform3i(handles.u_cellPos, ...cam.pos.map(floor))
     gl.uniform3f(handles.u_fractPos, ...cam.pos.map(fract))
     gl.uniform3f(handles.u_sunDir, ...weather.sun)
+    gl.uniform1i(handles.u_frame, frame)
 
     requestAnimationFrame(render)
 }
