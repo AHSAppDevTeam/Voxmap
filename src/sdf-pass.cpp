@@ -141,9 +141,9 @@ int main()
 		bin[z][y][x] = 1;
 	}
 
-	std::cout << "Done." << std::endl;
+	std::cout << "Done.\n";
 
-	std::cout << "Generating palette..." << std::endl;
+	std::cout << "Generating palette...";
 
 	{
 		std::cout << "  return ";
@@ -157,7 +157,7 @@ int main()
 			pal[i] = color;
 			i++;
 		}
-		std::cout << "vec3(1);" << std::endl;
+		std::cout << "vec3(1);\n";
 	}
 
 	FOR_XYZ {
@@ -166,9 +166,9 @@ int main()
 		col[z][y][x] = i;
 	}
 
-	std::cout << "Done." << std::endl;
+	std::cout << "Done.\n";
 
-	std::cout << "Writing to vertex file..." << std::flush;
+	std::cout << "Writing to vertex file...";
 
 	std::ofstream o_vertex("out/vertex.bin", std::ios::binary);
 
@@ -226,9 +226,9 @@ int main()
 
 	o_vertex.close();
 
-	std::cout << "Done." << std::endl;
+	std::cout << "Done.\n";
 
-	std::cout << "Generating summed volume table..." << std::flush;
+	std::cout << "Generating summed volume table...";
 
 	FOR_XYZ {
 		// compute a summed volume table
@@ -249,7 +249,7 @@ int main()
 		//std::cout << sum[z][y][x] << " ";
 	}
 
-	std::cout << "Done." << std::endl;
+	std::cout << "Done.\n";
 
 	std::cout << "Generating signed distance fields..." << std::flush;
 
@@ -282,7 +282,7 @@ int main()
 		sdf[z][y][x][1] = r;
 	}
 
-	std::cout << "Done." << std::endl;
+	std::cout << "Done.\n";
 	std::cout << "Writing to texture file..." << std::flush;
 
 	std::ofstream o_texture("out/texture.bin", std::ios::binary);
@@ -305,8 +305,8 @@ int main()
 
 	o_texture.close();
 
-	std::cout << "Done." << std::endl;
-	std::cout << "^_^" << std::endl;;
+	std::cout << "Done.\n";
+	std::cout << "^_^\n";
 
 	return 0;
 
