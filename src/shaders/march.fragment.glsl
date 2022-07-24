@@ -317,7 +317,7 @@ void main() {
 #endif
 
     // Check if we're facing towards Sun
-    float shadeFactor = u_sunDir.z < 0. ? 0. : max(0., dot(normal(v_normal), u_sunDir));
+    float shadeFactor = u_sunDir.z < 0. ? 0.0 : max(0.5, dot(normal(v_normal), u_sunDir));
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
