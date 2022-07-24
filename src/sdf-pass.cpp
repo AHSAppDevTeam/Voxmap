@@ -38,25 +38,25 @@ const int CUBE[N_FACES][N_VERTS][N_AXES] = { // Triangles of a cube
 		{ 0, 1, 0 },
 	}, { // -Y
 		{ 0, 0, 0 },
-		{ 1, 0, 0 },
-		{ 1, 0, 1 },
-		{ 1, 0, 1 },
-		{ 0, 0, 1 },
-		{ 0, 0, 0 },
+			{ 1, 0, 0 },
+			{ 1, 0, 1 },
+			{ 1, 0, 1 },
+			{ 0, 0, 1 },
+			{ 0, 0, 0 },
 	}, { // +X
 		{ 1, 0, 0 },
-		{ 1, 1, 0 },
-		{ 1, 1, 1 },
-		{ 1, 1, 1 },
-		{ 1, 0, 1 },
-		{ 1, 0, 0 },
+			{ 1, 1, 0 },
+			{ 1, 1, 1 },
+			{ 1, 1, 1 },
+			{ 1, 0, 1 },
+			{ 1, 0, 0 },
 	}, { // -X
 		{ 0, 0, 0 },
-		{ 0, 0, 1 },
-		{ 0, 1, 1 },
-		{ 0, 1, 1 },
-		{ 0, 1, 0 },
-		{ 0, 0, 0 },
+			{ 0, 0, 1 },
+			{ 0, 1, 1 },
+			{ 0, 1, 1 },
+			{ 0, 1, 0 },
+			{ 0, 0, 0 },
 	}
 };
 
@@ -132,9 +132,9 @@ int main()
 
 	// Read input stream
 	for (
-			int x, y, z, color; 
+			int x, y, z, color;
 			in >> std::dec >> x >> y >> z >> std::hex >> color;
-	) {
+		 ) {
 		x += 512; y += 5; z += 0;
 		pal_set.insert(color);
 		col[z][y][x] = color;
@@ -181,30 +181,47 @@ int main()
 		o_vertex_8(x);
 		o_vertex_8(x >> 8);
 	};
-	auto quad = [&](int x, int y, int z, int color, int normal)
+	auto cube = [&](
+			bool mask[6],
+			int x, int y, int z,
+			int dx, int dy, int dz,
+			int color, int id
+			)
 	{
-		for(int v = 0; v < N_VERTS; v++) {
-			o_vertex_16(x);
-			o_vertex_16(y);
-			o_vertex_16(z);
-			o_vertex_8(CUBE[normal][v][0]);
-			o_vertex_8(CUBE[normal][v][1]);
-			o_vertex_8(CUBE[normal][v][2]);
-			o_vertex_8(color);
-			o_vertex_8(normal);
-			o_vertex_8(v);
+		for(int n = 0; n < 6; n++) {
+			if(!mask[n]) continue;
+			for(int v = 0; v < N_VERTS; v++) {
+				o_vertex_16(x);
+				o_vertex_16(y);
+				o_vertex_16(z);
+				o_vertex_16(dx*CUBE[n][v][0]);
+				o_vertex_16(dy*CUBE[n][v][1]);
+				o_vertex_16(dz*CUBE[n][v][2]);
+				o_vertex_8(color);
+				o_vertex_8(n);
+				o_vertex_8(id);
+				o_vertex_8(0);
+			}
 		}
 	};
 
 	FOR_XYZ {
 		if(bin[z][y][x] == 0) continue;
 		int c = col[z][y][x];
-		if(z == Z-1 || c != col[z+1][y][x]) quad(x,y,z,c,0);
-		if(z == 0   || c != col[z-1][y][x]) quad(x,y,z,c,1);
-		if(y == Y-1 || c != col[z][y+1][x]) quad(x,y,z,c,2);
-		if(y == 0   || c != col[z][y-1][x]) quad(x,y,z,c,3);
-		if(x == X-1 || c != col[z][y][x+1]) quad(x,y,z,c,4);
-		if(x == 0   || c != col[z][y][x-1]) quad(x,y,z,c,5);
+		bool mask[6] = {
+			(z == Z-1 || c != col[z+1][y][x]),
+			(z == 0   || c != col[z-1][y][x]),
+			(y == Y-1 || c != col[z][y+1][x]),
+			(y == 0   || c != col[z][y-1][x]),
+			(x == X-1 || c != col[z][y][x+1]),
+			(x == 0   || c != col[z][y][x-1]),
+		};
+		cube( mask, x, y, z, 1, 1, 1, c, 0 );
+	}
+
+	{ // Skybox
+		bool mask[6] = { 0, 1, 1, 1, 1, 1 };
+		cube( mask, 0, 0, Z, X, Y, -Z, 0, 1);
 	}
 
 	o_vertex.close();
@@ -244,23 +261,23 @@ int main()
 		// compute volume with summed volume table
 		int r = 1;
 		while(
-			(r < Z) &&
-			(0 == vol(
-				x-r,y-r,z,
-				x+r,y+r,z+r
-			))
-		) r++;
+				(r < Z) &&
+				(0 == vol(
+							 x-r,y-r,z,
+							 x+r,y+r,z+r
+							))
+			  ) r++;
 
 		sdf[z][y][x][0] = r;
 
 		r = 1;
 		while(
-			(r < z) && 
-			(0 == vol(
-				x-r,y-r,z-r,
-				x+r,y+r,z
-			))
-		) r++;
+				(r < z) &&
+				(0 == vol(
+							 x-r,y-r,z-r,
+							 x+r,y+r,z
+							))
+			  ) r++;
 
 		sdf[z][y][x][1] = r;
 	}

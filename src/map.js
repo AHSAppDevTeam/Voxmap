@@ -53,7 +53,7 @@ const map_texture = fetch(encrypted ? "src/map.blob" : "out/texture.bin.gz")
     .then(buffer => new Uint8Array(buffer))
     .then(array => pako.ungzip(array))
 
-const stride = 12
+const stride = 16
 const vertexArray = fetch(encrypted ? "src/vertex.blob" : "out/vertex.bin.gz")
     .then(response => response.arrayBuffer())
     .then(buffer => encrypted ? decrypt(buffer) : buffer)
@@ -95,7 +95,8 @@ async function main() {
     handles.a_normal = gl.getAttribLocation(program, "a_normal")
     handles.a_id = gl.getAttribLocation(program, "a_id")
     handles.u_matrix = gl.getUniformLocation(program, "u_matrix")
-    handles.u_position = gl.getUniformLocation(program, "u_position")
+    handles.u_cellPos = gl.getUniformLocation(program, "u_cellPos")
+    handles.u_fractPos = gl.getUniformLocation(program, "u_fractPos")
     handles.u_sunDir = gl.getUniformLocation(program, "u_sunDir")
 
     const texture = gl.createTexture()
@@ -130,7 +131,7 @@ async function main() {
     gl.bindBuffer(gl.ARRAY_BUFFER, fractPosBuffer)
     gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
     gl.vertexAttribIPointer(
-        handles.a_fractPos, 3, gl.BYTE,
+        handles.a_fractPos, 3, gl.SHORT,
         stride, 6
     )
 
@@ -140,7 +141,7 @@ async function main() {
     gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
     gl.vertexAttribIPointer(
         handles.a_color, 1, gl.BYTE,
-        stride, 9
+        stride, 12
     )
 
     const normalBuffer = gl.createBuffer()
@@ -149,7 +150,7 @@ async function main() {
     gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
     gl.vertexAttribIPointer(
         handles.a_normal, 1, gl.BYTE,
-        stride, 10
+        stride, 13
     )
 
     const idBuffer = gl.createBuffer()
@@ -158,7 +159,7 @@ async function main() {
     gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
     gl.vertexAttribIPointer(
         handles.a_id, 1, gl.BYTE,
-        stride, 11
+        stride, 14
     )
 
     gl.enable(gl.DEPTH_TEST)
@@ -294,7 +295,8 @@ async function render(now) {
 
     // Set the matrix.
     gl.uniformMatrix4fv(handles.u_matrix, false, matrix)
-    gl.uniform3f(handles.u_position, ...cam.pos)
+    gl.uniform3i(handles.u_cellPos, ...cam.pos.map(floor))
+    gl.uniform3f(handles.u_fractPos, ...cam.pos.map(fract))
     gl.uniform3f(handles.u_sunDir, ...weather.sun)
 
     requestAnimationFrame(render)

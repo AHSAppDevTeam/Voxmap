@@ -26,7 +26,7 @@ precision lowp int;
 #endif
 
 #if QUALITY > 2
-#define CLOUDS
+//#define CLOUDS
 #endif
 
 #if QUALITY > 3
@@ -37,10 +37,13 @@ flat in ivec3 v_cellPos;
 in vec3 v_fractPos;
 flat in int v_color;
 flat in int v_normal;
+flat in int v_id;
 
 out vec4 FragColor;
 
 uniform highp sampler3D u_map;
+uniform ivec3 u_cellPos;
+uniform vec3 u_fractPos;
 uniform float u_time;
 uniform vec3 u_sunDir;
 uniform int u_frame;
@@ -231,36 +234,107 @@ void main() {
   // Set opacity to 1
   FragColor.a = 1.0;
 
-  vec3 shadeCol = vec3(0.7);
-  vec3 baseCol = palette(v_color);
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
+  vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
+
+#ifdef SKY
+  // Fancy sky!
+
+  // Color of the sky where the Sun is
+  float sunFactor = max(0.0, dot(u_sunDir, rayDir)) - 1.0;
+  float glow = exp2(8.0 * sunFactor);
+  sunFactor = exp2(800.0 * sunFactor) + 0.25 * glow;
+
+  // Color of the sky where the Sun isn't
+  float scatter = 1.0 - sqrt(max(0.0, u_sunDir.z));
+  vec3 spaceCol = mix(vec3(0.1,0.3,0.5),vec3(0.0), scatter);
+  vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.0), scatter);
+  vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, rayDir.z)));
+  // Mix where the Sun is and where the Sun isn't
+  vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol;
+
+  // Make sure values don't overflow (the Sun can be very bright)
+  skyCol = clamp(skyCol, vec3(0), vec3(1));
+#else
+  vec3 skyCol = mix(vec3(0.8, 0.9, 1.0), vec3(0.1, 0.3, 0.6), rayDir.z);
+#endif
+
+  bool isSky = v_id == 1;
+  if(isSky) {
+
+#ifdef CLOUDS
+    vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
+    skyPos *= 0.2;
+    skyPos *= sqrt(length(skyPos));
+    skyPos += 1e-5 * vec2(u_cellPos.xy);
+
+    float cloudTime = u_time * 2e-4;
+    float cloudA = noise(1.0*skyPos + vec2(0, -9)*cloudTime, 0);
+    float cloudB = noise(8.0*skyPos*cloudA + vec2(-1, -3)*cloudTime, 0);
+    float cloudC = noise(64.0*skyPos*cloudB + vec2(1, 5)*cloudTime, 0);
+    float cloudFactor = cloudA + cloudB/8.0 + cloudC/64.0;
+    cloudFactor = clamp(4.0*(cloudFactor - 0.95), 0.0, 1.0);
+    vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, 0.05*(cloudA - cloudB));
+#else
+    vec3 cloudCol = vec3(1);
+    float cloudFactor = 0.0;
+#endif
+
+    float mountainPos = 0.1 * rayDir.x / rayDir.y;
+    float mountainHeight = 0.4 + min(rayDir.y, noise(vec2(mountainPos), 0));
+    mountainHeight /= exp(64.0 * mountainPos * mountainPos) * 4.0;
+    if(mountainHeight > rayDir.z) {
+      skyCol = mix(skyCol, skyCol*vec3(0.1, 0.2, 0.1), noise(mountainPos +
+	    rayDir.yz, 0) * rayDir.z);
+    } else {
+      skyCol += cloudCol*cloudFactor;
+    }
+
+    FragColor.rgb = skyCol;
+  } else {
+
+    vec3 baseCol = palette(v_color);
+
+    vec3 normalCol = mat3x3(
+	0.90, 0.90, 0.95,
+	0.95, 0.95, 1.00,
+	1.00, 1.00, 1.00
+	) * abs(normal(v_normal));
+#ifdef SKY
+    // Color the shadow the color of the sky
+    vec3 shadeCol = mix(scatterCol, spaceCol, rayDir.z*0.5 + 0.5);
+#else
+    vec3 shadeCol = skyCol * 0.7;
+#endif
 
 #ifdef AO
-  // Do cheap ambient occlusion by interpolating SDFs
-  float ambDist = sdf(v_cellPos, v_fractPos);
-  float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
-  vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
+    // Do cheap ambient occlusion by interpolating SDFs
+    float ambDist = sdf(v_cellPos, v_fractPos);
+    float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
+    vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
-  vec3 ambCol = vec3(1);
+    vec3 ambCol = vec3(1);
 #endif
 
-  // Check if we're facing towards Sun
-  float shadeFactor = u_sunDir.z < 0. ? 0. : max(0., dot(normal(v_normal), u_sunDir));
+    // Check if we're facing towards Sun
+    float shadeFactor = u_sunDir.z < 0. ? 0. : max(0., dot(normal(v_normal), u_sunDir));
 #ifdef SHADOWS
-  // March to the Sun unless we hit something along the way
-  if( shadeFactor > 0.){
-    March sun = march(v_cellPos, v_fractPos, u_sunDir, MAX_SUN_STEPS);
-    shadeFactor *= clamp(sun.minDist, 0., 1.);
-  }
-  // TODO: soft shadows (aaa)
-  // How to do: calculate the raymarcher's minDist more accurately
+    // March to the Sun unless we hit something along the way
+    if( shadeFactor > 0.){
+      March sun = march(v_cellPos, v_fractPos, u_sunDir, MAX_SUN_STEPS);
+      shadeFactor *= clamp(sun.minDist, 0., 1.);
+    }
+    // TODO: soft shadows (aaa)
+    // How to do: calculate the raymarcher's minDist more accurately
 #endif
 
-  // Mix sunlight and shade
-  vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
+    // Mix sunlight and shade
+    vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
 
-  // Multiply everything together
-  FragColor.rgb = baseCol
-    * lightCol
-    * ambCol;
+    // Multiply everything together
+    FragColor.rgb = baseCol
+      * normalCol
+      * lightCol
+      * ambCol;
+  }
 }
