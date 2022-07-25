@@ -19,7 +19,6 @@ const encrypted = url.protocol === "https:"
 const handles = {}
 
 const HEIGHT = 1.6
-let size = 100
 
 const time_samples = 10
 const times = Array(time_samples).fill(0)
@@ -43,7 +42,8 @@ const cam = get_json_param("cam") || {
 
 const controls = {
     move: [0, 0, 0],
-    rot: [0.01, 0, -0.2]
+    rot: [0.01, 0, -0.2],
+    size: 100
 }
 
 
@@ -65,6 +65,7 @@ const tex = ([_x, _y, _z]) => Promise.all(
     .map( _c => map_texture.then(map => map[C*(Z*(Y*(_x)+_y)+_z)+_c]))
 )
 
+const sizeOf = e => ([ e.clientWidth, e.clientHeight ].map(x => x * window.devicePixelRatio ))
 
 main()
 
@@ -209,8 +210,8 @@ async function add_listeners() {
     })
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))
     canvas.addEventListener('pointermove', (event) => {
-        controls.rot[z] -= 4 * event.movementX / size
-        controls.rot[x] -= 2 * event.movementY / size
+        controls.rot[z] -= 2 * event.movementX / controls.size
+        controls.rot[x] -= event.movementY / controls.size
         controls.rot[x] = clamp(controls.rot[x], 0.8)
     })
     joystick.addEventListener('touchstart', () => {
@@ -218,8 +219,8 @@ async function add_listeners() {
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.active) {
-            controls.move[x] = +2*clamp(event.offsetX * 2 / size - 1, 1)
-            controls.move[y] = -2*clamp(event.offsetY * 2 / size - 1, 1)
+            controls.move[x] = +2*clamp(event.offsetX / controls.size - 1, 1)
+            controls.move[y] = -2*clamp(event.offsetY / controls.size - 1, 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -282,15 +283,15 @@ async function render(now) {
 
     update_state(times[0], times[0] - times[1])
 
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+    gl.viewport(0, 0, ...sizeOf(gl.canvas))
 
     gl.drawArrays(gl.TRIANGLES, 0, (await vertexArray).length / stride)
     //gl.drawArrays(gl.TRIANGLES, 0, frame*stride)
     
-    const distance = (x, y) => Math.sqrt(x*x + y*y)
-    const l = distance(gl.canvas.width, canvas.height)
+    const size = sizeOf(gl.canvas)
+    const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
     const matrix = m4.multiply(
-        m4.projection(gl.canvas.width, gl.canvas.height, l),
+        m4.projection(...size, distance),
         m4.xRotation(-Math.PI/2),
         m4.xRotation(-cam.rot[x]),
         m4.zRotation(-cam.rot[z]),
@@ -350,13 +351,13 @@ async function update_state(time, delta) {
         `translate(${controls.move[x]*15}%, ${-controls.move[y]*15}%)`
 
     const num = x => x.toFixed(1)
-    const ft = x => num(x)
 
-    if (!get_param("clean")) debug.innerText = `${num(fps)} fps
-        position: ${cam.pos.map(ft).join(", ")}
-        velocity: ${cam.vel.map(ft).join(", ")}
+    if (!get_param("clean")) debug.innerText = 
+        `${sizeOf(gl.canvas).join(" x ")} @ ${num(fps)} fps
+        position: ${cam.pos.map(num).join(", ")}
+        velocity: ${cam.vel.map(num).join(", ")}
         by: Xing :D
-    `
+        `
 
     if (frame % 60 == 0) {
         url.searchParams.set("cam", encodeURIComponent(JSON.stringify(cam)))
@@ -365,6 +366,7 @@ async function update_state(time, delta) {
 }
 
 async function resize() {
-    size = Math.min(window.innerWidth, window.innerHeight) * 0.5
-    resizeCanvasToDisplaySize(gl.canvas, 1)
+    const size = sizeOf(gl.canvas)
+    gl.canvas.width = size[0]
+    gl.canvas.height = size[1]
 }
