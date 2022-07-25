@@ -51,7 +51,7 @@ uniform int u_frame;
 // Dimensions
 const int X = 1024;
 const int Y = 256;
-const int Z = 16;
+const int Z = 32;
 
 const float Xf = float(X);
 const float Yf = float(Y);
@@ -229,7 +229,6 @@ void main() {
 
   // Set opacity to 1
   FragColor.a = 1.0;
-  FragColor.rgb = v_color;
 
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
@@ -311,7 +310,7 @@ void main() {
 
 #ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
-    float ambDist = sdf(v_cellPos + ivec3(v_normal), v_fractPos);
+    float ambDist = sdf(v_cellPos + 0*ivec3(v_normal), v_fractPos);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else

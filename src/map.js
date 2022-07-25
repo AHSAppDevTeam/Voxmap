@@ -8,7 +8,7 @@ const x = 0
 const y = 1
 const z = 2
 
-const Z = 16 // height
+const Z = 32 // height
 const Y = 256 // N-S length
 const X = 1024 // E-W width
 const C = 4 // 4 channels
@@ -62,7 +62,7 @@ const vertexArray = fetch(encrypted ? "src/vertex.blob" : "out/vertex.bin.gz")
 
 const tex = ([_x, _y, _z]) => Promise.all(
     [0,1,2]
-    .map( _c => map_texture.then(map => map[C*(X*(Y*(_z)+_y)+_x)+_c]))
+    .map( _c => map_texture.then(map => map[C*(Z*(Y*(_x)+_y)+_z)+_c]))
 )
 
 
@@ -104,7 +104,7 @@ async function main() {
 
     gl.bindTexture(gl.TEXTURE_3D, texture)
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
-        1024, 256, 16, 0,
+        X, Y, Z, 0,
         gl.RGBA, gl.UNSIGNED_BYTE, await map_texture)
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -164,8 +164,10 @@ async function main() {
     )
 
     gl.enable(gl.DEPTH_TEST)
-    //gl.enable(gl.CULL_FACE)
-    //gl.cullFace(gl.BACK)
+    /*
+    gl.enable(gl.CULL_FACE)
+    gl.cullFace(gl.BACK)
+    */
 
     gl.useProgram(program)
 
@@ -326,10 +328,12 @@ async function update_state(time, delta) {
     cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
     cam.pos = cam.pos.map((p, i) => p + cam.vel[i] * delta)
 
+    /*
     const feet_pos = cam.pos
     feet_pos.z -= HEIGHT;
     const [above, below, color] = await tex(feet_pos.map(floor))
     cam.pos[z] -= Math.round(below - HEIGHT) * 2 * delta;
+    */
 
     cam.rot = cam.rot.map( 
         (a, i) => cam.rot[i] + 

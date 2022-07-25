@@ -22,7 +22,7 @@ uniform int u_frame;
 // Dimensions
 const int X = 1024;
 const int Y = 256;
-const int Z = 16;
+const int Z = 32;
 
 // Get color from texture's palette index
 vec3 palette(int p) {
