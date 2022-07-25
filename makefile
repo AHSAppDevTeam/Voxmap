@@ -79,7 +79,7 @@ bin/sdf-pass.o: src/sdf-pass.cpp bin
 	clang++ $(cppflags) -o bin/sdf-pass.o -c src/sdf-pass.cpp
 
 bin/sdf: bin/sdf-pass.o bin/OpenSimplexNoise.o bin
-	clang++ $(cppflags) -o bin/sdf bin/sdf-pass.o bin/OpenSimplexNoise.o
+	clang++ $(cppflags) -o bin/sdf bin/sdf-pass.o bin/OpenSimplexNoise.o -ltbb
 
 bin/viewer: src/viewer.cpp libs/glad.c bin
 	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw $(cppflags) -o bin/viewer

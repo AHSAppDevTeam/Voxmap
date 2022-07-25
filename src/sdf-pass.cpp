@@ -7,6 +7,7 @@
 #include <cassert>
 #include <set>
 #include <algorithm>
+#include <set>
 
 const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
@@ -150,6 +151,11 @@ void quad(
 
 int main()
 {
+	// so nothing fails silently
+	in.exceptions(std::fstream::badbit);
+	o_texture.exceptions(std::fstream::badbit);
+	o_vertex.exceptions(std::fstream::badbit);
+	
 	std::cout << "Loading voxel map..." << std::flush;
 
 	// Skip first 3 lines
@@ -188,11 +194,11 @@ int main()
 		std::cout << "vec3(1);" << std::endl;
 	}
 
-	FOR_XYZ {
+	forXYZ ([](auto x,auto y, auto z){
 		int i = 1;
 		for (; i < MAX && pal[i] != col[x][y][z]; i++) continue;
 		col[x][y][z] = i;
-	}
+	});
 
 	std::cout << "Done." << std::endl;
 
@@ -201,8 +207,8 @@ int main()
 	// https://gist.github.com/Vercidium/a3002bd083cce2bc854c9ff8f0118d33
 	const int CHUNK = Z;
 
-	int id = 0;
-	FOR_XYZ_STEP(CHUNK)
+	
+	forXYZ([&](auto x, auto y, auto z){
 	for(int d = 0; d < 3; d++)
 	for(int color = 0; color < pal_set.size(); color++)
 	{
@@ -249,7 +255,7 @@ int main()
 
 				du[u] = w;
 				dv[v] = h;
-
+				int id = 0;
 				quad(
 						x+p[0], y+p[1], z+p[2],
 						du[0], du[1], du[2],
@@ -301,9 +307,8 @@ int main()
 			0, 0, Z,
 			0, 1
 		);
-	}
+	}}, CHUNK);
 
-	o_vertex.close();
 
 	std::cout << "Done." << std::endl;
 
@@ -332,10 +337,10 @@ int main()
 
 	std::cout << "Generating signed distance fields..." << std::flush;
 
-	FOR_XYZ {
+	forXYZ ([&](auto x, auto y, auto z){
 		// find greatest allowable cube's radius as sdf
 
-		if(bin[x][y][z] > 0) continue;
+		if(bin[x][y][z] > 0) return;
 
 		// compute volume with summed volume table
 		int r = 1;
@@ -359,7 +364,7 @@ int main()
 			  ) r++;
 
 		sdf[x][y][z][1] = r;
-	}
+	});
 
 	std::cout << "Done." << std::endl;
 	std::cout << "Writing to texture file..." << std::flush;
