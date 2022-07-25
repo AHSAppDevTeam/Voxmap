@@ -379,7 +379,7 @@ int main()
 		o_texture.put(
 				(char) (
 					_y/Y < 1 ? fractal(_x, _y, 8) :
-					_y/Y < 2 ? 3124 % 256 :
+					_y/Y < 2 ? std::rand() % 256 :
 					0
 					)
 				);
