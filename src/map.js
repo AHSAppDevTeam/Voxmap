@@ -19,7 +19,6 @@ const encrypted = url.protocol === "https:"
 const handles = {}
 
 const HEIGHT = 1.6
-let size = 100
 
 const time_samples = 10
 const times = Array(time_samples).fill(0)
@@ -34,7 +33,7 @@ const start_time = Date.now() - new Date().getTimezoneOffset() * 60 * 1000
 const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
 }
-const cam = get_json_param("cam") || {
+const cam = get_json_param(".cam") || {
     pos: [381.5, 128.1, 1 + HEIGHT],
     vel: [0, 0, 0],
     acc: [0, 0, 0],
@@ -43,7 +42,8 @@ const cam = get_json_param("cam") || {
 
 const controls = {
     move: [0, 0, 0],
-    rot: [0.01, 0, -0.2]
+    rot: [0.01, 0, -0.2],
+    size: 100
 }
 
 
@@ -60,11 +60,13 @@ const vertexArray = fetch(encrypted ? "src/vertex.blob" : "out/vertex.bin.gz")
     .then(buffer => new Uint8Array(buffer))
     .then(array => pako.ungzip(array))
 
-const tex = ([_x, _y, _z]) => Promise.all(
-    [0,1,2]
-    .map( _c => map_texture.then(map => map[C*(Z*(Y*(_x)+_y)+_z)+_c]))
+const clamp_xyzc = (xyzc) => [X,Y,Z,C].map((max, i) => clamps(xyzc[i], 0, max - 1))
+const project_xyzc = ([_x, _y, _z, _c]) => C*(X*(Y*(_z)+_y)+_x)+_c
+const tex = (xyz) => Promise.all(
+    [0,1,2].map( _c => map_texture.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
 )
 
+const sizeOf = e => ([ e.clientWidth, e.clientHeight ].map(x => x * window.devicePixelRatio ))
 
 main()
 
@@ -106,7 +108,8 @@ async function main() {
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
         X, Y, Z, 0,
         gl.RGBA, gl.UNSIGNED_BYTE, await map_texture)
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.generateMipmap(gl.TEXTURE_3D)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -209,8 +212,8 @@ async function add_listeners() {
     })
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))
     canvas.addEventListener('pointermove', (event) => {
-        controls.rot[z] -= 4 * event.movementX / size
-        controls.rot[x] -= 2 * event.movementY / size
+        controls.rot[z] -= 2 * event.movementX / controls.size
+        controls.rot[x] -= event.movementY / controls.size
         controls.rot[x] = clamp(controls.rot[x], 0.8)
     })
     joystick.addEventListener('touchstart', () => {
@@ -218,8 +221,8 @@ async function add_listeners() {
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.active) {
-            controls.move[x] = +2*clamp(event.offsetX * 2 / size - 1, 1)
-            controls.move[y] = -2*clamp(event.offsetY * 2 / size - 1, 1)
+            controls.move[x] = +2*clamp(event.offsetX / controls.size - 1, 1)
+            controls.move[y] = -2*clamp(event.offsetY / controls.size - 1, 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -247,7 +250,7 @@ async function add_listeners() {
                 controls.move[x] = power
                 break;
             case "Space":
-                cam.pos[z] += (event.shiftKey) ? -1 : 1
+                controls.move[z] = power
                 break;
         }
     })
@@ -265,6 +268,9 @@ async function add_listeners() {
             case "ArrowRight":
                 controls.move[x] = 0
                 break;
+            case "Space":
+                controls.move[z] = 0
+                break;
         }
     })
     window.addEventListener('resize', resize)
@@ -274,7 +280,8 @@ async function add_listeners() {
 const floor = x => Math.floor(x)
 const fract = x => x - floor(x)
 const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
-const clamp = (x, a) => Math.min(Math.max(x, -a), a)
+const clamps = (x, a, b) => Math.min(Math.max(x, a), b)
+const clamp = (x, a) => clamps(x, -a, a)
 
 async function render(now) {
     times.pop()
@@ -282,15 +289,15 @@ async function render(now) {
 
     update_state(times[0], times[0] - times[1])
 
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+    gl.viewport(0, 0, ...sizeOf(gl.canvas))
 
     gl.drawArrays(gl.TRIANGLES, 0, (await vertexArray).length / stride)
     //gl.drawArrays(gl.TRIANGLES, 0, frame*stride)
     
-    const distance = (x, y) => Math.sqrt(x*x + y*y)
-    const l = distance(gl.canvas.width, canvas.height)
+    const size = sizeOf(gl.canvas)
+    const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
     const matrix = m4.multiply(
-        m4.projection(gl.canvas.width, gl.canvas.height, l),
+        m4.projection(...size, distance),
         m4.xRotation(-Math.PI/2),
         m4.xRotation(-cam.rot[x]),
         m4.zRotation(-cam.rot[z]),
@@ -319,21 +326,20 @@ async function update_state(time, delta) {
     cam.acc = [
         f[x] * cos - f[y] * sin,
         f[x] * sin + f[y] * cos,
-        0,
+        f[z],
     ]
+
+    const feet_pos = [...cam.pos]
+    feet_pos[z] -= HEIGHT
+    let [above, below, color] = await tex(feet_pos.map(floor))
+    if(below < 1) cam.acc[z] += 60
+    if(below > 1) cam.acc[z] -= 90
 
     let drag = 1 / 8
 
     cam.acc = cam.acc.map((a, i) => a - cam.vel[i] * drag / delta)
     cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
     cam.pos = cam.pos.map((p, i) => p + cam.vel[i] * delta)
-
-    /*
-    const feet_pos = cam.pos
-    feet_pos.z -= HEIGHT;
-    const [above, below, color] = await tex(feet_pos.map(floor))
-    cam.pos[z] -= Math.round(below - HEIGHT) * 2 * delta;
-    */
 
     cam.rot = cam.rot.map( 
         (a, i) => cam.rot[i] + 
@@ -350,13 +356,13 @@ async function update_state(time, delta) {
         `translate(${controls.move[x]*15}%, ${-controls.move[y]*15}%)`
 
     const num = x => x.toFixed(1)
-    const ft = x => num(x)
 
-    if (!get_param("clean")) debug.innerText = `${num(fps)} fps
-        position: ${cam.pos.map(ft).join(", ")}
-        velocity: ${cam.vel.map(ft).join(", ")}
+    if (!get_param("clean")) debug.innerText = 
+        `${sizeOf(gl.canvas).join(" x ")} @ ${num(fps)} fps
+        position: ${cam.pos.map(num).join(", ")}
+        velocity: ${cam.vel.map(num).join(", ")}
         by: Xing :D
-    `
+        `
 
     if (frame % 60 == 0) {
         url.searchParams.set("cam", encodeURIComponent(JSON.stringify(cam)))
@@ -365,6 +371,7 @@ async function update_state(time, delta) {
 }
 
 async function resize() {
-    size = Math.min(window.innerWidth, window.innerHeight) * 0.5
-    resizeCanvasToDisplaySize(gl.canvas, 1)
+    const size = sizeOf(gl.canvas)
+    gl.canvas.width = size[0]
+    gl.canvas.height = size[1]
 }

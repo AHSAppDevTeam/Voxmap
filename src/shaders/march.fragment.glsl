@@ -59,8 +59,6 @@ const float Zf = float(Z);
 
 const vec3 Mf = 1.0 / vec3(Xf, Yf, Zf);
 
-const float FoV = 1.0;
-
 // Quality-adjustable raytracing parameters
 const int MAX_BOUNCES = max(QUALITY - 1, 1);
 int MAX_RAY_STEPS = X * (QUALITY + 1)/3;
@@ -193,6 +191,8 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
     // TODO: improve floating-point distance
     // currently just casted integer distance
     res.minDist = min(float(dist), res.minDist);
+    //res.minDist = min(sdf(res.cellPos, res.fractPos-0.5), res.minDist);
+
 
     if(dist == 0) {
       res.material = tex(res.cellPos).b;
@@ -312,6 +312,8 @@ void main() {
     // Do cheap ambient occlusion by interpolating SDFs
     float ambDist = sdf(v_cellPos + 0*ivec3(v_normal), v_fractPos);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
+    //FragColor.rgb = vec3(sdf_dir(v_cellPos, 0));
+    //return;
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
     vec3 ambCol = vec3(1);
@@ -325,6 +327,8 @@ void main() {
     if( shadeFactor > 0.){
       March sun = march(v_cellPos, v_fractPos, u_sunDir, MAX_SUN_STEPS);
       shadeFactor *= clamp(sun.minDist, 0., 1.);
+    //FragColor.rgb = vec3(sun.minDist);
+    //return;
     }
     // TODO: soft shadows (aaa)
     // How to do: calculate the raymarcher's minDist more accurately
@@ -332,6 +336,10 @@ void main() {
 
     // Mix sunlight and shade
     vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
+
+    //March res = march(v_cellPos, v_fractPos, reflect(rayDir, v_normal), MAX_RAY_STEPS);
+    //vec3 bounceCol = palette(res.material);
+    //baseCol = mix(baseCol, bounceCol, 0.2);
 
     // Multiply everything together
     FragColor.rgb = baseCol
