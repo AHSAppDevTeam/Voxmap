@@ -8,12 +8,25 @@ const int Z = 32;
 
 const int LEN[3] = {X, Y, Z};
 const int AREA[3] = {Y * Z, X *Z, X *Y};
-namespace detail {
 using namespace oneapi;
 void forXYZ(auto function) {
-  tbb::parallel_for(0, X*Y*Z, function);
+  auto sec_order = [&](int i){
+    auto x = i % X;
+    auto y = i / X % Y;
+    auto z = i / X / Y;
+    function(x,y,z);
+  };
+  tbb::parallel_for(0, X*Y*Z, sec_order);
 }
-} // namespace detail
+void forXYZ(auto function, int delta) {
+  auto sec_order = [&](int i){
+    auto x = i * delta % X;
+    auto y = i * delta / X % Y;
+    auto z = i * delta / X / Y;
+    function(x,y,z);
+  };
+  tbb::parallel_for(0, X*Y*Z/delta/delta/delta , sec_order);
+}
 #define FOR_XYZ_STEP(DELTA)                                                    \
   for (int z = 0; z < Z; z += DELTA)                                           \
     for (int y = 0; y < Y; y += DELTA)                                         \
