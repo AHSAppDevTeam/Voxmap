@@ -24,7 +24,7 @@ std::ofstream o_vertex("out/vertex.bin", std::ios::binary);
 std::ofstream o_texture("out/texture.bin", std::ios::binary);
 
 
-inline float arc(int a)
+float arc(int a)
 {
 	return 6.283185 * (a - 2.0) / (Y - 4.0);
 }
@@ -47,7 +47,7 @@ int fractal(int x, int y, int octaves)
 	return 128 + std::clamp((int)(300 * n), -128, 127);
 }
 
-inline int clamped(int array[X][Y][Z], int x, int y, int z)
+int clamped(int array[X][Y][Z], int x, int y, int z)
 {
 	return array
 		[std::clamp(x,0,X-1)]
@@ -56,24 +56,24 @@ inline int clamped(int array[X][Y][Z], int x, int y, int z)
 }
 
 // clamped bin access
-inline int cbin(int x, int y, int z)
+int cbin(int x, int y, int z)
 { 
 	return clamped(bin, x, y, z); 
 }
 
 // clamped sum access
-inline int csum(int x, int y, int z)
+int csum(int x, int y, int z)
 { 
 	return clamped(sum, x, y, z); 
 }
 
 // clamped col access
-inline int ccol(int x, int y, int z)
+int ccol(int x, int y, int z)
 { 
 	return clamped(col, x, y, z); 
 }
 
-inline int vol(
+int vol(
 		int x0, int y0, int z0,
 		int x1, int y1, int z1
 		)
@@ -95,16 +95,16 @@ inline int vol(
 		- csum(x0, y0, z0);
 }
 
-inline void o_vertex_8(int x)
+void o_vertex_8(int x)
 {
 	o_vertex.put((char)(x & 0xFF));
 }
-inline void o_vertex_16 (int x) // Split 2-byte ints
+void o_vertex_16 (int x) // Split 2-byte ints
 {
 	o_vertex_8(x);
 	o_vertex_8(x >> 8);
 }
-inline void vert(int x, int y, int z, int dx, int dy, int dz, int color, int id)
+void vert(int x, int y, int z, int dx, int dy, int dz, int color, int id)
 {
 	o_vertex_16(x); o_vertex_16(y); o_vertex_16(z);
 	o_vertex_16(dx); o_vertex_16(dy); o_vertex_16(dz);
@@ -113,7 +113,7 @@ inline void vert(int x, int y, int z, int dx, int dy, int dz, int color, int id)
 	o_vertex_8(id);
 	o_vertex_8(0);
 }
-inline void tri(
+void tri(
 		int x, int y, int z,
 		int dx0, int dy0, int dz0,
 		int dx1, int dy1, int dz1,
@@ -125,7 +125,7 @@ inline void tri(
 	vert(x, y, z, dx1, dy1, dz1, color, id);
 	vert(x, y, z, dx2, dy2, dz2, color, id);
 }
-inline void quad(
+void quad(
 		int x, int y, int z,
 		int dx0, int dy0, int dz0,
 		int dx1, int dy1, int dz1,
@@ -267,6 +267,40 @@ int main()
 				i += w;
 			}
 		}
+	}
+
+	// Draw skybox
+	{
+		quad(
+			0, 0, Z,
+			X, 0, 0,
+			0, Y, 0,
+			0, 1
+		);
+		quad(
+			0, 0, 0,
+			X, 0, 0,
+			0, 0, Z,
+			0, 1
+		);
+		quad(
+			X, 0, 0,
+			0, Y, 0,
+			0, 0, Z,
+			0, 1
+		);
+		quad(
+			X, Y, 0,
+			-X, 0, 0,
+			0, 0, Z,
+			0, 1
+		);
+		quad(
+			0, Y, 0,
+			0,-Y, 0,
+			0, 0, Z,
+			0, 1
+		);
 	}
 
 	o_vertex.close();
