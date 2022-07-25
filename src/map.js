@@ -33,7 +33,7 @@ const start_time = Date.now() - new Date().getTimezoneOffset() * 60 * 1000
 const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
 }
-const cam = get_json_param("cam") || {
+const cam = get_json_param(".cam") || {
     pos: [381.5, 128.1, 1 + HEIGHT],
     vel: [0, 0, 0],
     acc: [0, 0, 0],
@@ -60,9 +60,10 @@ const vertexArray = fetch(encrypted ? "src/vertex.blob" : "out/vertex.bin.gz")
     .then(buffer => new Uint8Array(buffer))
     .then(array => pako.ungzip(array))
 
-const tex = ([_x, _y, _z]) => Promise.all(
-    [0,1,2]
-    .map( _c => map_texture.then(map => map[C*(Z*(Y*(_x)+_y)+_z)+_c]))
+const clamp_xyzc = (xyzc) => [X,Y,Z,C].map((max, i) => clamps(xyzc[i], 0, max - 1))
+const project_xyzc = ([_x, _y, _z, _c]) => C*(X*(Y*(_z)+_y)+_x)+_c
+const tex = (xyz) => Promise.all(
+    [0,1,2].map( _c => map_texture.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
 )
 
 const sizeOf = e => ([ e.clientWidth, e.clientHeight ].map(x => x * window.devicePixelRatio ))
@@ -107,7 +108,8 @@ async function main() {
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
         X, Y, Z, 0,
         gl.RGBA, gl.UNSIGNED_BYTE, await map_texture)
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.generateMipmap(gl.TEXTURE_3D)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -248,7 +250,7 @@ async function add_listeners() {
                 controls.move[x] = power
                 break;
             case "Space":
-                cam.pos[z] += (event.shiftKey) ? -1 : 1
+                controls.move[z] = power
                 break;
         }
     })
@@ -266,6 +268,9 @@ async function add_listeners() {
             case "ArrowRight":
                 controls.move[x] = 0
                 break;
+            case "Space":
+                controls.move[z] = 0
+                break;
         }
     })
     window.addEventListener('resize', resize)
@@ -275,7 +280,8 @@ async function add_listeners() {
 const floor = x => Math.floor(x)
 const fract = x => x - floor(x)
 const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
-const clamp = (x, a) => Math.min(Math.max(x, -a), a)
+const clamps = (x, a, b) => Math.min(Math.max(x, a), b)
+const clamp = (x, a) => clamps(x, -a, a)
 
 async function render(now) {
     times.pop()
@@ -320,21 +326,20 @@ async function update_state(time, delta) {
     cam.acc = [
         f[x] * cos - f[y] * sin,
         f[x] * sin + f[y] * cos,
-        0,
+        f[z],
     ]
+
+    const feet_pos = [...cam.pos]
+    feet_pos[z] -= HEIGHT
+    let [above, below, color] = await tex(feet_pos.map(floor))
+    if(below < 1) cam.acc[z] += 60
+    if(below > 1) cam.acc[z] -= 90
 
     let drag = 1 / 8
 
     cam.acc = cam.acc.map((a, i) => a - cam.vel[i] * drag / delta)
     cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
     cam.pos = cam.pos.map((p, i) => p + cam.vel[i] * delta)
-
-    /*
-    const feet_pos = cam.pos
-    feet_pos.z -= HEIGHT;
-    const [above, below, color] = await tex(feet_pos.map(floor))
-    cam.pos[z] -= Math.round(below - HEIGHT) * 2 * delta;
-    */
 
     cam.rot = cam.rot.map( 
         (a, i) => cam.rot[i] + 
