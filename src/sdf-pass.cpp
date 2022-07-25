@@ -12,18 +12,11 @@ const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
 
 int pal[MAX]; // palette
-<<<<<<< HEAD
 std::set <int> pal_set; // palette set
 int col[X][Y][Z]; // color
 int bin[X][Y][Z]; // 1 if block, else 0
 int sum[X][Y][Z]; // summed volume table
 int sdf[X][Y][Z][O]; // radius of largest fittng cube centered at block
-=======
-std::vector<int> pal_set; // palette set
-int bin[Z][Y][X]; // 1 if block, else 0
-int sum[Z][Y][X]; // summed volume table
-int sdf[Z][Y][X][O]; // radius of largest fittng cube centered at block
->>>>>>> ba02b435657a5f84231d05f61609bbe26674eea8
 OpenSimplexNoise::Noise noise;
 
 std::ifstream in("maps/map.txt");
@@ -169,7 +162,6 @@ int main()
 			in >> std::dec >> x >> y >> z >> std::hex >> color;
 		 ) {
 		x += 512; y += 5; z += 0;
-<<<<<<< HEAD
 		pal_set.insert(color);
 		col[x][y][z] = color;
 		bin[x][y][z] = 1;
@@ -178,14 +170,6 @@ int main()
 	in.close();
 
 	std::cout << "Done." << std::endl;
-=======
-		pal_set.push_back(color);
-		col[z][y][x] = color;
-		bin[z][y][x] = 1;
-	}
-
-	std::cout << "Done.\n";
->>>>>>> ba02b435657a5f84231d05f61609bbe26674eea8
 
 	std::cout << "Generating palette...";
 

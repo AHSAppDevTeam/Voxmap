@@ -333,6 +333,10 @@ void main() {
     // Mix sunlight and shade
     vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
 
+    //March res = march(v_cellPos, v_fractPos, reflect(rayDir, v_normal), MAX_RAY_STEPS);
+    //vec3 bounceCol = palette(res.material);
+    //baseCol = mix(baseCol, bounceCol, 0.2);
+
     // Multiply everything together
     FragColor.rgb = baseCol
       * normalCol
