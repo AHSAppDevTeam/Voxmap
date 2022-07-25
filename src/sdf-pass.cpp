@@ -5,18 +5,25 @@
 #include <cstdlib>
 #include <fstream>
 #include <cassert>
-#include <set>
+#include <vector>
 #include <algorithm>
 
 const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
 
 int pal[MAX]; // palette
+<<<<<<< HEAD
 std::set <int> pal_set; // palette set
 int col[X][Y][Z]; // color
 int bin[X][Y][Z]; // 1 if block, else 0
 int sum[X][Y][Z]; // summed volume table
 int sdf[X][Y][Z][O]; // radius of largest fittng cube centered at block
+=======
+std::vector<int> pal_set; // palette set
+int bin[Z][Y][X]; // 1 if block, else 0
+int sum[Z][Y][X]; // summed volume table
+int sdf[Z][Y][X][O]; // radius of largest fittng cube centered at block
+>>>>>>> ba02b435657a5f84231d05f61609bbe26674eea8
 OpenSimplexNoise::Noise noise;
 
 std::ifstream in("maps/map.txt");
@@ -162,6 +169,7 @@ int main()
 			in >> std::dec >> x >> y >> z >> std::hex >> color;
 		 ) {
 		x += 512; y += 5; z += 0;
+<<<<<<< HEAD
 		pal_set.insert(color);
 		col[x][y][z] = color;
 		bin[x][y][z] = 1;
@@ -170,8 +178,16 @@ int main()
 	in.close();
 
 	std::cout << "Done." << std::endl;
+=======
+		pal_set.push_back(color);
+		col[z][y][x] = color;
+		bin[z][y][x] = 1;
+	}
 
-	std::cout << "Generating palette..." << std::endl;
+	std::cout << "Done.\n";
+>>>>>>> ba02b435657a5f84231d05f61609bbe26674eea8
+
+	std::cout << "Generating palette...";
 
 	{
 		std::cout << "  return ";
@@ -185,7 +201,7 @@ int main()
 			pal[i] = color;
 			i++;
 		}
-		std::cout << "vec3(1);" << std::endl;
+		std::cout << "vec3(1);\n";
 	}
 
 	FOR_XYZ {
@@ -194,9 +210,9 @@ int main()
 		col[x][y][z] = i;
 	}
 
-	std::cout << "Done." << std::endl;
+	std::cout << "Done.\n";
 
-	std::cout << "Writing to vertex file..." << std::flush;
+	std::cout << "Writing to vertex file...";
 
 	// https://gist.github.com/Vercidium/a3002bd083cce2bc854c9ff8f0118d33
 	const int CHUNK = Z;
@@ -305,9 +321,9 @@ int main()
 
 	o_vertex.close();
 
-	std::cout << "Done." << std::endl;
+	std::cout << "Done.\n";
 
-	std::cout << "Generating summed volume table..." << std::flush;
+	std::cout << "Generating summed volume table...";
 
 	FOR_XYZ {
 		// compute a summed volume table
@@ -328,7 +344,7 @@ int main()
 			//std::cout << sum[x][y][z] << " ";
 	}
 
-	std::cout << "Done." << std::endl;
+	std::cout << "Done.\n";
 
 	std::cout << "Generating signed distance fields..." << std::flush;
 
@@ -361,7 +377,7 @@ int main()
 		sdf[x][y][z][1] = r;
 	}
 
-	std::cout << "Done." << std::endl;
+	std::cout << "Done.\n";
 	std::cout << "Writing to texture file..." << std::flush;
 
 	FOR_XYZ {
@@ -382,8 +398,8 @@ int main()
 
 	o_texture.close();
 
-	std::cout << "Done." << std::endl;
-	std::cout << "^_^" << std::endl;;
+	std::cout << "Done.\n";
+	std::cout << "^_^\n";
 
 	return 0;
 
