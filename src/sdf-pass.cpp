@@ -329,48 +329,48 @@ int main()
 			- csum(x-1,   y, z-1)
 			- csum(  x, y-1, z-1)
 
-			+ csum(x-1, y-1, z-1)
-			+ csum(z-1, y-1, x-1);
-			//std::cout << sum[x][y][z] << " ";
+			+ csum(x-1, y-1, z-1);
 	});
 
 	std::cout << "Done." << std::endl;
 
 	std::cout << "Generating signed distance fields..." << std::flush;
 
-	parXYZ([](int x, int y, int z) {
-		// find greatest allowable cube's radius as sdf
-
+	// find greatest allowable cube's radius as sdf
+	forXYZ([](int x, int y, int z) {
 		if(bin[x][y][z] > 0) return;
 
-		// compute volume with summed volume table
-		int r = 1;
-		while(
-				(r < Z) &&
-				(0 == vol(
-							 x-r,y-r,z,
-							 x+r,y+r,z+r
-							))
-			  ) r++;
+		// two octants: up and down
+		for(int o = 0; o < O; o++) {
+			// compute volume with summed volume table
 
-		sdf[x][y][z][0] = r;
+			int min = 1;
+			int max = (o == 0) ? Z : z;
 
-		r = 1;
-		while(
-				(r < z) &&
-				(0 == vol(
-							 x-r,y-r,z-r,
-							 x+r,y+r,z
-							))
-			  ) r++;
+			// exploit fact that SDFs have a max gradient of 1
+			if(x+y+z > 0) {
+				int mid = csdf(x-1, y-1, z-1, o);
+				min = std::max(min, mid-1);
+				max = std::min(max, mid+1);
+			}
 
-		sdf[x][y][z][1] = r;
+			int r = min;
+			while(
+					(r < max) &&
+					(0 == vol(
+								 x-r,y-r,z-(o)*r,
+								 x+r,y+r,z+(1-o)*r
+								))
+				  ) r++;
+
+			sdf[x][y][z][o] = r;
+		}
 	});
 
 	std::cout << "Done." << std::endl;
 	std::cout << "Writing to texture file..." << std::flush;
 
-	forXYZ([](int x, int y, int z) {
+	forZYX([](int x, int y, int z) {
 		int _x = x;
 		int _y = Y*z + y;
 

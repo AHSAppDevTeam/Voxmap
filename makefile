@@ -40,13 +40,14 @@ maps/map.txt: maps/map.vox
 	### x y z RRGGBB
 	goxel maps/map.vox --export maps/map.txt
 
-out: bin/sdf maps/map.txt
+out.gz: bin/sdf maps/map.txt out
 	### PBM to SDF
 	# results in a combined SDF + voxel color texture
 	bin/sdf
-
-out.gz: out
 	gzip -f out/*.bin
+
+out:
+	mkdir out
 
 src/map.blob: out.gz
 	### Encrypt PNG
@@ -57,29 +58,29 @@ cppflags = -O3 -g -std=c++20 -Ilibs/MagicaVoxel_file_writer -Ilibs/OpenSimplexNo
 bin:
 	mkdir bin/
 
-bin/OpenSimplexNoise.o: | bin
+bin/OpenSimplexNoise.o: bin
 	clang++ $(cppflags) -o bin/OpenSimplexNoise.o -c libs/OpenSimplexNoise/OpenSimplexNoise/OpenSimplexNoise.cpp
 
-bin/VoxWriter.o: | bin
+bin/VoxWriter.o: bin
 	clang++ $(cppflags) -o bin/VoxWriter.o -c libs/MagicaVoxel_File_Writer/VoxWriter.cpp
 
-bin/vox-pass.o: src/vox-pass.cpp | bin
+bin/vox-pass.o: src/vox-pass.cpp bin
 	clang++ $(cppflags) -o bin/vox-pass.o -c src/vox-pass.cpp
 
-bin/vox-reverse.o: src/vox-reverse.cpp | bin
+bin/vox-reverse.o: src/vox-reverse.cpp bin
 	clang++ $(cppflags) -o bin/vox-reverse.o -c src/vox-reverse.cpp
 
-bin/vox: bin/VoxWriter.o bin/vox-pass.o | bin
+bin/vox: bin/VoxWriter.o bin/vox-pass.o bin
 	clang++ $(cppflags) -o bin/vox bin/vox-pass.o bin/VoxWriter.o
 
-bin/vox-reverse: bin/VoxWriter.o bin/vox-reverse.o | bin
+bin/vox-reverse: bin/VoxWriter.o bin/vox-reverse.o bin
 	clang++ $(cppflags) -o bin/vox-reverse bin/vox-reverse.o bin/VoxWriter.o
 
-bin/sdf-pass.o: src/sdf-pass.cpp | bin
+bin/sdf-pass.o: src/sdf-pass.cpp bin
 	clang++ $(cppflags) -o bin/sdf-pass.o -c src/sdf-pass.cpp
 
-bin/sdf: bin/sdf-pass.o bin/OpenSimplexNoise.o | bin
+bin/sdf: bin/sdf-pass.o bin/OpenSimplexNoise.o bin
 	clang++ $(cppflags) -o bin/sdf bin/sdf-pass.o bin/OpenSimplexNoise.o -ltbb
 
-bin/viewer: src/viewer.cpp libs/glad.c | bin
+bin/viewer: src/viewer.cpp libs/glad.c bin
 	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw $(cppflags) -o bin/viewer
