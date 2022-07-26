@@ -97,6 +97,7 @@ async function main() {
     handles.a_normal = gl.getAttribLocation(program, "a_normal")
     handles.a_id = gl.getAttribLocation(program, "a_id")
     handles.u_frame = gl.getUniformLocation(program, "u_frame")
+    handles.u_time = gl.getUniformLocation(program, "u_time")
     handles.u_matrix = gl.getUniformLocation(program, "u_matrix")
     handles.u_cellPos = gl.getUniformLocation(program, "u_cellPos")
     handles.u_fractPos = gl.getUniformLocation(program, "u_fractPos")
@@ -310,6 +311,7 @@ async function render(now) {
     gl.uniform3f(handles.u_fractPos, ...cam.pos.map(fract))
     gl.uniform3f(handles.u_sunDir, ...weather.sun)
     gl.uniform1i(handles.u_frame, frame)
+    gl.uniform1f(handles.u_time, times[0] % 1e8)
 
     requestAnimationFrame(render)
 }
@@ -332,8 +334,8 @@ async function update_state(time, delta) {
     const feet_pos = [...cam.pos]
     feet_pos[z] -= HEIGHT
     let [above, below, color] = await tex(feet_pos.map(floor))
-    if(below < 1) cam.acc[z] += 60
-    if(below > 1) cam.acc[z] -= 90
+    if(below < 1) cam.acc[z] += 30
+    if(below > 1) cam.acc[z] -= 60
 
     let drag = 1 / 8
 

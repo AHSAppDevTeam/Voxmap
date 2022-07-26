@@ -71,7 +71,7 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 // shift 0: multi-octave fractal noise
 // shift 1: white noise
 vec3 project(vec2 p, int shift){
-  p = fract(p) * (Yf - 4.0) + 2.0;
+  p = fract(p) * Yf;
   return vec3(p.x, p.y, float(shift)) * Mf;
 }
 float noise(vec2 p, int shift) {
@@ -229,6 +229,8 @@ void main() {
 
   // Set opacity to 1
   FragColor.a = 1.0;
+  FragColor.rgb = texture(u_map, vec3(gl_FragCoord.xy/500., 1.0)).rrr * 10.;
+  //return;
 
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
