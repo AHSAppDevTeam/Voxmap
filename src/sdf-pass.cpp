@@ -107,12 +107,12 @@ auto o_vertex_16 = [](int x) // Split 2-byte ints
 	o_vertex_8(x);
 	o_vertex_8(x >> 8);
 };
-auto vert = [](int x, int y, int z, int dx, int dy, int dz, int color, int id)
+auto vert = [](int x, int y, int z, int dx, int dy, int dz, int color, int normal, int id)
 {
 	o_vertex_16(x); o_vertex_16(y); o_vertex_16(z);
 	o_vertex_16(dx); o_vertex_16(dy); o_vertex_16(dz);
 	o_vertex_8(color);
-	o_vertex_8(0);
+	o_vertex_8(normal);
 	o_vertex_8(id);
 	o_vertex_8(0);
 };
@@ -121,18 +121,23 @@ auto tri = [](
 		int dx0, int dy0, int dz0,
 		int dx1, int dy1, int dz1,
 		int dx2, int dy2, int dz2,
-		int color, int id
+		int color, int normal, int id
 		)
 {
-	vert(x, y, z, dx0, dy0, dz0, color, id);
-	vert(x, y, z, dx1, dy1, dz1, color, id);
-	vert(x, y, z, dx2, dy2, dz2, color, id);
+	vert(x, y, z, dx0, dy0, dz0, color, normal, id);
+	if(normal%2) {
+		vert(x, y, z, dx2, dy2, dz2, color, normal, id);
+		vert(x, y, z, dx1, dy1, dz1, color, normal, id);
+	} else {
+		vert(x, y, z, dx1, dy1, dz1, color, normal, id);
+		vert(x, y, z, dx2, dy2, dz2, color, normal, id);
+	}
 };
 auto quad = [](
 		int x, int y, int z,
 		int dx0, int dy0, int dz0,
 		int dx1, int dy1, int dz1,
-		int color, int id
+		int color, int normal, int id
 		)
 {
 	tri(
@@ -140,14 +145,14 @@ auto quad = [](
 			0, 0, 0,
 			dx0, dy0, dz0,
 			dx1, dy1, dz1,
-			color, id
+			color, normal, id
 		);
 	tri(
 			x, y, z,
 			dx1, dy1, dz1,
 			dx0, dy0, dz0,
 			dx0+dx1, dy0+dy1, dz0+dz1,
-			color, id
+			color, normal, id
 		);
 };
 
@@ -209,7 +214,8 @@ int main()
 	// https://gist.github.com/Vercidium/a3002bd083cce2bc854c9ff8f0118d33
 	
 	forChunkXYZ([](int cx, int cy, int cz) {
-		for(int d = 0; d < 3; d++)
+		for(int d = 0; d < 3; d++) // dimensions
+		for(int normal = 0; normal < 2; normal++)
 		for(int color = 0; color < pal_set.size(); color++)
 		{
 			int i = 0, j = 0, k = 0, l = 0, w = 0, h = 0;
@@ -217,21 +223,24 @@ int main()
 			int v = (d + 2) % 3;
 
 			int p[3] = { 0, 0, 0 };
-			int q[3] = { 0, 0, 0 };
+			int n[3] = { 0, 0, 0 };
 
 			bool mask[CHUNK][CHUNK];
-			q[d] = 1;
+			n[d] = 1;
 
 			for(p[d] = -1; p[d] < CHUNK;) {
 				for(p[v] = 0; p[v] < CHUNK; p[v]++)
 				for(p[u] = 0; p[u] < CHUNK; p[u]++) {
 					bool block = color == ccol(cx+p[0],      cy+p[1],      cz+p[2]     );
-					bool ahead = color == ccol(cx+p[0]+q[0], cy+p[1]+q[1], cz+p[2]+q[2]);
+					bool ahead = color == ccol(cx+p[0]+n[0], cy+p[1]+n[1], cz+p[2]+n[2]);
 
-					mask[p[v]][p[u]] = block != ahead;
+					mask[p[v]][p[u]] =
+							(normal==0 && block && !ahead) || 
+							(normal==1 && !block && ahead)
+					;
 				}
-
-				++p[d];
+				
+				p[d]++;
 
 				for(j = 0; j < CHUNK; j++)
 				for(i = 0; i < CHUNK; i++)
@@ -260,7 +269,7 @@ int main()
 							cx+p[0], cy+p[1], cz+p[2],
 							du[0], du[1], du[2],
 							dv[0], dv[1], dv[2],
-							color, id
+							color, d*2 + normal, id
 						 );
 
 					for (l = 0; l < h; l++)
@@ -282,31 +291,31 @@ int main()
 			0, 0, Z,
 			X, 0, 0,
 			0, Y, 0,
-			0, 1
+			0, 1, 1
 		);
 		quad(
 			0, 0, 0,
 			X, 0, 0,
 			0, 0, Z,
-			0, 1
+			0, 1, 1
 		);
 		quad(
 			X, 0, 0,
 			0, Y, 0,
 			0, 0, Z,
-			0, 1
+			0, 1, 1
 		);
 		quad(
 			X, Y, 0,
 			-X, 0, 0,
 			0, 0, Z,
-			0, 1
+			0, 1, 1
 		);
 		quad(
 			0, Y, 0,
 			0,-Y, 0,
 			0, 0, Z,
-			0, 1
+			0, 1, 1
 		);
 	}
 

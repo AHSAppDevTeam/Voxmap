@@ -26,7 +26,7 @@ const int Y = 256;
 const int Z = 32;
 
 vec3 normal(int n) {
-  return n==0?vec3(0,0,1):n==1?vec3(0,0,-1):n==2?vec3(0,1,0):n==3?vec3(0,-1,0):n==4?vec3(1,0,0):n==5?vec3(-1,0,0):vec3(0);
+  return n==0?vec3(0,0,-1):n==1?vec3(0,0,1):n==2?vec3(0,-1,0):n==3?vec3(0,1,0):n==4?vec3(-1,0,0):n==5?vec3(1,0,0):vec3(0);
 }
 
 

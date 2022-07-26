@@ -23,11 +23,12 @@ precision lowp int;
 
 #if QUALITY > 1
 #define AO
+//#define REFRACTIONS
 #endif
 
 #if QUALITY > 2
 #define CLOUDS
-#define REFLECTIONS
+//#define REFLECTIONS
 #endif
 
 #if QUALITY > 3
@@ -339,11 +340,13 @@ void main() {
     // Mix sunlight and shade
     vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
 
+#ifdef REFRACTIONS
     if(v_color == 7) {
       March refraction = march(v_cellPos, v_fractPos, refract(rayDir, v_normal, 0.8), MAX_RAY_STEPS);
       vec3 refractCol = palette(refraction.material);
-      baseCol = mix(baseCol, refractCol, 0.5);
+      baseCol *= refractCol;
     }
+#endif
 
 #ifdef REFLECTIONS
     March reflection = march(v_cellPos, v_fractPos, reflect(rayDir, v_normal), MAX_RAY_STEPS);
