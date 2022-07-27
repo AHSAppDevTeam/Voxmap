@@ -18,7 +18,7 @@ int sdf[X][Y][Z][O]; // radius of largest fittng cube centered at block
 
 std::ifstream in("maps/map.txt");
 std::ofstream o_vertex("out/vertex.bin", std::ios::binary);
-std::ofstream o_texture("out/texture.bin", std::ios::binary);
+std::ofstream o_map("out/map.bin", std::ios::binary);
 
 // clamped sum access
 auto csum = [](int x, int y, int z)
@@ -132,7 +132,7 @@ int main()
 {
 	// so nothing fails silently
 	in.exceptions(std::fstream::badbit);
-	o_texture.exceptions(std::fstream::badbit);
+	o_map.exceptions(std::fstream::badbit);
 	o_vertex.exceptions(std::fstream::badbit);
 	
 	std::cout << "Loading voxel map..." << std::flush;
@@ -349,19 +349,19 @@ int main()
 	});
 
 	std::cout << "Done." << std::endl;
-	std::cout << "Writing to texture file..." << std::flush;
+	std::cout << "Writing to SDF file..." << std::flush;
 
 	forZYX([](int x, int y, int z) {
 		int _x = x;
 		int _y = Y*z + y;
 
-		o_texture.put((char) sdf[x][y][z][0]);
-		o_texture.put((char) sdf[x][y][z][1]);
-		o_texture.put((char) col[x][y][z]);
-		o_texture.put((char) 0);
+		o_map.put((char) sdf[x][y][z][0]);
+		o_map.put((char) sdf[x][y][z][1]);
+		o_map.put((char) col[x][y][z]);
+		o_map.put((char) 0);
 	});
 
-	o_texture.close();
+	o_map.close();
 
 	std::cout << "Done." << std::endl;
 	std::cout << "^_^" << std::endl;

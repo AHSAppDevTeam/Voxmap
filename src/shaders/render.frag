@@ -282,7 +282,7 @@ void main() {
 #ifdef REFLECTIONS
     vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.1);
 
-    float reflectFactor = exp2(-16.0 * dot(reflectDir, v_normal)) - 0.05;
+    float reflectFactor = 0.4 * exp2(-8.0 * dot(reflectDir, v_normal)) - 0.05;
     if(reflectFactor > 0.0) {
       March reflection = march(v_cellPos, v_fractPos, reflectDir, MAX_RAY_STEPS);
       vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 2.0);

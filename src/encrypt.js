@@ -16,7 +16,8 @@ const initial = Uint8Array.from([
     88, 149, 55, 221
 ])
 
-Promise.all([
+function encrypt(input, output) {
+    Promise.all([
         crypto.subtle.importKey("jwk", {
                 "alg": "A256CBC",
                 "ext": true,
@@ -29,7 +30,7 @@ Promise.all([
             false,
             ["encrypt", "decrypt"]
         ),
-        fs.promises.readFile("maps/texture.bin.gz")
+        fs.promises.readFile(input)
     ])
     .then(([key, data]) =>
         crypto.subtle.encrypt({
@@ -38,4 +39,10 @@ Promise.all([
         }, key, data)
     )
     .then(buffer => new Uint8Array(buffer))
-    .then(array => fs.createWriteStream("src/map.blob").write(array))
+    .then(array => fs.createWriteStream(output).write(array))
+}
+
+encrypt("out/map.bin.gz", "src/map.blob")
+encrypt("out/vertex.bin.gz", "src/vertex.blob")
+encrypt("out/noise.bin.gz", "src/noise.blob")
+

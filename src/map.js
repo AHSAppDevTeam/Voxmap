@@ -15,7 +15,7 @@ const C = 4 // 4 channels
 
 let size = []
 
-const encrypted = url.protocol === "https:"
+const encrypted = true||url.protocol === "https:"
 
 // Shaders
 const S = {
@@ -69,7 +69,7 @@ const controls = {
 }
 
 const fetch_array = (regular_url, encrypted_url) => 
-    fetch(encrypted ? encrypted_regular : regular_url)
+    fetch(encrypted ? encrypted_url : regular_url)
     .then(response => response.arrayBuffer())
     .then(buffer => encrypted ? decrypt(buffer) : buffer)
     .then(buffer => new Uint8Array(buffer))
@@ -477,8 +477,8 @@ async function update_state(time, delta) {
     const feet_pos = [...cam.pos]
     feet_pos[z] -= H_human
     let [above, below, color] = await tex(feet_pos.map(floor))
-    if(below < 1) cam.acc[z] += 30
-    if(below > 1) cam.acc[z] -= 60
+    if(below < 1) cam.acc[z] += 20
+    if(below > 1) cam.acc[z] -= 20
 
     let drag = 1 / 8
 

@@ -1,6 +1,11 @@
 .PHONY: all clean
 
-all: src/map.blob
+all: src/noise.blob src/vertex.blob src/map.blob
+
+### Maps
+
+maps: 
+	mkdir maps/
 
 maps/map.csv:
 	### (MANUAL STEP) data collection
@@ -40,19 +45,32 @@ maps/map.txt: maps/map.vox
 	### x y z RRGGBB
 	goxel maps/map.vox --export maps/map.txt
 
-out.gz: bin/noise bin/sdf maps/map.txt out
-	### PBM to SDF
-	# results in a combined SDF + voxel color texture
-	bin/noise
-	bin/sdf
-	gzip -f out/*.bin
+## Javascript-readable files
 
 out:
-	mkdir out
+	mkdir out/
 
-src/map.blob: out.gz
-	### Encrypt PNG
+out/noise.bin: bin/noise out
+	bin/noise
+
+out/vertex.bin out/map.bin: bin/sdf maps/map.txt out
+	### PBM to SDF and vertices
+	# results in a combined SDF + voxel color texture
+	bin/sdf
+
+out/noise.bin.gz out/vertex.bin.gz out/map.bin.gz: \
+	out/noise.bin out/vertex.bin out/map.bin
+	gzip -f out/*.bin
+
+### Encrypted
+
+src/noise.blob src/vertex.blob src/map.blob: \
+	out/noise.bin.gz out/vertex.bin.gz out/map.bin.gz
+	### Encrypt
+	nvm use latest
 	node src/encrypt.js
+
+### C++ compilation
 
 cppflags = -O3 -g -std=c++20 -Ilibs/MagicaVoxel_file_writer -Ilibs/OpenSimplexNoise -I.
 
@@ -65,23 +83,21 @@ bin/OpenSimplexNoise.o: bin
 bin/VoxWriter.o: bin
 	clang++ $(cppflags) -o bin/VoxWriter.o -c libs/MagicaVoxel_File_Writer/VoxWriter.cpp
 
-bin/vox-pass.o: src/vox-pass.cpp bin
-	clang++ $(cppflags) -o bin/vox-pass.o -c src/vox-pass.cpp
+bin/moxel: bin/VoxWriter.o src/moxel.cpp bin
+	clang++ $(cppflags) src/moxel.cpp bin/VoxWriter.o \
+		-o bin/moxel
 
-bin/vox-reverse.o: src/vox-reverse.cpp bin
-	clang++ $(cppflags) -o bin/vox-reverse.o -c src/vox-reverse.cpp
-
-bin/moxel: bin/VoxWriter.o bin/vox-pass.o bin
-	clang++ $(cppflags) -o bin/vox bin/vox-pass.o bin/VoxWriter.o
-
-bin/reverse-moxel: bin/VoxWriter.o bin/vox-reverse.o bin
-	clang++ $(cppflags) -o bin/vox-reverse bin/vox-reverse.o bin/VoxWriter.o
+bin/reverse-moxel: bin/VoxWriter.o src/reverse-moxel.cpp bin
+	clang++ $(cppflags) src/reverse-moxel.cpp bin/VoxWriter.o \
+		-o bin/reverse-moxel
 
 bin/noise: src/noise.cpp bin/OpenSimplexNoise.o bin
-	clang++ $(cppflags) -o bin/noise src/noise.cpp bin/OpenSimplexNoise.o
+	clang++ $(cppflags) src/noise.cpp bin/OpenSimplexNoise.o \
+		-o bin/noise
 
 bin/sdf: src/sdf.cpp bin
-	clang++ $(cppflags) -o bin/sdf -c src/sdf.cpp -ltbb
+	clang++ $(cppflags) src/sdf.cpp -ltbb \
+		-o bin/sdf
 
 bin/viewer: src/viewer.cpp libs/glad.c bin
 	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw $(cppflags) -o bin/viewer
