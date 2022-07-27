@@ -207,10 +207,11 @@ void main() {
 
     float cloudTime = u_time * 2e-4;
     float cloudA = fractal_noise(1.0*skyPos + vec2(0, -9)*cloudTime);
-    float cloudB = fractal_noise(8.0*skyPos*cloudA + vec2(-1, -3)*cloudTime);
-    float cloudC = fractal_noise(64.0*skyPos*cloudB + vec2(1, 5)*cloudTime);
-    float cloudFactor = cloudA + cloudB/8.0 + cloudC/64.0;
-    cloudFactor = clamp(4.0*(cloudFactor - 0.95), 0.0, 1.0);
+    float cloudB = fractal_noise(2.0*skyPos*cloudA + vec2(-4, -2)*cloudTime);
+    float cloudC = fractal_noise(4.0*skyPos*cloudB + vec2(3, 8)*cloudTime);
+    float cloudFactor = cloudA + cloudB/4.0 + cloudC/16.0;
+    cloudFactor = clamp(2.0*(cloudFactor - 0.8), 0.0, 1.0);
+    cloudFactor *= cloudFactor;
     vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, 0.05*(cloudA - cloudB));
 #else
     vec3 cloudCol = vec3(1);

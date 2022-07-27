@@ -15,7 +15,7 @@ const C = 4 // 4 channels
 
 let size = []
 
-const encrypted = true||url.protocol === "https:"
+const encrypted = url.protocol === "https:"
 
 // Shaders
 const S = {
