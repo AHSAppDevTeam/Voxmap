@@ -14,6 +14,7 @@ const firebaseConfig = {
 };
 
 const map = document.getElementById("map")
+const signin = document.getElementById("signin")
 const search = document.getElementById("search")
 
 
@@ -26,6 +27,7 @@ provider.setCustomParameters({
   'hd': 'ausd.net'
 })
 
+signin.addEventListener("click", () => {
 signInWithPopup(auth, provider)
   .then((result) => {
     // This gives you a Google Access Token. You can use it to access the Google API.
@@ -51,5 +53,7 @@ signInWithPopup(auth, provider)
         map.src = "map.html?quality=3&password=" + snapshot.val()
         map.focus()
     });
+    signin.style.display = "none"
   })
+})
 
