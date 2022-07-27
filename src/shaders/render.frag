@@ -17,10 +17,10 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 // Utility functions
 //-------------------
 vec4 noise(vec2 p) {
-  return texture(u_noise, p);
+  return 1.0 - 2.0 * texture(u_noise, p);
 }
-float white_noise(vec2 p) { return noise(p).r; }
-float fractal_noise(vec2 p) { return noise(p).g; }
+float white(vec2 p) { return noise(p).r; }
+float fbm(vec2 p) { return noise(p).g; }
 
 vec2 rotate2d(vec2 v, float a) {
   float sinA = sin(a);
@@ -30,8 +30,8 @@ vec2 rotate2d(vec2 v, float a) {
 
 vec3 jitter(vec3 v, float f) {
 #ifdef JITTER
-  v.xz = rotate2d(v.xz, 0.5 - white_noise(f*(v_fractPos.xy + v_fractPos.z)));
-  v.xy = rotate2d(v.xy, 0.5 - white_noise(f*(v_fractPos.xy + v_fractPos.z)));
+  v.xz = rotate2d(v.xz, white(f*(v_fractPos.xy + v_fractPos.z)));
+  v.xy = rotate2d(v.xy, white(f*(v_fractPos.xy + v_fractPos.z)));
 #endif
   return v;
 }
@@ -170,15 +170,18 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 //-----------
 
 void main() {
+  c_diffuse = vec4(0);
+  c_reflection = vec4(0);
+
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
 
+  vec3 sunDir = jitter(u_sunDir, 1.0);
 #ifdef SKY
   // Fancy sky!
-  vec3 sunDir = jitter(u_sunDir, 1.0);
 
   // Color of the sky where the Sun is
-  float sunFactor = max(0.0, dot(sunDir, rayDir)) - 1.0;
+  float sunFactor = max(0.0, dot(u_sunDir, rayDir)) - 1.0;
   float glow = exp2(8.0 * sunFactor);
   sunFactor = exp2(800.0 * sunFactor) + 0.25 * glow;
 
@@ -200,31 +203,31 @@ void main() {
   if(isSky) {
 
 #ifdef CLOUDS
+    float cloudTime = u_time * 4e-4;
     vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
-    skyPos *= 0.2;
+    skyPos *= 0.1;
     skyPos *= sqrt(length(skyPos));
-    skyPos += 1e-5 * vec2(u_cellPos.xy);
+    skyPos *= 3.0 + vec2(
+	fbm(2.0*skyPos + cloudTime),
+	fbm(2.0*skyPos - cloudTime)
+      );
+    skyPos += 1e-4 * (vec2(u_cellPos.xy) + u_fractPos.xy);
 
-    float cloudTime = u_time * 2e-4;
-    float cloudA = fractal_noise(1.0*skyPos + vec2(0, -9)*cloudTime);
-    float cloudB = fractal_noise(2.0*skyPos*cloudA + vec2(-4, -2)*cloudTime);
-    float cloudC = fractal_noise(4.0*skyPos*cloudB + vec2(3, 8)*cloudTime);
-    float cloudFactor = cloudA + cloudB/4.0 + cloudC/16.0;
-    cloudFactor = clamp(2.0*(cloudFactor - 0.8), 0.0, 1.0);
-    cloudFactor *= cloudFactor;
-    vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, 0.05*(cloudA - cloudB));
+    float cloudFactor = pow(fbm(skyPos + vec2(2, -9)*cloudTime), 3.0);
+    vec3 cloudCol = mix(sunCol, vec3(1), cloudFactor);
 #else
     vec3 cloudCol = vec3(1);
     float cloudFactor = 0.0;
 #endif
 
-    float mountainPos = 0.1 * rayDir.x / rayDir.y;
-    float mountainHeight = 0.4 + min(rayDir.y, fractal_noise(vec2(mountainPos)));
-    mountainHeight /= exp(64.0 * mountainPos * mountainPos) * 4.0;
-    if(mountainHeight > rayDir.z) {
-      skyCol = mix(skyCol, skyCol*vec3(0.1, 0.2, 0.1), fractal_noise(mountainPos + rayDir.yz) * rayDir.z);
+    float mountainPos = rayDir.x / rayDir.y;
+    float mountainHeight = 1.0 - fbm(vec2(0.3 * mountainPos));
+    float mountainFactor = 2.0 - fbm(2.0*(mountainPos + rayDir.yz));
+    mountainHeight /= exp(0.3 * mountainPos * mountainPos) * 6.0;
+    if(mountainHeight > rayDir.z && rayDir.y > 0.0) {
+      skyCol = mix(skyCol, skyCol*vec3(0.7, 0.8, 0.7), mountainFactor * rayDir.z);
     } else {
-      skyCol += cloudCol*cloudFactor;
+      skyCol = mix(skyCol, cloudCol, cloudFactor);
     }
 
     c_diffuse.rgb = skyCol;

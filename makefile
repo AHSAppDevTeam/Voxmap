@@ -1,10 +1,11 @@
-.PHONY: all clean
+.PHONY: all encrypted clean
 
-all: src/noise.blob src/vertex.blob src/map.blob
+all: out/noise.bin.gz out/vertex.bin.gz out/map.bin.gz
+
+encrypted: src/noise.blob src/vertex.blob src/map.blob
 
 ### Maps
-
-maps: 
+maps:
 	mkdir maps/
 
 maps/map.csv:
@@ -43,28 +44,32 @@ maps/map.old.vox: bin/vox maps/map.pgm
 maps/map.txt: maps/map.vox
 	### MagicaVoxel to Goxel text format
 	### x y z RRGGBB
-	goxel maps/map.vox --export maps/map.txt
+	goxel $^ --export $@
 
 ## Javascript-readable files
-
 out:
 	mkdir out/
 
-out/noise.bin: bin/noise out
+out/noise.bin: bin/noise | out
 	bin/noise
 
-out/vertex.bin out/map.bin: bin/sdf maps/map.txt out
+out/vertex.bin out/map.bin: bin/sdf maps/map.txt | out
 	### PBM to SDF and vertices
 	# results in a combined SDF + voxel color texture
 	bin/sdf
 
-out/noise.bin.gz out/vertex.bin.gz out/map.bin.gz: \
-	out/noise.bin out/vertex.bin out/map.bin
-	gzip -f out/*.bin
+out/noise.bin.gz: out/noise.bin
+	gzip < $^ > $@
+
+out/vertex.bin.gz: out/vertex.bin
+	gzip < $^ > $@
+
+out/map.bin.gz: out/map.bin
+	gzip < $^ > $@
 
 ### Encrypted
 
-src/noise.blob src/vertex.blob src/map.blob: \
+src/noise.blob src/vertex.blob src/map.blob: src/encrypt.js \
 	out/noise.bin.gz out/vertex.bin.gz out/map.bin.gz
 	### Encrypt
 	nvm use latest
@@ -77,27 +82,23 @@ cppflags = -O3 -g -std=c++20 -Ilibs/MagicaVoxel_file_writer -Ilibs/OpenSimplexNo
 bin:
 	mkdir bin/
 
-bin/OpenSimplexNoise.o: bin
-	clang++ $(cppflags) -o bin/OpenSimplexNoise.o -c libs/OpenSimplexNoise/OpenSimplexNoise/OpenSimplexNoise.cpp
+bin/OpenSimplexNoise.o: | bin
+	clang++ $(cppflags) -o $@ -c libs/OpenSimplexNoise/OpenSimplexNoise/OpenSimplexNoise.cpp
 
-bin/VoxWriter.o: bin
-	clang++ $(cppflags) -o bin/VoxWriter.o -c libs/MagicaVoxel_File_Writer/VoxWriter.cpp
+bin/VoxWriter.o: | bin
+	clang++ $(cppflags) -o $@ -c libs/MagicaVoxel_File_Writer/VoxWriter.cpp
 
-bin/moxel: bin/VoxWriter.o src/moxel.cpp bin
-	clang++ $(cppflags) src/moxel.cpp bin/VoxWriter.o \
-		-o bin/moxel
+bin/moxel: src/moxel.cpp bin/VoxWriter.o | bin
+	clang++ $(cppflags) $^ -o $@
 
-bin/reverse-moxel: bin/VoxWriter.o src/reverse-moxel.cpp bin
-	clang++ $(cppflags) src/reverse-moxel.cpp bin/VoxWriter.o \
-		-o bin/reverse-moxel
+bin/reverse-moxel: src/reverse-moxel.cpp bin/VoxWriter.o | bin
+	clang++ $(cppflags) $^ -o $@
 
-bin/noise: src/noise.cpp bin/OpenSimplexNoise.o bin
-	clang++ $(cppflags) src/noise.cpp bin/OpenSimplexNoise.o \
-		-o bin/noise
+bin/noise: src/noise.cpp bin/OpenSimplexNoise.o | bin
+	clang++ $(cppflags) $^ -o $@
 
-bin/sdf: src/sdf.cpp bin
-	clang++ $(cppflags) src/sdf.cpp -ltbb \
-		-o bin/sdf
+bin/sdf: src/sdf.cpp | bin
+	clang++ $(cppflags) $^ -ltbb -o $@
 
-bin/viewer: src/viewer.cpp libs/glad.c bin
-	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw $(cppflags) -o bin/viewer
+bin/viewer: src/viewer.cpp libs/glad.c | bin
+	clang++ $^ -ldl -lglfw $(cppflags) -o $@

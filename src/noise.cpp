@@ -7,25 +7,25 @@
 OpenSimplexNoise::Noise noise;
 std::ofstream o_noise("out/noise.bin", std::ios::binary);
 
-auto arc = [](int a)
+const float TAU = 6.28318530718;
+
+auto simplex = [](int x, int y, int o, double n)
 {
-	return (6.283185 * a) / X;
-};
-auto simplex = [](int x, int y)
-{
-	double r = 1.0;
+	double r = 0.5;
+	double a = TAU * x / (X >> o);
+	double b = TAU * y / (X >> o);
 	return noise.eval(
-			r * cos(arc(x)) + 1.0,
-			r * sin(arc(x)) + 2.0,
-			r * cos(arc(y)) + 3.0,
-			r * sin(arc(y)) + 4.0
+			r * cos(a),
+			r * sin(a),
+			r * cos(b),
+			r * sin(b)
 			);
 };
 auto fractal = [](int x, int y, int octaves)
 {
 	double n = 0;
 	for(int o = 0; o < octaves; o++){
-		n += simplex(x << o, y << o) / (1 << o);
+		n += simplex(x, y, o, n) / (1 << o);
 	}
 	return 128 + std::clamp((int)(300 * n), -128, 127);
 };
