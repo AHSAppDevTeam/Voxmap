@@ -40,9 +40,10 @@ maps/map.txt: maps/map.vox
 	### x y z RRGGBB
 	goxel maps/map.vox --export maps/map.txt
 
-out.gz: bin/sdf maps/map.txt out
+out.gz: bin/noise bin/sdf maps/map.txt out
 	### PBM to SDF
 	# results in a combined SDF + voxel color texture
+	bin/noise
 	bin/sdf
 	gzip -f out/*.bin
 
@@ -76,11 +77,11 @@ bin/moxel: bin/VoxWriter.o bin/vox-pass.o bin
 bin/reverse-moxel: bin/VoxWriter.o bin/vox-reverse.o bin
 	clang++ $(cppflags) -o bin/vox-reverse bin/vox-reverse.o bin/VoxWriter.o
 
-bin/gen-sdf.o: src/sdf.cpp bin
-	clang++ $(cppflags) -o bin/gen-sdf.o -c src/sdf.cpp
+bin/noise: src/noise.cpp bin/OpenSimplexNoise.o bin
+	clang++ $(cppflags) -o bin/noise src/noise.cpp bin/OpenSimplexNoise.o
 
-bin/sdf: bin/gen-sdf.o bin/OpenSimplexNoise.o bin
-	clang++ $(cppflags) -o bin/sdf bin/gen-sdf.o bin/OpenSimplexNoise.o -ltbb
+bin/sdf: src/sdf.cpp bin
+	clang++ $(cppflags) -o bin/sdf -c src/sdf.cpp -ltbb
 
 bin/viewer: src/viewer.cpp libs/glad.c bin
 	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw $(cppflags) -o bin/viewer

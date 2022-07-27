@@ -1,4 +1,5 @@
 uniform highp sampler3D u_map;
+uniform highp sampler2D u_noise;
 
 flat in ivec3 v_cellPos;
 smooth in vec3 v_fractPos;
@@ -15,16 +16,26 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 
 // Utility functions
 //-------------------
-// Collection of noises
-// shift 0: multi-octave fractal noise
-// shift 1: white noise
-vec3 project(vec2 p, int shift){
-  p = fract(p) * (Yf - 4.0) + 2.0;
-  return vec3(p.x, p.y, float(shift)) * Sf;
+vec4 noise(vec2 p) {
+  return texture(u_noise, p);
 }
-float noise(vec2 p, int shift) {
-  return texture(u_map, project(p, shift)).a;
+float white_noise(vec2 p) { return noise(p).r; }
+float fractal_noise(vec2 p) { return noise(p).g; }
+
+vec2 rotate2d(vec2 v, float a) {
+  float sinA = sin(a);
+  float cosA = cos(a);
+  return vec2(v.x * cosA - v.y * sinA, v.y * cosA + v.x * sinA);
 }
+
+vec3 jitter(vec3 v, float f) {
+#ifdef JITTER
+  v.xz = rotate2d(v.xz, 0.5 - white_noise(f*(v_fractPos.xy + v_fractPos.z)));
+  v.xy = rotate2d(v.xy, 0.5 - white_noise(f*(v_fractPos.xy + v_fractPos.z)));
+#endif
+  return v;
+}
+
 // Read data from texture
 //------------------------
 ivec3 tex(ivec3 c) {
@@ -54,7 +65,7 @@ float sdf(ivec3 c, vec3 f) {
 struct March {
   ivec3 cellPos; // integer cell position
   vec3 fractPos; // floating point fractional cell position [0, 1)
-  vec3 normal; // surface normal
+  vec3 v_normal; // surface v_normal
   float minDist; // minimum distance encountered
   int step; // number of steps taken
   float glass; // amount of glass hit
@@ -108,10 +119,10 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
     res.cellPos += ivec3(floor(res.fractPos));
     res.fractPos = fract(res.fractPos);
 
-    // Calculate normals
-    res.normal = -sign(rayDir * minAxis);
+    // Calculate v_normals
+    res.v_normal = -sign(rayDir * minAxis);
     ivec3 c = res.cellPos;
-    ivec3 n = ivec3(res.normal);
+    ivec3 n = ivec3(res.v_normal);
 
     // Break early if sky
     if(any(greaterThanEqual(c, ivec3(X,Y,Z))) || any(lessThan(c, ivec3(0)))) {
@@ -138,9 +149,9 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
 	if(lastMaterial != 6) {
 	  // Refract ray
-	  res.glass += 1.0 - 0.5*abs(dot(rayDir, res.normal));
+	  res.glass += 1.0 - 0.5*abs(dot(rayDir, res.v_normal));
 	  res.glass += sqrt(length(res.fractPos - 0.5));
-	  rayDir = refract(rayDir, res.normal, 0.8);
+	  rayDir = refract(rayDir, res.v_normal, 0.8);
 	}
       }
     } else {
@@ -159,20 +170,20 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 //-----------
 
 void main() {
-
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
 
 #ifdef SKY
   // Fancy sky!
+  vec3 sunDir = jitter(u_sunDir, 1.0);
 
   // Color of the sky where the Sun is
-  float sunFactor = max(0.0, dot(u_sunDir, rayDir)) - 1.0;
+  float sunFactor = max(0.0, dot(sunDir, rayDir)) - 1.0;
   float glow = exp2(8.0 * sunFactor);
   sunFactor = exp2(800.0 * sunFactor) + 0.25 * glow;
 
   // Color of the sky where the Sun isn't
-  float scatter = 1.0 - sqrt(max(0.0, u_sunDir.z));
+  float scatter = 1.0 - sqrt(max(0.0, sunDir.z));
   vec3 spaceCol = mix(vec3(0.1,0.3,0.5),vec3(0.0), scatter);
   vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.0), scatter);
   vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, rayDir.z)));
@@ -195,9 +206,9 @@ void main() {
     skyPos += 1e-5 * vec2(u_cellPos.xy);
 
     float cloudTime = u_time * 2e-4;
-    float cloudA = noise(1.0*skyPos + vec2(0, -9)*cloudTime, 0);
-    float cloudB = noise(8.0*skyPos*cloudA + vec2(-1, -3)*cloudTime, 0);
-    float cloudC = noise(64.0*skyPos*cloudB + vec2(1, 5)*cloudTime, 0);
+    float cloudA = fractal_noise(1.0*skyPos + vec2(0, -9)*cloudTime);
+    float cloudB = fractal_noise(8.0*skyPos*cloudA + vec2(-1, -3)*cloudTime);
+    float cloudC = fractal_noise(64.0*skyPos*cloudB + vec2(1, 5)*cloudTime);
     float cloudFactor = cloudA + cloudB/8.0 + cloudC/64.0;
     cloudFactor = clamp(4.0*(cloudFactor - 0.95), 0.0, 1.0);
     vec3 cloudCol = mix(0.8*(1.0-atmCol), sunCol, 0.05*(cloudA - cloudB));
@@ -207,11 +218,10 @@ void main() {
 #endif
 
     float mountainPos = 0.1 * rayDir.x / rayDir.y;
-    float mountainHeight = 0.4 + min(rayDir.y, noise(vec2(mountainPos), 0));
+    float mountainHeight = 0.4 + min(rayDir.y, fractal_noise(vec2(mountainPos)));
     mountainHeight /= exp(64.0 * mountainPos * mountainPos) * 4.0;
     if(mountainHeight > rayDir.z) {
-      skyCol = mix(skyCol, skyCol*vec3(0.1, 0.2, 0.1), noise(mountainPos +
-	    rayDir.yz, 0) * rayDir.z);
+      skyCol = mix(skyCol, skyCol*vec3(0.1, 0.2, 0.1), fractal_noise(mountainPos + rayDir.yz) * rayDir.z);
     } else {
       skyCol += cloudCol*cloudFactor;
     }
@@ -221,13 +231,13 @@ void main() {
 
     vec3 baseCol = v_color;
 
-    vec3 normalCol = mat3x3(
+    vec3 v_normalCol = mat3x3(
 	0.90, 0.90, 0.95,
 	0.95, 0.95, 1.00,
 	1.00, 1.00, 1.00
 	) * abs(v_normal);
     // Down bad
-    if(v_normal.z < 0.0) normalCol *= 0.8;
+    if(v_normal.z < 0.0) v_normalCol *= 0.8;
 
 #ifdef SKY
     // Color the shadow the color of the sky
@@ -248,12 +258,12 @@ void main() {
 #endif
 
     // Check if we're facing towards Sun
-    float shadeFactor = u_sunDir.z < 0. ? 0.0
-      : sqrt(max(0.0, dot(v_normal, u_sunDir)));
+    float shadeFactor = sunDir.z < 0. ? 0.0
+      : sqrt(max(0.0, dot(v_normal, sunDir)));
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
-      March sun = march(v_cellPos, v_fractPos, u_sunDir, MAX_SUN_STEPS);
+      March sun = march(v_cellPos, v_fractPos, sunDir, MAX_SUN_STEPS);
       shadeFactor *= clamp(sun.minDist, 0., 1.);
     }
     // TODO: soft shadows (aaa)
@@ -270,9 +280,11 @@ void main() {
 #endif
 
 #ifdef REFLECTIONS
-    float reflectFactor = exp2(16.0 * dot(rayDir, v_normal)) - 0.05;
+    vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.1);
+
+    float reflectFactor = exp2(-16.0 * dot(reflectDir, v_normal)) - 0.05;
     if(reflectFactor > 0.0) {
-      March reflection = march(v_cellPos, v_fractPos, reflect(rayDir, v_normal), MAX_RAY_STEPS);
+      March reflection = march(v_cellPos, v_fractPos, reflectDir, MAX_RAY_STEPS);
       vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 2.0);
       p.xy /= p.z + 1e-5;
       float bounds = max(p.x*p.x, p.y*p.y);
@@ -285,7 +297,7 @@ void main() {
 
     // Multiply everything together
     c_diffuse.rgb = baseCol
-      * normalCol
+      * v_normalCol
       * lightCol
       * ambCol;
   }

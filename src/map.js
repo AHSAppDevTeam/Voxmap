@@ -13,6 +13,8 @@ const Y = 256 // N-S length
 const X = 1024 // E-W width
 const C = 4 // 4 channels
 
+let size = []
+
 const encrypted = url.protocol === "https:"
 
 // Shaders
@@ -75,6 +77,7 @@ const fetch_array = (regular_url, encrypted_url) =>
 
 const map_array = fetch_array("out/texture.bin.gz", "src/map.blob")
 const vertex_array = fetch_array("out/vertex.bin.gz", "src/vertex.blob")
+const noise_array = fetch_array("out/noise.bin.gz", "src/noise.blob")
 const composit_array = new Float32Array([
     -1, -1,
      1, -1,
@@ -90,14 +93,12 @@ const tex = (xyz) => Promise.all(
     [0,1,2].map( _c => map_array.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
 )
 
-const sizeOf = e => ([ e.clientWidth, e.clientHeight ].map(x => x * window.devicePixelRatio ))
-
 main()
 
 function updateColorTexture(texture){
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
-                  ...sizeOf(gl.canvas), 0,
+                  ...size, 0,
                   gl.RGBA, gl.UNSIGNED_BYTE, null)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
@@ -107,7 +108,7 @@ function updateColorTexture(texture){
 function updateDepthTexture(texture){
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24,
-                  ...sizeOf(gl.canvas), 0,
+                  ...size, 0,
                   gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
@@ -116,7 +117,7 @@ function updateDepthTexture(texture){
 }
 
 async function main() {
-    const size = sizeOf(gl.canvas)
+    resize()
 
     await Promise.all(Object.keys(S).map(file => 
         fetch("src/shaders/" + file)
@@ -157,6 +158,7 @@ async function main() {
     U.sunDir = gl.getUniformLocation(P.renderer, "u_sunDir")
 
     U.map = gl.getUniformLocation(P.renderer, "u_map")
+    U.noise = gl.getUniformLocation(P.renderer, "u_noise")
 
     T.diffuse = gl.createTexture()
     updateColorTexture(T.diffuse)
@@ -194,6 +196,20 @@ async function main() {
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_3D, T.map)
     gl.uniform1i(U.map, 0)
+
+    T.noise = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, T.noise)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
+        X, X, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, await noise_array)
+    gl.generateMipmap(gl.TEXTURE_2D)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, T.noise)
+    gl.uniform1i(U.noise, 1)
 
     O.vertex_array = gl.createVertexArray()
     gl.bindVertexArray(O.vertex_array)
@@ -267,7 +283,6 @@ async function main() {
 
     requestAnimationFrame(render)
     add_listeners()
-    resize()
 }
 
 async function decrypt(buffer) {
@@ -366,6 +381,7 @@ async function add_listeners() {
         }
     })
     window.addEventListener('resize', resize)
+    window.addEventListener('resize', updateTextures)
 }
 
 const floor = x => Math.floor(x)
@@ -380,8 +396,6 @@ async function render(now) {
 
     update_state(times[0], times[0] - times[1])
 
-    const size = sizeOf(gl.canvas)
-
     ////////
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.render)
@@ -392,6 +406,9 @@ async function render(now) {
 
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_3D, T.map)
+
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, T.noise)
 
     const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
     const matrix = m4.multiply(
@@ -423,17 +440,18 @@ async function render(now) {
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     gl.viewport(0, 0, ...size)
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
     gl.useProgram(P.compositor)
     gl.bindVertexArray(O.composit_array)
-
-    gl.uniform1i(U.diffuse, 0)
-    gl.uniform1i(U.reflection, 1)
 
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
 
     gl.activeTexture(gl.TEXTURE1)
     gl.bindTexture(gl.TEXTURE_2D, T.reflection)
+
+    gl.uniform1i(U.diffuse, 0)
+    gl.uniform1i(U.reflection, 1)
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
 
@@ -487,7 +505,7 @@ async function update_state(time, delta) {
     const fps = 1 / delta
     const avg_fps = (N_time_samples - 1) / (time - times[N_time_samples - 1])
     if (!get_param("clean")) debug.innerText = 
-        `${sizeOf(gl.canvas).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
+        `${size.join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
         position: ${cam.pos.map(num).join(", ")}
         velocity: ${cam.vel.map(num).join(", ")}
         by: Xing :D
@@ -500,9 +518,12 @@ async function update_state(time, delta) {
 }
 
 async function resize() {
-    const size = sizeOf(gl.canvas)
-    gl.canvas.width = size[0]
-    gl.canvas.height = size[1]
+    size[0] = window.innerWidth * window.devicePixelRatio
+    size[1] = window.innerHeight * window.devicePixelRatio
+    canvas.width = size[0]
+    canvas.height = size[1]
+}
+async function updateTextures() {
     updateColorTexture(T.diffuse)
     updateColorTexture(T.reflection)
     updateDepthTexture(T.depth)

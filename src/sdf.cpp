@@ -1,11 +1,8 @@
 #include "voxmap.h"
-#include "OpenSimplexNoise/OpenSimplexNoise.h"
 #include <math.h>
 #include <iostream>
 #include <cstdlib>
 #include <fstream>
-#include <cassert>
-#include <set>
 #include <algorithm>
 #include <set>
 
@@ -18,35 +15,10 @@ int col[X][Y][Z]; // color
 int bin[X][Y][Z]; // 1 if block, else 0
 int sum[X][Y][Z]; // summed volume table
 int sdf[X][Y][Z][O]; // radius of largest fittng cube centered at block
-OpenSimplexNoise::Noise noise;
 
 std::ifstream in("maps/map.txt");
 std::ofstream o_vertex("out/vertex.bin", std::ios::binary);
 std::ofstream o_texture("out/texture.bin", std::ios::binary);
-
-
-auto arc = [](int a)
-{
-	return (6.283185 * a) / Y;
-};
-auto simplex = [](int x, int y)
-{
-	double r = 1.0;
-	return noise.eval(
-			r * cos(arc(x)) + 1.0,
-			r * sin(arc(x)) + 2.0,
-			r * cos(arc(y)) + 3.0,
-			r * sin(arc(y)) + 4.0
-			);
-};
-auto fractal = [](int x, int y, int octaves)
-{
-	double n = 0;
-	for(int o = 0; o < octaves; o++){
-		n += simplex(x << o, y << o) / (1 << o);
-	}
-	return 128 + std::clamp((int)(300 * n), -128, 127);
-};
 
 // clamped sum access
 auto csum = [](int x, int y, int z)
@@ -386,13 +358,7 @@ int main()
 		o_texture.put((char) sdf[x][y][z][0]);
 		o_texture.put((char) sdf[x][y][z][1]);
 		o_texture.put((char) col[x][y][z]);
-		o_texture.put(
-				(char) (
-					_y/Y < 1 ? fractal(_x, _y, 8) :
-					_y/Y < 2 ? std::rand() % 256 :
-					0
-					)
-				);
+		o_texture.put((char) 0);
 	});
 
 	o_texture.close();
