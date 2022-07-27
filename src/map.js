@@ -94,6 +94,27 @@ const sizeOf = e => ([ e.clientWidth, e.clientHeight ].map(x => x * window.devic
 
 main()
 
+function updateColorTexture(texture){
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
+                  ...sizeOf(gl.canvas), 0,
+                  gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+}
+function updateDepthTexture(texture){
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24,
+                  ...sizeOf(gl.canvas), 0,
+                  gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+}
+
 async function main() {
     const size = sizeOf(gl.canvas)
 
@@ -138,34 +159,13 @@ async function main() {
     U.map = gl.getUniformLocation(P.renderer, "u_map")
 
     T.diffuse = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
-                  ...size, 0,
-                  gl.RGBA, gl.UNSIGNED_BYTE, null)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    updateColorTexture(T.diffuse)
     
     T.reflection = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_2D, T.reflection)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
-                  ...size, 0,
-                  gl.RGBA, gl.UNSIGNED_BYTE, null)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    updateColorTexture(T.reflection)
 
     T.depth = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_2D, T.depth)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24,
-                  ...size, 0,
-                  gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    updateDepthTexture(T.depth)
 
     // Create separate render buffer for storing diffuse
     // and reflection passes before merging them together
@@ -267,6 +267,7 @@ async function main() {
 
     requestAnimationFrame(render)
     add_listeners()
+    resize()
 }
 
 async function decrypt(buffer) {
@@ -365,7 +366,6 @@ async function add_listeners() {
         }
     })
     window.addEventListener('resize', resize)
-    resize()
 }
 
 const floor = x => Math.floor(x)
@@ -413,6 +413,10 @@ async function render(now) {
 
     gl.uniform1i(U.map, 0)
 
+    gl.drawBuffers([
+       gl.COLOR_ATTACHMENT0,
+       gl.COLOR_ATTACHMENT1,
+    ])
     gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_stride)
     
     ////////////////
@@ -499,4 +503,7 @@ async function resize() {
     const size = sizeOf(gl.canvas)
     gl.canvas.width = size[0]
     gl.canvas.height = size[1]
+    updateColorTexture(T.diffuse)
+    updateColorTexture(T.reflection)
+    updateDepthTexture(T.depth)
 }

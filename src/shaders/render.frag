@@ -153,10 +153,6 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
 void main() {
 
-  c_diffuse = vec4(1);
-  c_reflection = vec4(1);
-  return;
-
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
 
@@ -267,9 +263,16 @@ void main() {
 #endif
 
 #ifdef REFLECTIONS
-    March reflection = march(v_cellPos, v_fractPos, reflect(rayDir, v_normal), MAX_RAY_STEPS);
-    vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 1.0);
-    c_reflection.rg = p.xy / (p.z + 1e-5);
+    float reflectFactor = exp(20.0 * dot(rayDir, v_normal)) - 0.05;
+    if(reflectFactor > 0.0) {
+      March reflection = march(v_cellPos, v_fractPos, reflect(rayDir, v_normal), MAX_RAY_STEPS);
+      vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 2.0);
+      p.xy /= p.z + 1e-5;
+      if(all(lessThan(abs(p.xy), vec2(1)))) {
+	c_reflection.rg = 0.5 + 0.5*p.xy;
+	c_reflection.b = reflectFactor;
+      }
+    }
 #endif
 
     // Multiply everything together
