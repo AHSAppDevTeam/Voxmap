@@ -15,8 +15,15 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 
 // Utility functions
 //-------------------
+// Collection of noises
+// shift 0: multi-octave fractal noise
+// shift 1: white noise
+vec3 project(vec2 p, int shift){
+  p = fract(p) * (Yf - 4.0) + 2.0;
+  return vec3(p.x, p.y, float(shift)) * Sf;
+}
 float noise(vec2 p, int shift) {
-  return 0.;
+  return texture(u_map, project(p, shift)).a;
 }
 // Read data from texture
 //------------------------
@@ -263,14 +270,15 @@ void main() {
 #endif
 
 #ifdef REFLECTIONS
-    float reflectFactor = exp(20.0 * dot(rayDir, v_normal)) - 0.05;
+    float reflectFactor = exp2(16.0 * dot(rayDir, v_normal)) - 0.05;
     if(reflectFactor > 0.0) {
       March reflection = march(v_cellPos, v_fractPos, reflect(rayDir, v_normal), MAX_RAY_STEPS);
       vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 2.0);
       p.xy /= p.z + 1e-5;
-      if(all(lessThan(abs(p.xy), vec2(1)))) {
+      float bounds = max(p.x*p.x, p.y*p.y);
+      if(bounds < 1.0) {
 	c_reflection.rg = 0.5 + 0.5*p.xy;
-	c_reflection.b = reflectFactor;
+	c_reflection.b = reflectFactor * (1.0 - bounds);
       }
     }
 #endif
