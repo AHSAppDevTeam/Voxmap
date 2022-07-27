@@ -6,8 +6,8 @@ flat in vec3 v_color;
 flat in vec3 v_normal;
 flat in int v_id;
 
-layout(location=0) out vec3 c_diffuse;
-layout(location=1) out vec2 c_reflection;
+layout(location=0) out vec4 c_diffuse;
+layout(location=1) out vec4 c_reflection;
 
 // Quality-adjustable raytracing parameters
 int MAX_RAY_STEPS = X * (QUALITY + 1)/3;
@@ -47,7 +47,6 @@ float sdf(ivec3 c, vec3 f) {
 struct March {
   ivec3 cellPos; // integer cell position
   vec3 fractPos; // floating point fractional cell position [0, 1)
-  vec3 rayPos; // total cell position
   vec3 normal; // surface normal
   float minDist; // minimum distance encountered
   int step; // number of steps taken
@@ -154,6 +153,10 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
 void main() {
 
+  c_diffuse = vec4(1);
+  c_reflection = vec4(1);
+  return;
+
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
 
@@ -210,7 +213,7 @@ void main() {
       skyCol += cloudCol*cloudFactor;
     }
 
-    c_diffuse = skyCol;
+    c_diffuse.rgb = skyCol;
   } else {
 
     vec3 baseCol = v_color;
@@ -265,10 +268,12 @@ void main() {
 
 #ifdef REFLECTIONS
     March reflection = march(v_cellPos, v_fractPos, reflect(rayDir, v_normal), MAX_RAY_STEPS);
+    vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 1.0);
+    c_reflection.rg = p.xy / (p.z + 1e-5);
 #endif
 
     // Multiply everything together
-    c_diffuse = baseCol
+    c_diffuse.rgb = baseCol
       * normalCol
       * lightCol
       * ambCol;

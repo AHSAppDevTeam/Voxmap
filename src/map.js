@@ -95,7 +95,9 @@ const sizeOf = e => ([ e.clientWidth, e.clientHeight ].map(x => x * window.devic
 main()
 
 async function main() {
-     await Promise.all(Object.keys(S).map(file => 
+    const size = sizeOf(gl.canvas)
+
+    await Promise.all(Object.keys(S).map(file => 
         fetch("src/shaders/" + file)
         .then(res => res.text())
         .then(text => S[file] = text)
@@ -138,8 +140,8 @@ async function main() {
     T.diffuse = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
-        ...sizeOf(gl.canvas), 0,
-        gl.RGBA, gl.UNSIGNED_BYTE, null)
+                  ...size, 0,
+                  gl.RGBA, gl.UNSIGNED_BYTE, null)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -148,10 +150,20 @@ async function main() {
     T.reflection = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, T.reflection)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
-                  ...sizeOf(gl.canvas), 0,
+                  ...size, 0,
                   gl.RGBA, gl.UNSIGNED_BYTE, null)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+
+    T.depth = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, T.depth)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24,
+                  ...size, 0,
+                  gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 
@@ -163,6 +175,10 @@ async function main() {
                             gl.TEXTURE_2D, T.diffuse, 0)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
                             gl.TEXTURE_2D, T.reflection, 0)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
+                            gl.TEXTURE_2D, T.depth, 0)
+    console.log(gl.checkFramebufferStatus(gl.FRAMEBUFFER), gl.FRAMEBUFFER_COMPLETE)
+
     
     T.map = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_3D, T.map)
@@ -227,11 +243,9 @@ async function main() {
         N_stride, 6 * N_int16 + 2 * N_int8
     )
 
-    /*
     gl.enable(gl.DEPTH_TEST)
     gl.enable(gl.CULL_FACE)
     gl.cullFace(gl.BACK)
-    */
     
     //////////////////////
 
@@ -256,7 +270,7 @@ async function main() {
 }
 
 async function decrypt(buffer) {
-    const crypto_initial = Uint8Array.from([
+    const crypto_initial = new Uint8Array([
         55, 44, 146, 89,
         30, 93, 68, 30,
         209, 23, 56, 140,
@@ -371,10 +385,13 @@ async function render(now) {
     ////////
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.render)
-    gl.bindTexture(gl.TEXTURE_3D, T.map)
     gl.viewport(0, 0, ...size)
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
     gl.useProgram(P.renderer)
     gl.bindVertexArray(O.vertex_array)
+
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
 
     const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
     const matrix = m4.multiply(
@@ -401,14 +418,18 @@ async function render(now) {
     ////////////////
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-    gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
-    gl.bindTexture(gl.TEXTURE_2D, T.reflection)
     gl.viewport(0, 0, ...size)
     gl.useProgram(P.compositor)
     gl.bindVertexArray(O.composit_array)
 
     gl.uniform1i(U.diffuse, 0)
     gl.uniform1i(U.reflection, 1)
+
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
+
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, T.reflection)
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
 
