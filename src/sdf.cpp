@@ -27,7 +27,7 @@ std::ofstream o_texture("out/texture.bin", std::ios::binary);
 
 auto arc = [](int a)
 {
-	return 6.283185 * a / Y;
+	return (6.283185 * a) / Y;
 };
 auto simplex = [](int x, int y)
 {

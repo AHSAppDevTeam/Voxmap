@@ -1,6 +1,8 @@
 maps/
 out/
 bin/
+*.swm
+*.swn
 *.swo
 *.swp
 *~

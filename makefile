@@ -70,17 +70,17 @@ bin/vox-pass.o: src/vox-pass.cpp bin
 bin/vox-reverse.o: src/vox-reverse.cpp bin
 	clang++ $(cppflags) -o bin/vox-reverse.o -c src/vox-reverse.cpp
 
-bin/vox: bin/VoxWriter.o bin/vox-pass.o bin
+bin/moxel: bin/VoxWriter.o bin/vox-pass.o bin
 	clang++ $(cppflags) -o bin/vox bin/vox-pass.o bin/VoxWriter.o
 
-bin/vox-reverse: bin/VoxWriter.o bin/vox-reverse.o bin
+bin/reverse-moxel: bin/VoxWriter.o bin/vox-reverse.o bin
 	clang++ $(cppflags) -o bin/vox-reverse bin/vox-reverse.o bin/VoxWriter.o
 
-bin/sdf-pass.o: src/sdf-pass.cpp bin
-	clang++ $(cppflags) -o bin/sdf-pass.o -c src/sdf-pass.cpp
+bin/gen-sdf.o: src/sdf.cpp bin
+	clang++ $(cppflags) -o bin/gen-sdf.o -c src/sdf.cpp
 
-bin/sdf: bin/sdf-pass.o bin/OpenSimplexNoise.o bin
-	clang++ $(cppflags) -o bin/sdf bin/sdf-pass.o bin/OpenSimplexNoise.o -ltbb
+bin/sdf: bin/gen-sdf.o bin/OpenSimplexNoise.o bin
+	clang++ $(cppflags) -o bin/sdf bin/gen-sdf.o bin/OpenSimplexNoise.o -ltbb
 
 bin/viewer: src/viewer.cpp libs/glad.c bin
 	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw $(cppflags) -o bin/viewer

@@ -15,16 +15,36 @@ const C = 4 // 4 channels
 
 const encrypted = url.protocol === "https:"
 
-// look up where the vertex data needs to go.
-const handles = {}
+// Shaders
+const S = {
+    "render.h": 0,
+    "render.vert": 0,
+    "render.frag": 0,
+    "composit.h": 0,
+    "composit.vert": 0,
+    "composit.frag": 0,
+}
+// Programs
+const P = {}
+// Shader uniforms
+const U = {}
+// Vertex attributes
+const A = {}
+// Textures
+const T = {}
+// Objects
+const O = {}
+// Buffers
+const B = {}
 
-const HEIGHT = 1.6
+const H_ground = 5.0
+const H_human = 1.6
 
-const time_samples = 10
-const times = Array(time_samples).fill(0)
-
-let target_fps = get_param("fps") || 30
-let fps = target_fps
+const N_int8 = 1
+const N_int16 = 2
+const N_stride = 6 * N_int16 + 4 * N_int8
+const N_time_samples = 120
+const times = Array(N_time_samples).fill(0)
 
 let frame = 0
 
@@ -34,7 +54,7 @@ const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
 }
 const cam = get_json_param(".cam") || {
-    pos: [381.5, 128.1, 1 + HEIGHT],
+    pos: [381.5, 128.1, H_ground + H_human],
     vel: [0, 0, 0],
     acc: [0, 0, 0],
     rot: [0, 0, 0],
@@ -43,27 +63,31 @@ const cam = get_json_param(".cam") || {
 const controls = {
     move: [0, 0, 0],
     rot: [0.01, 0, -0.2],
-    size: 100
+    size: 100,
 }
 
-
-const map_texture = fetch(encrypted ? "src/map.blob" : "out/texture.bin.gz")
+const fetch_array = (regular_url, encrypted_url) => 
+    fetch(encrypted ? encrypted_regular : regular_url)
     .then(response => response.arrayBuffer())
     .then(buffer => encrypted ? decrypt(buffer) : buffer)
     .then(buffer => new Uint8Array(buffer))
     .then(array => pako.ungzip(array))
 
-const stride = 16
-const vertexArray = fetch(encrypted ? "src/vertex.blob" : "out/vertex.bin.gz")
-    .then(response => response.arrayBuffer())
-    .then(buffer => encrypted ? decrypt(buffer) : buffer)
-    .then(buffer => new Uint8Array(buffer))
-    .then(array => pako.ungzip(array))
+const map_array = fetch_array("out/texture.bin.gz", "src/map.blob")
+const vertex_array = fetch_array("out/vertex.bin.gz", "src/vertex.blob")
+const composit_array = new Float32Array([
+    -1, -1,
+     1, -1,
+    -1,  1,
+    -1,  1,
+     1, -1,
+     1,  1,
+])
 
 const clamp_xyzc = (xyzc) => [X,Y,Z,C].map((max, i) => clamps(xyzc[i], 0, max - 1))
 const project_xyzc = ([_x, _y, _z, _c]) => C*(X*(Y*(_z)+_y)+_x)+_c
 const tex = (xyz) => Promise.all(
-    [0,1,2].map( _c => map_texture.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
+    [0,1,2].map( _c => map_array.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
 )
 
 const sizeOf = e => ([ e.clientWidth, e.clientHeight ].map(x => x * window.devicePixelRatio ))
@@ -71,44 +95,80 @@ const sizeOf = e => ([ e.clientWidth, e.clientHeight ].map(x => x * window.devic
 main()
 
 async function main() {
-    const sources = ["march.vertex.glsl", "march.fragment.glsl"]
-        .map(type =>
-            fetch("src/shaders/" + type)
-            .then(response => response.text())
-            .then(text => text
-                .replace(
-                    "#version 330 core",
-                    "#version 300 es"
-                )
-                .replace(
-                    "#define QUALITY 3",
-                    "#define QUALITY " + (get_param("quality") || "3")
-                )
-            )
+     await Promise.all(Object.keys(S).map(file => 
+        fetch("src/shaders/" + file)
+        .then(res => res.text())
+        .then(text => S[file] = text)
+    ))
+
+    S["render.h"] = S["render.h"]
+        .replace(
+            "#define QUALITY 3", 
+            "#define QUALITY " + (get_param("quality") || "3")
         )
 
     // setup GLSL program
-    const program = createProgramFromSources(gl, await Promise.all(sources))
-    gl.useProgram(program)
+    P.renderer = createProgramFromSources(gl, [
+        S["render.vert"], 
+        S["render.frag"]
+    ].map(s => S["render.h"]+s))
 
-    handles.a_cellPos = gl.getAttribLocation(program, "a_cellPos")
-    handles.a_fractPos = gl.getAttribLocation(program, "a_fractPos")
-    handles.a_color = gl.getAttribLocation(program, "a_color")
-    handles.a_normal = gl.getAttribLocation(program, "a_normal")
-    handles.a_id = gl.getAttribLocation(program, "a_id")
-    handles.u_frame = gl.getUniformLocation(program, "u_frame")
-    handles.u_time = gl.getUniformLocation(program, "u_time")
-    handles.u_matrix = gl.getUniformLocation(program, "u_matrix")
-    handles.u_cellPos = gl.getUniformLocation(program, "u_cellPos")
-    handles.u_fractPos = gl.getUniformLocation(program, "u_fractPos")
-    handles.u_sunDir = gl.getUniformLocation(program, "u_sunDir")
+    P.compositor = createProgramFromSources(gl, [
+        S["composit.vert"], 
+        S["composit.frag"]
+    ].map(s => S["composit.h"]+s))
 
-    const texture = gl.createTexture()
+    gl.useProgram(P.renderer)
 
-    gl.bindTexture(gl.TEXTURE_3D, texture)
+    A.cellPos = gl.getAttribLocation(P.renderer, "a_cellPos")
+    A.fractPos = gl.getAttribLocation(P.renderer, "a_fractPos")
+    A.color = gl.getAttribLocation(P.renderer, "a_color")
+    A.normal = gl.getAttribLocation(P.renderer, "a_normal")
+    A.id = gl.getAttribLocation(P.renderer, "a_id")
+
+    U.matrix = gl.getUniformLocation(P.renderer, "u_matrix")
+    U.cellPos = gl.getUniformLocation(P.renderer, "u_cellPos")
+    U.fractPos = gl.getUniformLocation(P.renderer, "u_fractPos")
+    U.frame = gl.getUniformLocation(P.renderer, "u_frame")
+    U.time = gl.getUniformLocation(P.renderer, "u_time")
+    U.sunDir = gl.getUniformLocation(P.renderer, "u_sunDir")
+
+    U.map = gl.getUniformLocation(P.renderer, "u_map")
+
+    T.diffuse = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
+        ...sizeOf(gl.canvas), 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    
+    T.reflection = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, T.reflection)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
+                  ...sizeOf(gl.canvas), 0,
+                  gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+
+    // Create separate render buffer for storing diffuse
+    // and reflection passes before merging them together
+    B.render = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.render)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                            gl.TEXTURE_2D, T.diffuse, 0)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
+                            gl.TEXTURE_2D, T.reflection, 0)
+    
+    T.map = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
         X, Y, Z, 0,
-        gl.RGBA, gl.UNSIGNED_BYTE, await map_texture)
+        gl.RGBA, gl.UNSIGNED_BYTE, await map_array)
     gl.generateMipmap(gl.TEXTURE_3D)
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -116,62 +176,80 @@ async function main() {
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_3D, texture)
-    gl.uniform1i(handles.mapSampler, 0)
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
+    gl.uniform1i(U.map, 0)
 
-    const vertexArrayObject = gl.createVertexArray()
-    gl.bindVertexArray(vertexArrayObject)
+    O.vertex_array = gl.createVertexArray()
+    gl.bindVertexArray(O.vertex_array)
 
-    const cellPosBuffer = gl.createBuffer()
-    gl.enableVertexAttribArray(handles.a_cellPos)
-    gl.bindBuffer(gl.ARRAY_BUFFER, cellPosBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    B.cellPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.cellPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
     gl.vertexAttribIPointer(
-        handles.a_cellPos, 3, gl.SHORT,
-        stride, 0
+        A.cellPos, 3, gl.SHORT,
+        N_stride, 0
     )
 
-    const fractPosBuffer = gl.createBuffer()
-    gl.enableVertexAttribArray(handles.a_fractPos)
-    gl.bindBuffer(gl.ARRAY_BUFFER, fractPosBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    B.fractPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.fractPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
     gl.vertexAttribIPointer(
-        handles.a_fractPos, 3, gl.SHORT,
-        stride, 6
+        A.fractPos, 3, gl.SHORT,
+        N_stride, 3 * N_int16
     )
 
-    const colorBuffer = gl.createBuffer()
-    gl.enableVertexAttribArray(handles.a_color)
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    B.color = gl.createBuffer()
+    gl.enableVertexAttribArray(A.color)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
     gl.vertexAttribIPointer(
-        handles.a_color, 1, gl.BYTE,
-        stride, 12
+        A.color, 1, gl.BYTE,
+        N_stride, 6 * N_int16
     )
 
-    const normalBuffer = gl.createBuffer()
-    gl.enableVertexAttribArray(handles.a_normal)
-    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    B.normal = gl.createBuffer()
+    gl.enableVertexAttribArray(A.normal)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
     gl.vertexAttribIPointer(
-        handles.a_normal, 1, gl.BYTE,
-        stride, 13
+        A.normal, 1, gl.BYTE,
+        N_stride, 6 * N_int16 + 1 * N_int8
     )
 
-    const idBuffer = gl.createBuffer()
-    gl.enableVertexAttribArray(handles.a_id)
-    gl.bindBuffer(gl.ARRAY_BUFFER, idBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertexArray, gl.STATIC_DRAW)
+    B.id = gl.createBuffer()
+    gl.enableVertexAttribArray(A.id)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
     gl.vertexAttribIPointer(
-        handles.a_id, 1, gl.BYTE,
-        stride, 14
+        A.id, 1, gl.BYTE,
+        N_stride, 6 * N_int16 + 2 * N_int8
     )
 
+    /*
     gl.enable(gl.DEPTH_TEST)
     gl.enable(gl.CULL_FACE)
     gl.cullFace(gl.BACK)
+    */
+    
+    //////////////////////
 
-    gl.useProgram(program)
+    gl.useProgram(P.compositor)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+    A.texCoord = gl.getAttribLocation(P.compositor, "a_texCoord")
+    U.diffuse = gl.getUniformLocation(P.compositor, "u_diffuse")
+    U.reflection = gl.getUniformLocation(P.compositor, "u_reflection")
+
+    O.composit_array = gl.createVertexArray()
+    gl.bindVertexArray(O.composit_array)
+
+    B.texCoord = gl.createBuffer()
+    gl.enableVertexAttribArray(A.texCoord)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.texCoord)
+    gl.bufferData(gl.ARRAY_BUFFER, composit_array, gl.STATIC_DRAW)
+    gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
 
     requestAnimationFrame(render)
     add_listeners()
@@ -288,12 +366,16 @@ async function render(now) {
 
     update_state(times[0], times[0] - times[1])
 
-    gl.viewport(0, 0, ...sizeOf(gl.canvas))
-
-    gl.drawArrays(gl.TRIANGLES, 0, (await vertexArray).length / stride)
-    //gl.drawArrays(gl.TRIANGLES, 0, frame*stride)
-    
     const size = sizeOf(gl.canvas)
+
+    ////////
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.render)
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
+    gl.viewport(0, 0, ...size)
+    gl.useProgram(P.renderer)
+    gl.bindVertexArray(O.vertex_array)
+
     const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
     const matrix = m4.multiply(
         m4.projection(...size, distance),
@@ -304,12 +386,33 @@ async function render(now) {
     )
 
     // Set the matrix.
-    gl.uniformMatrix4fv(handles.u_matrix, false, matrix)
-    gl.uniform3i(handles.u_cellPos, ...cam.pos.map(floor))
-    gl.uniform3f(handles.u_fractPos, ...cam.pos.map(fract))
-    gl.uniform3f(handles.u_sunDir, ...weather.sun)
-    gl.uniform1i(handles.u_frame, frame)
-    gl.uniform1f(handles.u_time, times[0] % 1e8)
+    gl.uniformMatrix4fv(U.matrix, false, matrix)
+
+    gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
+    gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
+    gl.uniform3f(U.sunDir, ...weather.sun)
+    gl.uniform1i(U.frame, frame)
+    gl.uniform1f(U.time, times[0] % 1e3)
+
+    gl.uniform1i(U.map, 0)
+
+    gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_stride)
+    
+    ////////////////
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
+    gl.bindTexture(gl.TEXTURE_2D, T.reflection)
+    gl.viewport(0, 0, ...size)
+    gl.useProgram(P.compositor)
+    gl.bindVertexArray(O.composit_array)
+
+    gl.uniform1i(U.diffuse, 0)
+    gl.uniform1i(U.reflection, 1)
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6)
+
+    //////////////
 
     requestAnimationFrame(render)
 }
@@ -317,7 +420,6 @@ async function render(now) {
 async function update_state(time, delta) {
 
     frame++
-    fps = (time_samples - 1) / (time - times[time_samples - 1])
     let sin = Math.sin(cam.rot[z])
     let cos = Math.cos(cam.rot[z])
 
@@ -330,7 +432,7 @@ async function update_state(time, delta) {
     ]
 
     const feet_pos = [...cam.pos]
-    feet_pos[z] -= HEIGHT
+    feet_pos[z] -= H_human
     let [above, below, color] = await tex(feet_pos.map(floor))
     if(below < 1) cam.acc[z] += 30
     if(below > 1) cam.acc[z] -= 60
@@ -357,8 +459,10 @@ async function update_state(time, delta) {
 
     const num = x => x.toFixed(1)
 
+    const fps = 1 / delta
+    const avg_fps = (N_time_samples - 1) / (time - times[N_time_samples - 1])
     if (!get_param("clean")) debug.innerText = 
-        `${sizeOf(gl.canvas).join(" x ")} @ ${num(fps)} fps
+        `${sizeOf(gl.canvas).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
         position: ${cam.pos.map(num).join(", ")}
         velocity: ${cam.vel.map(num).join(", ")}
         by: Xing :D

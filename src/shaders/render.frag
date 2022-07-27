@@ -1,65 +1,13 @@
-#version 330 core
-precision highp float;
-precision lowp int;
-
-/* Quality settings:
-   +---+---------+-------------------+-------------+-----------------+
-   |   | Shadows | Ambient Occlusion | Reflections | Render distance |
-   +---+---------+-------------------+-------------+-----------------+
-   | 0 | No      | No                | No          | Short           |
-   +---+---------+-------------------+-------------+-----------------+
-   | 1 | Yes     | No                | No          | Medium          |
-   +---+---------+-------------------+-------------+-----------------+
-   | 2 | Yes     | Yes               | No          | Medium          |
-   +---+---------+-------------------+-------------+-----------------+
-   | 3 | Yes     | Yes               | Yes         | Long            |
-   +---+---------+-------------------+-------------+-----------------+*/
-#define QUALITY 3
-
-#if QUALITY > 0
-#define SHADOWS
-#define SKY
-#endif
-
-#if QUALITY > 1
-#define AO
-//#define REFRACTIONS
-#endif
-
-#if QUALITY > 2
-#define CLOUDS
-//#define REFLECTIONS
-#endif
-
-#if QUALITY > 3
-#define JITTER
-#endif
+uniform highp sampler3D u_map;
 
 flat in ivec3 v_cellPos;
 smooth in vec3 v_fractPos;
-flat in int v_color;
-smooth in vec3 v_normal;
+flat in vec3 v_color;
+flat in vec3 v_normal;
 flat in int v_id;
 
-out vec4 FragColor;
-
-uniform highp sampler3D u_map;
-uniform ivec3 u_cellPos;
-uniform vec3 u_fractPos;
-uniform float u_time;
-uniform vec3 u_sunDir;
-uniform int u_frame;
-
-// Dimensions
-const int X = 1024;
-const int Y = 256;
-const int Z = 32;
-
-const float Xf = float(X);
-const float Yf = float(Y);
-const float Zf = float(Z);
-
-const vec3 Mf = 1.0 / vec3(Xf, Yf, Zf);
+layout(location=0) out vec3 c_diffuse;
+layout(location=1) out vec2 c_reflection;
 
 // Quality-adjustable raytracing parameters
 int MAX_RAY_STEPS = X * (QUALITY + 1)/3;
@@ -67,33 +15,16 @@ int MAX_SUN_STEPS = Z * (QUALITY + 2);
 
 // Utility functions
 //-------------------
-
-// Collection of noises
-// shift 0: multi-octave fractal noise
-// shift 1: white noise
-vec3 project(vec2 p, int shift){
-  p = fract(p) * Yf;
-  return vec3(p.x, p.y, float(shift)) * Mf;
-}
 float noise(vec2 p, int shift) {
-  return texture(u_map, project(p, shift)).a;
+  return 0.;
 }
-
-// Vector rotater
-vec2 rotate2d(vec2 v, float a) {
-  float sinA = sin(a);
-  float cosA = cos(a);
-  return vec2(v.x * cosA - v.y * sinA, v.y * cosA + v.x * sinA);
-}
-
 // Read data from texture
 //------------------------
-
 ivec3 tex(ivec3 c) {
   return ivec3(texelFetch(u_map, c, 0).rgb * 255.);
 }
 vec3 tex(ivec3 c, vec3 f) {
-  return texture(u_map, (vec3(c) + f)*Mf).rgb * 255.;
+  return texture(u_map, (vec3(c) + f)*Sf).rgb * 255.;
 }
 // SDF texture is split into two directions:
 // one for the distance to the closest thing above
@@ -107,11 +38,6 @@ int sdf_dir(ivec3 c, int dir) {
 float sdf(ivec3 c, vec3 f) {
   vec3 d = tex(c, f);
   return min(d.r, d.g);
-}
-
-// Get color from texture's palette index
-vec3 palette(int p) {
-  return p==0?vec3(0,0,0):p==1?vec3(0.0431373,0.0627451,0.0745098):p==2?vec3(0.133333,0.490196,0.317647):p==3?vec3(0.180392,0.662745,0.87451):p==4?vec3(0.337255,0.423529,0.45098):p==5?vec3(0.392157,0.211765,0.235294):p==6?vec3(0.439216,0.486275,0.454902):p==7?vec3(0.505882,0.780392,0.831373):p==8?vec3(0.52549,0.65098,0.592157):p==9?vec3(0.666667,0.666667,0.666667):p==10?vec3(0.741176,0.752941,0.729412):p==11?vec3(0.768627,0.384314,0.262745):p==12?vec3(0.780392,0.243137,0.227451):p==13?vec3(0.854902,0.788235,0.65098):p==14?vec3(0.964706,0.772549,0.333333):p==15?vec3(0.984314,0.886275,0.317647):p==16?vec3(1,1,1):vec3(1);
 }
 
 // Raymarcher
@@ -228,11 +154,6 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
 void main() {
 
-  // Set opacity to 1
-  FragColor.a = 1.0;
-  FragColor.rgb = texture(u_map, vec3(gl_FragCoord.xy/500., 1.0)).rrr * 10.;
-  //return;
-
   vec3 sunCol = vec3(1.2, 1.1, 1.0);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
 
@@ -289,10 +210,10 @@ void main() {
       skyCol += cloudCol*cloudFactor;
     }
 
-    FragColor.rgb = skyCol;
+    c_diffuse = skyCol;
   } else {
 
-    vec3 baseCol = palette(v_color);
+    vec3 baseCol = v_color;
 
     vec3 normalCol = mat3x3(
 	0.90, 0.90, 0.95,
@@ -313,25 +234,21 @@ void main() {
 
 #ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
-    float ambDist = sdf(v_cellPos + 0*ivec3(v_normal), v_fractPos);
+    float ambDist = sdf(v_cellPos + ivec3(v_normal), v_fractPos);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
-    //FragColor.rgb = vec3(sdf_dir(v_cellPos, 0));
-    //return;
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
     vec3 ambCol = vec3(1);
 #endif
 
     // Check if we're facing towards Sun
-    float shadeFactor = u_sunDir.z < 0. ? 0.0 
+    float shadeFactor = u_sunDir.z < 0. ? 0.0
       : sqrt(max(0.0, dot(v_normal, u_sunDir)));
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
       March sun = march(v_cellPos, v_fractPos, u_sunDir, MAX_SUN_STEPS);
       shadeFactor *= clamp(sun.minDist, 0., 1.);
-    //FragColor.rgb = vec3(sun.minDist);
-    //return;
     }
     // TODO: soft shadows (aaa)
     // How to do: calculate the raymarcher's minDist more accurately
@@ -343,19 +260,15 @@ void main() {
 #ifdef REFRACTIONS
     if(v_color == 7) {
       March refraction = march(v_cellPos, v_fractPos, refract(rayDir, v_normal, 0.8), MAX_RAY_STEPS);
-      vec3 refractCol = palette(refraction.material);
-      baseCol *= refractCol;
     }
 #endif
 
 #ifdef REFLECTIONS
     March reflection = march(v_cellPos, v_fractPos, reflect(rayDir, v_normal), MAX_RAY_STEPS);
-    vec3 bounceCol = palette(reflection.material);
-    baseCol = mix(baseCol, bounceCol, 0.2);
 #endif
 
     // Multiply everything together
-    FragColor.rgb = baseCol
+    c_diffuse = baseCol
       * normalCol
       * lightCol
       * ambCol;
