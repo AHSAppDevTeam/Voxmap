@@ -2,32 +2,50 @@ const debug = document.getElementById("debug")
 const canvas = document.getElementById("canvas")
 const joystick = document.getElementById("joystick")
 const form = document.getElementById("form")
-const gl = canvas.getContext("webgl2")
+const gl = canvas.getContext("webgl2", { alpha: false, antialias: true } )
 
 const x = 0
 const y = 1
 const z = 2
 
-const Z = 16 // height
+const Z = 32 // height
 const Y = 256 // N-S length
 const X = 1024 // E-W width
 const C = 4 // 4 channels
 
 const encrypted = url.protocol === "https:"
 
-// look up where the vertex data needs to go.
-const handles = {}
+// Shaders
+const S = {
+    "render.h": 0,
+    "render.vert": 0,
+    "render.frag": 0,
+    "composit.h": 0,
+    "composit.vert": 0,
+    "composit.frag": 0,
+}
+// Programs
+const P = {}
+// Shader uniforms
+const U = {}
+// Vertex attributes
+const A = {}
+// Textures
+const T = {}
+// Objects
+const O = {}
+// Buffers
+const B = {}
 
-const HEIGHT = 1.6
-let size = 100
+const H_ground = 5.0
+const H_human = 1.6
 
-const time_samples = 10
-const times = Array(time_samples).fill(0)
+const N_int8 = 1
+const N_int16 = 2
+const N_stride = 6 * N_int16 + 4 * N_int8
+const N_time_samples = 120
+const times = Array(N_time_samples).fill(0)
 
-let target_fps = get_param("fps") || 30
-let fps = target_fps
-
-let upsample = 2
 let frame = 0
 
 const start_time = Date.now() - new Date().getTimezoneOffset() * 60 * 1000
@@ -35,8 +53,8 @@ const start_time = Date.now() - new Date().getTimezoneOffset() * 60 * 1000
 const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
 }
-const cam = get_json_param("cam") || {
-    pos: [381.5, 128.1, 1 + HEIGHT],
+const cam = get_json_param(".cam") || {
+    pos: [381.5, 128.1, H_ground + H_human],
     vel: [0, 0, 0],
     acc: [0, 0, 0],
     rot: [0, 0, 0],
@@ -44,107 +62,216 @@ const cam = get_json_param("cam") || {
 
 const controls = {
     move: [0, 0, 0],
-    rot: [0.01, 0, -0.2]
+    rot: [0.01, 0, -0.2],
+    size: 100,
 }
 
-
-const map_texture = fetch(encrypted ? "src/map.blob" : "maps/texture.bin.gz")
+const fetch_array = (regular_url, encrypted_url) => 
+    fetch(encrypted ? encrypted_regular : regular_url)
     .then(response => response.arrayBuffer())
     .then(buffer => encrypted ? decrypt(buffer) : buffer)
     .then(buffer => new Uint8Array(buffer))
     .then(array => pako.ungzip(array))
 
-const tex = ([_x, _y, _z]) => Promise.all(
-    [0,1,2]
-    .map( _c => map_texture.then(map => map[C*(X*(Y*(_z)+_y)+_x)+_c]))
+const map_array = fetch_array("out/texture.bin.gz", "src/map.blob")
+const vertex_array = fetch_array("out/vertex.bin.gz", "src/vertex.blob")
+const composit_array = new Float32Array([
+    -1, -1,
+     1, -1,
+    -1,  1,
+    -1,  1,
+     1, -1,
+     1,  1,
+])
+
+const clamp_xyzc = (xyzc) => [X,Y,Z,C].map((max, i) => clamps(xyzc[i], 0, max - 1))
+const project_xyzc = ([_x, _y, _z, _c]) => C*(X*(Y*(_z)+_y)+_x)+_c
+const tex = (xyz) => Promise.all(
+    [0,1,2].map( _c => map_array.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
 )
 
+const sizeOf = e => ([ e.clientWidth, e.clientHeight ].map(x => x * window.devicePixelRatio ))
 
 main()
 
+function updateColorTexture(texture){
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
+                  ...sizeOf(gl.canvas), 0,
+                  gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+}
+function updateDepthTexture(texture){
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24,
+                  ...sizeOf(gl.canvas), 0,
+                  gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+}
+
 async function main() {
-    const sources = ["vertex.glsl", "fragment.glsl"]
-        .map(type =>
-            fetch("src/shaders/march." + type)
-            .then(response => response.text())
-            .then(text => text
-                .replace(
-                    "#version 330 core",
-                    "#version 300 es"
-                )
-                .replace(
-                    "#define QUALITY 3",
-                    "#define QUALITY " + (get_param("quality") || "3")
-                )
-            )
+    const size = sizeOf(gl.canvas)
+
+    await Promise.all(Object.keys(S).map(file => 
+        fetch("src/shaders/" + file)
+        .then(res => res.text())
+        .then(text => S[file] = text)
+    ))
+
+    S["render.h"] = S["render.h"]
+        .replace(
+            "#define QUALITY 3", 
+            "#define QUALITY " + (get_param("quality") || "3")
         )
 
     // setup GLSL program
-    const program = createProgramFromSources(gl, await Promise.all(sources))
-    gl.useProgram(program)
+    P.renderer = createProgramFromSources(gl, [
+        S["render.vert"], 
+        S["render.frag"]
+    ].map(s => S["render.h"]+s))
 
-    handles.mapSampler = gl.getUniformLocation(program, "mapTexture")
+    P.compositor = createProgramFromSources(gl, [
+        S["composit.vert"], 
+        S["composit.frag"]
+    ].map(s => S["composit.h"]+s))
 
-    handles.position = gl.getUniformLocation(program, "vPosition")
-    handles.coord = gl.getAttribLocation(program, "TexCoord")
-    handles.resolution = gl.getUniformLocation(program, "iResolution")
-    handles.time = gl.getUniformLocation(program, "iTime")
-    handles.rotation = gl.getUniformLocation(program, "iCamRot")
-    handles.cellPos = gl.getUniformLocation(program, "iCamCellPos")
-    handles.fractPos = gl.getUniformLocation(program, "iCamFractPos")
-    handles.sun = gl.getUniformLocation(program, "iSunDir")
-    handles.frame = gl.getUniformLocation(program, "iFrame")
+    gl.useProgram(P.renderer)
 
-    const texture = gl.createTexture()
+    A.cellPos = gl.getAttribLocation(P.renderer, "a_cellPos")
+    A.fractPos = gl.getAttribLocation(P.renderer, "a_fractPos")
+    A.color = gl.getAttribLocation(P.renderer, "a_color")
+    A.normal = gl.getAttribLocation(P.renderer, "a_normal")
+    A.id = gl.getAttribLocation(P.renderer, "a_id")
 
-    gl.bindTexture(gl.TEXTURE_3D, texture)
+    U.matrix = gl.getUniformLocation(P.renderer, "u_matrix")
+    U.cellPos = gl.getUniformLocation(P.renderer, "u_cellPos")
+    U.fractPos = gl.getUniformLocation(P.renderer, "u_fractPos")
+    U.frame = gl.getUniformLocation(P.renderer, "u_frame")
+    U.time = gl.getUniformLocation(P.renderer, "u_time")
+    U.sunDir = gl.getUniformLocation(P.renderer, "u_sunDir")
+
+    U.map = gl.getUniformLocation(P.renderer, "u_map")
+
+    T.diffuse = gl.createTexture()
+    updateColorTexture(T.diffuse)
+    
+    T.reflection = gl.createTexture()
+    updateColorTexture(T.reflection)
+
+    T.depth = gl.createTexture()
+    updateDepthTexture(T.depth)
+
+    // Create separate render buffer for storing diffuse
+    // and reflection passes before merging them together
+    B.render = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.render)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                            gl.TEXTURE_2D, T.diffuse, 0)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
+                            gl.TEXTURE_2D, T.reflection, 0)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
+                            gl.TEXTURE_2D, T.depth, 0)
+    console.log(gl.checkFramebufferStatus(gl.FRAMEBUFFER), gl.FRAMEBUFFER_COMPLETE)
+
+    
+    T.map = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
-        1024, 256, 16, 0,
-        gl.RGBA, gl.UNSIGNED_BYTE, await map_texture)
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        X, Y, Z, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, await map_array)
+    gl.generateMipmap(gl.TEXTURE_3D)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_3D, texture)
-    gl.uniform1i(handles.mapSampler, 0)
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
+    gl.uniform1i(U.map, 0)
 
-    const positionBuffer = gl.createBuffer();
+    O.vertex_array = gl.createVertexArray()
+    gl.bindVertexArray(O.vertex_array)
 
-    // Bind it to ARRAY_BUFFER (think of it as ARRAY_BUFFER = positionBuffer)
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        -1, -1, 0, // first triangle
-        +1, -1, 1,
-        -1, +1, 0,
-        -1, +1, 0, // second triangle
-        +1, -1, 0,
-        +1, +1, 0,
-    ]), gl.STATIC_DRAW)
-
-    gl.vertexAttribPointer(
-        handles.position,
-        3, // 3 components per iteration
-        gl.FLOAT, // the data is 32bit floats
-        false, // don't normalize the data
-        0, // 0 = move forward size * sizeof(type) each iteration to get the next position
-        0, // start at the beginning of the buffer
+    B.cellPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.cellPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.cellPos, 3, gl.SHORT,
+        N_stride, 0
     )
 
+    B.fractPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.fractPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.fractPos, 3, gl.SHORT,
+        N_stride, 3 * N_int16
+    )
+
+    B.color = gl.createBuffer()
+    gl.enableVertexAttribArray(A.color)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.color, 1, gl.BYTE,
+        N_stride, 6 * N_int16
+    )
+
+    B.normal = gl.createBuffer()
+    gl.enableVertexAttribArray(A.normal)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.normal, 1, gl.BYTE,
+        N_stride, 6 * N_int16 + 1 * N_int8
+    )
+
+    B.id = gl.createBuffer()
+    gl.enableVertexAttribArray(A.id)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.id, 1, gl.BYTE,
+        N_stride, 6 * N_int16 + 2 * N_int8
+    )
+
+    gl.enable(gl.DEPTH_TEST)
     gl.enable(gl.CULL_FACE)
     gl.cullFace(gl.BACK)
+    
+    //////////////////////
 
-    gl.useProgram(program)
-    gl.enableVertexAttribArray(handles.position)
+    gl.useProgram(P.compositor)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+    A.texCoord = gl.getAttribLocation(P.compositor, "a_texCoord")
+    U.diffuse = gl.getUniformLocation(P.compositor, "u_diffuse")
+    U.reflection = gl.getUniformLocation(P.compositor, "u_reflection")
+
+    O.composit_array = gl.createVertexArray()
+    gl.bindVertexArray(O.composit_array)
+
+    B.texCoord = gl.createBuffer()
+    gl.enableVertexAttribArray(A.texCoord)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.texCoord)
+    gl.bufferData(gl.ARRAY_BUFFER, composit_array, gl.STATIC_DRAW)
+    gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
 
     requestAnimationFrame(render)
     add_listeners()
+    resize()
 }
 
 async function decrypt(buffer) {
-    const crypto_initial = Uint8Array.from([
+    const crypto_initial = new Uint8Array([
         55, 44, 146, 89,
         30, 93, 68, 30,
         209, 23, 56, 140,
@@ -177,8 +304,8 @@ async function add_listeners() {
     })
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))
     canvas.addEventListener('pointermove', (event) => {
-        controls.rot[z] -= 4 * event.movementX / size
-        controls.rot[x] -= 2 * event.movementY / size
+        controls.rot[z] -= 2 * event.movementX / controls.size
+        controls.rot[x] -= event.movementY / controls.size
         controls.rot[x] = clamp(controls.rot[x], 0.8)
     })
     joystick.addEventListener('touchstart', () => {
@@ -186,8 +313,8 @@ async function add_listeners() {
     })
     joystick.addEventListener('pointermove', (event) => {
         if (controls.active) {
-            controls.move[x] = +2*clamp(event.offsetX * 2 / size - 1, 1)
-            controls.move[y] = -2*clamp(event.offsetY * 2 / size - 1, 1)
+            controls.move[x] = +2*clamp(event.offsetX / controls.size - 1, 1)
+            controls.move[y] = -2*clamp(event.offsetY / controls.size - 1, 1)
         }
     })
     joystick.addEventListener('touchend', (event) => {
@@ -215,7 +342,7 @@ async function add_listeners() {
                 controls.move[x] = power
                 break;
             case "Space":
-                cam.pos[z] += (event.shiftKey) ? -1 : 1
+                controls.move[z] = power
                 break;
         }
     })
@@ -233,42 +360,84 @@ async function add_listeners() {
             case "ArrowRight":
                 controls.move[x] = 0
                 break;
+            case "Space":
+                controls.move[z] = 0
+                break;
         }
     })
     window.addEventListener('resize', resize)
-    setInterval(() => {
-        let delta = fps - target_fps
-        if (delta < 5 && delta > -15) return;
-
-        upsample *= target_fps / fps
-        upsample = Math.pow(2, Math.round(Math.max(-1, Math.log(upsample))))
-        resize()
-    }, 1000)
-    resize()
 }
 
 const floor = x => Math.floor(x)
 const fract = x => x - floor(x)
 const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
-const clamp = (x, a) => Math.min(Math.max(x, -a), a)
+const clamps = (x, a, b) => Math.min(Math.max(x, a), b)
+const clamp = (x, a) => clamps(x, -a, a)
 
-function render(now) {
+async function render(now) {
     times.pop()
     times.unshift((start_time + now) / 1000)
 
     update_state(times[0], times[0] - times[1])
 
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+    const size = sizeOf(gl.canvas)
 
-    gl.uniform2f(handles.resolution, gl.canvas.width, gl.canvas.height)
-    gl.uniform1f(handles.time, times[0] - start_time/1000)
-    gl.uniform3f(handles.fractPos, ...cam.pos.map(fract))
-    gl.uniform3i(handles.cellPos, ...cam.pos.map(floor))
-    gl.uniform3f(handles.rotation, ...cam.rot)
-    gl.uniform3f(handles.sun, ...weather.sun)
-    gl.uniform1i(handles.frame, frame)
+    ////////
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.render)
+    gl.viewport(0, 0, ...size)
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+    gl.useProgram(P.renderer)
+    gl.bindVertexArray(O.vertex_array)
+
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
+
+    const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
+    const matrix = m4.multiply(
+        m4.projection(...size, distance),
+        m4.xRotation(-Math.PI/2),
+        m4.xRotation(-cam.rot[x]),
+        m4.zRotation(-cam.rot[z]),
+        m4.translation(...cam.pos.map(a=>-a/2))
+    )
+
+    // Set the matrix.
+    gl.uniformMatrix4fv(U.matrix, false, matrix)
+
+    gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
+    gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
+    gl.uniform3f(U.sunDir, ...weather.sun)
+    gl.uniform1i(U.frame, frame)
+    gl.uniform1f(U.time, times[0] % 1e3)
+
+    gl.uniform1i(U.map, 0)
+
+    gl.drawBuffers([
+       gl.COLOR_ATTACHMENT0,
+       gl.COLOR_ATTACHMENT1,
+    ])
+    gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_stride)
+    
+    ////////////////
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.viewport(0, 0, ...size)
+    gl.useProgram(P.compositor)
+    gl.bindVertexArray(O.composit_array)
+
+    gl.uniform1i(U.diffuse, 0)
+    gl.uniform1i(U.reflection, 1)
+
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
+
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, T.reflection)
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
+
+    //////////////
 
     requestAnimationFrame(render)
 }
@@ -276,7 +445,6 @@ function render(now) {
 async function update_state(time, delta) {
 
     frame++
-    fps = (time_samples - 1) / (time - times[time_samples - 1])
     let sin = Math.sin(cam.rot[z])
     let cos = Math.cos(cam.rot[z])
 
@@ -285,8 +453,14 @@ async function update_state(time, delta) {
     cam.acc = [
         f[x] * cos - f[y] * sin,
         f[x] * sin + f[y] * cos,
-        0,
+        f[z],
     ]
+
+    const feet_pos = [...cam.pos]
+    feet_pos[z] -= H_human
+    let [above, below, color] = await tex(feet_pos.map(floor))
+    if(below < 1) cam.acc[z] += 30
+    if(below > 1) cam.acc[z] -= 60
 
     let drag = 1 / 8
 
@@ -294,15 +468,11 @@ async function update_state(time, delta) {
     cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
     cam.pos = cam.pos.map((p, i) => p + cam.vel[i] * delta)
 
-    const feet_pos = cam.pos
-    feet_pos.z -= HEIGHT;
-    const [above, below, color] = await tex(feet_pos.map(floor))
-    cam.pos[z] -= Math.round(below - HEIGHT) * 2 * delta;
-
     cam.rot = cam.rot.map( 
         (a, i) => cam.rot[i] + 
         clamp( pow(controls.rot[i] - cam.rot[i], 1.5), 10*delta)
     )
+    cam.rot = controls.rot
 
     let hour = time / 60 / 60 / 12 * Math.PI
     weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)
@@ -313,13 +483,15 @@ async function update_state(time, delta) {
         `translate(${controls.move[x]*15}%, ${-controls.move[y]*15}%)`
 
     const num = x => x.toFixed(1)
-    const ft = x => num(x)
 
-    if (!get_param("clean")) debug.innerText = `${num(fps)} fps, ${num(upsample)} upscaling
-        position: ${cam.pos.map(ft).join(", ")}
-        velocity: ${cam.vel.map(ft).join(", ")}
+    const fps = 1 / delta
+    const avg_fps = (N_time_samples - 1) / (time - times[N_time_samples - 1])
+    if (!get_param("clean")) debug.innerText = 
+        `${sizeOf(gl.canvas).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
+        position: ${cam.pos.map(num).join(", ")}
+        velocity: ${cam.vel.map(num).join(", ")}
         by: Xing :D
-    `
+        `
 
     if (frame % 60 == 0) {
         url.searchParams.set("cam", encodeURIComponent(JSON.stringify(cam)))
@@ -328,8 +500,10 @@ async function update_state(time, delta) {
 }
 
 async function resize() {
-    size = Math.min(window.innerWidth, window.innerHeight) * 0.5
-    resizeCanvasToDisplaySize(gl.canvas, 1 / upsample)
-    canvas.style.imageRendering = upsample > 1 ? 'pixelated' :
-        'auto'
+    const size = sizeOf(gl.canvas)
+    gl.canvas.width = size[0]
+    gl.canvas.height = size[1]
+    updateColorTexture(T.diffuse)
+    updateColorTexture(T.reflection)
+    updateDepthTexture(T.depth)
 }

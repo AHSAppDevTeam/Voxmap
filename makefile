@@ -40,43 +40,47 @@ maps/map.txt: maps/map.vox
 	### x y z RRGGBB
 	goxel maps/map.vox --export maps/map.txt
 
-maps/texture.bin: bin/sdf maps/map.txt
+out.gz: bin/sdf maps/map.txt out
 	### PBM to SDF
 	# results in a combined SDF + voxel color texture
 	bin/sdf
+	gzip -f out/*.bin
 
-maps/texture.bin.gz: maps/texture.bin
-	gzip -f maps/texture.bin
+out:
+	mkdir out
 
-src/map.blob: maps/texture.bin.gz
+src/map.blob: out.gz
 	### Encrypt PNG
 	node src/encrypt.js
 
 cppflags = -O3 -g -std=c++20 -Ilibs/MagicaVoxel_file_writer -Ilibs/OpenSimplexNoise -I.
 
-bin/OpenSimplexNoise.o:
+bin:
+	mkdir bin/
+
+bin/OpenSimplexNoise.o: bin
 	clang++ $(cppflags) -o bin/OpenSimplexNoise.o -c libs/OpenSimplexNoise/OpenSimplexNoise/OpenSimplexNoise.cpp
 
-bin/VoxWriter.o:
+bin/VoxWriter.o: bin
 	clang++ $(cppflags) -o bin/VoxWriter.o -c libs/MagicaVoxel_File_Writer/VoxWriter.cpp
 
-bin/vox-pass.o: src/vox-pass.cpp
+bin/vox-pass.o: src/vox-pass.cpp bin
 	clang++ $(cppflags) -o bin/vox-pass.o -c src/vox-pass.cpp
 
-bin/vox-reverse.o: src/vox-reverse.cpp
+bin/vox-reverse.o: src/vox-reverse.cpp bin
 	clang++ $(cppflags) -o bin/vox-reverse.o -c src/vox-reverse.cpp
 
-bin/vox: bin/VoxWriter.o bin/vox-pass.o
+bin/moxel: bin/VoxWriter.o bin/vox-pass.o bin
 	clang++ $(cppflags) -o bin/vox bin/vox-pass.o bin/VoxWriter.o
 
-bin/vox-reverse: bin/VoxWriter.o bin/vox-reverse.o
+bin/reverse-moxel: bin/VoxWriter.o bin/vox-reverse.o bin
 	clang++ $(cppflags) -o bin/vox-reverse bin/vox-reverse.o bin/VoxWriter.o
 
-bin/sdf-pass.o: src/sdf-pass.cpp
-	clang++ $(cppflags) -o bin/sdf-pass.o -c src/sdf-pass.cpp
+bin/gen-sdf.o: src/sdf.cpp bin
+	clang++ $(cppflags) -o bin/gen-sdf.o -c src/sdf.cpp
 
-bin/sdf: bin/sdf-pass.o bin/OpenSimplexNoise.o
-	clang++ $(cppflags) -o bin/sdf bin/sdf-pass.o bin/OpenSimplexNoise.o
+bin/sdf: bin/gen-sdf.o bin/OpenSimplexNoise.o bin
+	clang++ $(cppflags) -o bin/sdf bin/gen-sdf.o bin/OpenSimplexNoise.o -ltbb
 
-bin/viewer: src/viewer.cpp libs/glad.c
+bin/viewer: src/viewer.cpp libs/glad.c bin
 	clang++ src/viewer.cpp libs/glad.c -ldl -lglfw $(cppflags) -o bin/viewer
