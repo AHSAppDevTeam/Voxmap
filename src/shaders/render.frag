@@ -137,7 +137,7 @@ void main() {
   c_diffuse = vec4(0);
   c_reflection = vec4(0);
 
-  vec3 sunCol = vec3(1.2, 1.1, 1.0);
+  const vec3 litCol = vec3(1.0, 0.97, 0.95);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
 
   vec3 sunDir = jitter(u_sunDir, 1.0);
@@ -145,6 +145,7 @@ void main() {
   // Fancy sky!
 
   // Color of the sky where the Sun is
+  const vec3 sunCol = vec3(1.4, 1.0, 0.5);
   float sunFactor = max(0.0, dot(u_sunDir, rayDir)) - 1.0;
   float glow = exp2(8.0 * sunFactor);
   sunFactor = exp2(800.0 * sunFactor) + 0.25 * glow;
@@ -155,7 +156,7 @@ void main() {
   vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.0), scatter);
   vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, rayDir.z)));
   // Mix where the Sun is and where the Sun isn't
-  vec3 skyCol = vec3(1.4, 1.0, 0.5)*sunFactor + atmCol;
+  vec3 skyCol = sunCol*sunFactor + atmCol;
 
   // Make sure values don't overflow (the Sun can be very bright)
   skyCol = clamp(skyCol, vec3(0), vec3(1));
@@ -175,10 +176,9 @@ void main() {
 	fbm(2.0*skyPos + cloudTime),
 	fbm(2.0*skyPos - cloudTime)
       );
-    skyPos += 1e-4 * (vec2(u_cellPos.xy) + u_fractPos.xy);
-
-    float cloudFactor = pow(fbm(skyPos + vec2(2, -9)*cloudTime), 3.0);
-    vec3 cloudCol = mix(sunCol, vec3(1), cloudFactor);
+    skyPos += 1e-4 * (vec2(u_cellPos.xy) + u_fractPos.xy); 
+    float cloudFactor = exp2(6.0 * (fbm(skyPos + vec2(2, -9)*cloudTime) - 1.0));
+    vec3 cloudCol = mix(sunCol, litCol, sqrt(cloudFactor));
 #else
     vec3 cloudCol = vec3(1);
     float cloudFactor = 0.0;
@@ -239,7 +239,7 @@ void main() {
 #endif
 
     // Mix sunlight and shade
-    vec3 lightCol = mix(shadeCol, sunCol, shadeFactor);
+    vec3 lightCol = mix(shadeCol, litCol, shadeFactor);
 
 #ifdef REFRACTIONS
     if(v_color == 7) {

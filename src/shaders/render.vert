@@ -24,7 +24,7 @@ vec3 palette(int p) {
 
 void main() {
     vec4 position = u_matrix * vec4(a_cellPos + a_fractPos);
-    gl_Position = vec4(position.xyz, position.z + 1e-5);
+    gl_Position = vec4(position.xyz, position.z + 1e-4);
 
     v_cellPos = a_cellPos.xyz;
     v_fractPos = vec3(a_fractPos.xyz);
