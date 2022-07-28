@@ -61,6 +61,7 @@ body * {
 	flex-direction: column;
 	flex-basis: 50rem;
 	max-width: 100vmin;
+	overflow-y: scroll;
 }
 
 #form #search {
