@@ -323,7 +323,7 @@ async function add_listeners() {
     canvas.addEventListener('pointermove', (event) => {
         controls.rot[z] -= 2 * event.movementX / controls.size
         controls.rot[x] -= event.movementY / controls.size
-        controls.rot[x] = clamp(controls.rot[x], 0.8)
+        controls.rot[x] = clamp(controls.rot[x], Math.PI/2)
     })
     joystick.addEventListener('touchstart', () => {
         controls.active = true
