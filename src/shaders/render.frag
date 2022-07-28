@@ -11,8 +11,7 @@ layout(location=0) out vec4 c_diffuse;
 layout(location=1) out vec4 c_reflection;
 
 // Quality-adjustable raytracing parameters
-int MAX_RAY_STEPS = X * (QUALITY + 1)/3;
-int MAX_SUN_STEPS = Z * (QUALITY + 2);
+const int MAX_STEPS = X * (QUALITY + 1)/3;
 
 // Utility functions
 //-------------------
@@ -38,8 +37,8 @@ vec3 jitter(vec3 v, float f) {
 
 // Read data from texture
 //------------------------
-ivec3 tex(ivec3 c) {
-  return ivec3(texelFetch(u_map, c, 0).rgb * 255.);
+vec3 tex(ivec3 c) {
+  return texelFetch(u_map, c, 0).rgb * 255.;
 }
 vec3 tex(ivec3 c, vec3 f) {
   return texture(u_map, (vec3(c) + f)*Sf).rgb * 255.;
@@ -48,13 +47,13 @@ vec3 tex(ivec3 c, vec3 f) {
 // one for the distance to the closest thing above
 // and one for the distance to the closest thing below,
 // speeding up raymarching
-int sdf_dir(ivec3 c, int dir) {
-  ivec2 d = tex(c).rg;
-  return (d.r + max(0, c.z - Z))*dir + d.g*(1-dir);
+float sdf_dir(ivec3 c, float dir) {
+  vec2 d = tex(c).rg;
+  return mix(d.r, d.g, 1.0-dir);
 }
 // Fancy trilinear interpolator (stolen from Wikipedia)
 float sdf(ivec3 c, vec3 f) {
-  vec3 d = tex(c, f);
+  vec2 d = tex(c, f).rg;
   return min(d.r, d.g);
 }
 
@@ -65,25 +64,15 @@ float sdf(ivec3 c, vec3 f) {
 struct March {
   ivec3 cellPos; // integer cell position
   vec3 fractPos; // floating point fractional cell position [0, 1)
-  vec3 v_normal; // surface v_normal
   float minDist; // minimum distance encountered
   int step; // number of steps taken
-  float glass; // amount of glass hit
-  int material; // material type
 };
 
 // Cube-accelerated code-spaghetti raymarcher
 // Based on Xor's [shadertoy.com/view/fstSRH]
 // and modified in order to support integer coordinates
-March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
+March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
   March res;
-
-  // materials encountered (currently: glass or not glass)
-  res.material = 0;
-  int lastMaterial;
-
-  // store initial ray direction (currently: for exiting glass)
-  vec3 iRayDir = rayDir;
 
   // other initial values
   res.minDist = Zf;
@@ -93,13 +82,13 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
   vec3 axisCellDist;
   vec3 axisRayDist; vec3 minAxis; float minAxisDist;
-  int dist = 1;
+  float dist = 1.0;
 
   // is ray up or down, because SDF is split for performance reasons
-  int dir = rayDir.z > 0.0 ? 1 : 0;
+  float dir = rayDir.z > 0.0 ? 1.0 : 0.0;
 
   // Start marchin'
-  while(res.step < MAX_STEPS && dist != 0) {
+  while(res.step < MAX_STEPS && dist != 0.0) {
     // Distances to each axis
     axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-4;
 
@@ -115,17 +104,12 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
     minAxisDist = length(minAxis * axisRayDist);
 
     // March along that axis
-    res.fractPos += rayDir * float(dist) * minAxisDist;
+    res.fractPos += rayDir * dist * minAxisDist;
     res.cellPos += ivec3(floor(res.fractPos));
     res.fractPos = fract(res.fractPos);
 
-    // Calculate v_normals
-    res.v_normal = -sign(rayDir * minAxis);
-    ivec3 c = res.cellPos;
-    ivec3 n = ivec3(res.v_normal);
-
     // Break early if sky
-    if(any(greaterThanEqual(c, ivec3(X,Y,Z))) || any(lessThan(c, ivec3(0)))) {
+    if(any(greaterThanEqual(res.cellPos, ivec3(X,Y,Z))) || any(lessThan(res.cellPos, ivec3(0)))) {
       res.step = MAX_STEPS;
       break;
     }
@@ -134,34 +118,14 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int MAX_STEPS ) {
 
     // TODO: improve floating-point distance
     // currently just casted integer distance
-    res.minDist = min(float(dist), res.minDist);
+    res.minDist = min(dist, res.minDist);
     //res.minDist = min(sdf(res.cellPos, res.fractPos-0.5), res.minDist);
-
-
-    if(dist == 0) {
-      res.material = tex(res.cellPos).b;
-
-      // Glass stuff
-      if (res.material == 6) { // If glass
-
-	// Go through the glass
-	dist++;
-
-	if(lastMaterial != 6) {
-	  // Refract ray
-	  res.glass += 1.0 - 0.5*abs(dot(rayDir, res.v_normal));
-	  res.glass += sqrt(length(res.fractPos - 0.5));
-	  rayDir = refract(rayDir, res.v_normal, 0.8);
-	}
-      }
-    } else {
-      rayDir = iRayDir;
-      res.material = 0;
-    }
-    lastMaterial = res.material;
 
     res.step++;
   }
+
+  // Calculate normals
+  //res.normal = -sign(rayDir * minAxis);
 
   return res;
 }
@@ -267,7 +231,7 @@ void main() {
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
-      March sun = march(v_cellPos, v_fractPos, sunDir, MAX_SUN_STEPS);
+      March sun = march(v_cellPos, v_fractPos, sunDir);
       shadeFactor *= clamp(sun.minDist, 0., 1.);
     }
     // TODO: soft shadows (aaa)
@@ -279,7 +243,7 @@ void main() {
 
 #ifdef REFRACTIONS
     if(v_color == 7) {
-      March refraction = march(v_cellPos, v_fractPos, refract(rayDir, v_normal, 0.8), MAX_RAY_STEPS);
+      March refraction = march(v_cellPos, v_fractPos, refract(rayDir, v_normal, 0.8));
     }
 #endif
 
@@ -288,7 +252,7 @@ void main() {
 
     float reflectFactor = 0.4 * exp2(-8.0 * dot(reflectDir, v_normal)) - 0.05;
     if(reflectFactor > 0.0) {
-      March reflection = march(v_cellPos, v_fractPos, reflectDir, MAX_RAY_STEPS);
+      March reflection = march(v_cellPos, v_fractPos, reflectDir);
       vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 2.0);
       p.xy /= p.z + 1e-5;
       float bounds = max(p.x*p.x, p.y*p.y);
