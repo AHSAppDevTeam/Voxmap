@@ -15,6 +15,8 @@ const C = 4 // 4 channels
 
 let size = []
 
+let quality = get_param("quality") || "3"
+
 const encrypted = url.protocol === "https:"
 
 // Shaders
@@ -128,7 +130,7 @@ async function main() {
     S["render.h"] = S["render.h"]
         .replace(
             "#define QUALITY 3", 
-            "#define QUALITY " + (get_param("quality") || "3")
+            "#define QUALITY " + quality
         )
 
     // setup GLSL program
@@ -505,10 +507,10 @@ async function update_state(time, delta) {
     const fps = 1 / delta
     const avg_fps = (N_time_samples - 1) / (time - times[N_time_samples - 1])
     if (!get_param("clean")) debug.innerText = 
-        `${size.join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
+        `${size.map(num).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
         position: ${cam.pos.map(num).join(", ")}
         velocity: ${cam.vel.map(num).join(", ")}
-        by: Xing :D
+        quality: ${quality} / 4
         `
 
     if (frame % 60 == 0) {

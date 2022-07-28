@@ -9,12 +9,12 @@ body,
 
 #debug {
    font-family: Monospace, Monospace;
-   font-size: 0.8rem;
+   font-size: 0.7rem;
    position: fixed;
    color: white;
    text-shadow: 0 0 2px black;
-   top: 1rem;
-   left: 1rem;
+   top: 0.5rem;
+   left: 0.5rem;
 }
 
 #canvas,
