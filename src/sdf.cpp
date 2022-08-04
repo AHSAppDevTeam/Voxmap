@@ -236,7 +236,9 @@ int main()
 
 					du[u] = w;
 					dv[v] = h;
-					int id = 0;
+
+					// glass material (color=7) has id=2
+					int id = color == 7 ? 2 : 0;
 					quad(
 							cx+p[0], cy+p[1], cz+p[2],
 							du[0], du[1], du[2],

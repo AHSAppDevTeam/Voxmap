@@ -29,8 +29,8 @@ vec2 rotate2d(vec2 v, float a) {
 
 vec3 jitter(vec3 v, float f) {
 #ifdef JITTER
-  v.xz = rotate2d(v.xz, white(f*(v_fractPos.xy + v_fractPos.z)));
-  v.xy = rotate2d(v.xy, white(f*(v_fractPos.xy + v_fractPos.z)));
+  v.xz = rotate2d(v.xz, white(f*(fractPos.xy + fractPos.z)));
+  v.xy = rotate2d(v.xy, white(f*(fractPos.xy + fractPos.z)));
 #endif
   return v;
 }
@@ -66,18 +66,21 @@ struct March {
   vec3 fractPos; // floating point fractional cell position [0, 1)
   vec3 normal;
   int step; // number of steps taken
+  float glass; // number of glass intersected
+  int material;
 };
 
 // Cube-accelerated code-spaghetti raymarcher
 // Based on Xor's [shadertoy.com/view/fstSRH]
 // and modified in order to support integer coordinates
-March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
+March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int glass ) {
   March res;
 
   // other initial values
   res.step = 0;
   res.cellPos = rayCellPos;
   res.fractPos = rayFractPos;
+  res.material = c_glass;
 
   vec3 axisCellDist;
   vec3 axisRayDist; vec3 minAxis; float minAxisDist;
@@ -114,6 +117,18 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
     }
 
     dist = sdf_dir(res.cellPos, dir);
+    if(glass == 1 && dist == 0.0) {
+      int lastMaterial = res.material;
+      res.material = int(tex(res.cellPos).b);
+
+      if(res.material == c_glass) {
+	dist++;
+	if(lastMaterial != c_glass) {
+	  // Refract ray
+	  res.glass++;
+	}
+      }
+    }
 
     res.step++;
   }
@@ -132,7 +147,24 @@ void main() {
   c_reflection = vec4(0);
 
   const vec3 litCol = vec3(1.0, 0.97, 0.95);
-  vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
+
+  ivec3 cellPos = v_cellPos;
+  vec3 fractPos = v_fractPos;
+  vec3 rayDir = normalize(vec3(cellPos-u_cellPos) + (fractPos-u_fractPos));
+  vec3 baseCol = v_color;
+  vec3 glassCol = vec3(1);
+
+  bool isSky = v_id == 1;
+  bool isGlass = v_id == 2;
+
+  if(isGlass) {
+    March res = march(cellPos, fractPos, refract(rayDir, v_normal, 0.95), 1);
+    cellPos = res.cellPos;
+    fractPos = res.fractPos;
+    baseCol = palette(res.material);
+    glassCol = mix(v_color, vec3(1), exp2(-res.glass-1.0));
+    if(res.step == MAX_STEPS) isSky = true;
+  }
 
   vec3 sunDir = jitter(u_sunDir, 1.0);
 #ifdef SKY
@@ -158,7 +190,6 @@ void main() {
   vec3 skyCol = mix(vec3(0.8, 0.9, 1.0), vec3(0.1, 0.3, 0.6), rayDir.z);
 #endif
 
-  bool isSky = v_id == 1;
   if(isSky) {
 
 #ifdef CLOUDS
@@ -188,18 +219,16 @@ void main() {
       skyCol = mix(skyCol, cloudCol, cloudFactor);
     }
 
-    c_diffuse.rgb = skyCol;
+    c_diffuse.rgb = skyCol * glassCol;
   } else {
 
-    vec3 baseCol = v_color;
-
-    vec3 v_normalCol = mat3x3(
+    vec3 normalCol = mat3x3(
 	0.90, 0.90, 0.95,
 	0.95, 0.95, 1.00,
 	1.00, 1.00, 1.00
 	) * abs(v_normal);
     // Down bad
-    if(v_normal.z < 0.0) v_normalCol *= 0.8;
+    if(v_normal.z < 0.0) normalCol *= 0.8;
 
 #ifdef SKY
     // Color the shadow the color of the sky
@@ -212,7 +241,7 @@ void main() {
 
 #ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
-    float ambDist = sdf(v_cellPos + ivec3(v_normal), v_fractPos);
+    float ambDist = sdf(cellPos + ivec3(v_normal), fractPos);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
@@ -225,10 +254,10 @@ void main() {
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
-      March sun = march(v_cellPos, v_fractPos, sunDir);
+      March sun = march(cellPos, fractPos, sunDir, 0);
 
 #ifdef SOFT
-      March sun2 = march(sun.cellPos, sun.fractPos+sunDir, sunDir);
+      March sun2 = march(sun.cellPos, sun.fractPos+sunDir, sunDir, 0);
       shadeFactor *= clamp(min(
 	  sdf(sun.cellPos, sun.fractPos + sunDir),
 	  sdf(sun2.cellPos, sun2.fractPos + sunDir)
@@ -238,7 +267,7 @@ void main() {
 #endif
     }
     /*
-      c_diffuse.rgb = vec3(sdf(v_cellPos, v_fractPos - 0.5*v_normal - rayDir));
+      c_diffuse.rgb = vec3(sdf(cellPos, fractPos - 0.5*v_normal - rayDir));
       return;
       */
 #endif
@@ -246,18 +275,12 @@ void main() {
     // Mix sunlight and shade
     vec3 lightCol = mix(shadeCol, litCol, shadeFactor);
 
-#ifdef REFRACTIONS
-    if(v_color == 7) {
-      March refraction = march(v_cellPos, v_fractPos, refract(rayDir, v_normal, 0.8));
-    }
-#endif
-
 #ifdef REFLECTIONS
     vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.1);
 
     float reflectFactor = 0.4 * exp2(-8.0 * dot(reflectDir, v_normal)) - 0.05;
     if(reflectFactor > 0.0) {
-      March reflection = march(v_cellPos, v_fractPos, reflectDir);
+      March reflection = march(v_cellPos, v_fractPos, reflectDir, 0);
       vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 2.0);
       p.xy /= p.z + 1e-5;
       float bounds = max(p.x*p.x, p.y*p.y);
@@ -270,8 +293,9 @@ void main() {
 
     // Multiply everything together
     c_diffuse.rgb = baseCol
-      * v_normalCol
+      * normalCol
       * lightCol
+      * glassCol
       * ambCol;
   }
 }
