@@ -64,7 +64,7 @@ float sdf(ivec3 c, vec3 f) {
 struct March {
   ivec3 cellPos; // integer cell position
   vec3 fractPos; // floating point fractional cell position [0, 1)
-  float minDist; // minimum distance encountered
+  vec3 normal;
   int step; // number of steps taken
 };
 
@@ -75,7 +75,6 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
   March res;
 
   // other initial values
-  res.minDist = Zf;
   res.step = 0;
   res.cellPos = rayCellPos;
   res.fractPos = rayFractPos;
@@ -116,16 +115,11 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
 
     dist = sdf_dir(res.cellPos, dir);
 
-    // TODO: improve floating-point distance
-    // currently just casted integer distance
-    res.minDist = min(dist, res.minDist);
-    //res.minDist = min(sdf(res.cellPos, res.fractPos-0.5), res.minDist);
-
     res.step++;
   }
 
   // Calculate normals
-  //res.normal = -sign(rayDir * minAxis);
+  res.normal = -sign(rayDir * minAxis);
 
   return res;
 }
@@ -232,10 +226,21 @@ void main() {
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
       March sun = march(v_cellPos, v_fractPos, sunDir);
-      shadeFactor *= clamp(sun.minDist, 0., 1.);
+
+#ifdef SOFT
+      March sun2 = march(sun.cellPos, sun.fractPos+sunDir, sunDir);
+      shadeFactor *= clamp(min(
+	  sdf(sun.cellPos, sun.fractPos + sunDir),
+	  sdf(sun2.cellPos, sun2.fractPos + sunDir)
+	  ),0.5, 1.0) * 2.0 - 1.0;
+#else
+      shadeFactor *= sun.step == MAX_STEPS ? 1.0 : 0.0;
+#endif
     }
-    // TODO: soft shadows (aaa)
-    // How to do: calculate the raymarcher's minDist more accurately
+    /*
+      c_diffuse.rgb = vec3(sdf(v_cellPos, v_fractPos - 0.5*v_normal - rayDir));
+      return;
+      */
 #endif
 
     // Mix sunlight and shade
