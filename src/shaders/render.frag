@@ -118,16 +118,8 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir, int glass ) {
 
     dist = sdf_dir(res.cellPos, dir);
     if(glass == 1 && dist == 0.0) {
-      int lastMaterial = res.material;
       res.material = int(tex(res.cellPos).b);
-
-      if(res.material == c_glass) {
-	dist++;
-	if(lastMaterial != c_glass) {
-	  // Refract ray
-	  res.glass++;
-	}
-      }
+      if(res.material == c_glass) dist++;
     }
 
     res.step++;
@@ -153,6 +145,7 @@ void main() {
   vec3 rayDir = normalize(vec3(cellPos-u_cellPos) + (fractPos-u_fractPos));
   vec3 baseCol = v_color;
   vec3 glassCol = vec3(1);
+  vec3 normal = v_normal;
 
   bool isSky = v_id == 1;
   bool isGlass = v_id == 2;
@@ -162,7 +155,8 @@ void main() {
     cellPos = res.cellPos;
     fractPos = res.fractPos;
     baseCol = palette(res.material);
-    glassCol = mix(v_color, vec3(1), exp2(-res.glass-1.0));
+    normal = res.normal;
+    glassCol = v_color;
     if(res.step == MAX_STEPS) isSky = true;
   }
 
@@ -226,9 +220,9 @@ void main() {
 	0.90, 0.90, 0.95,
 	0.95, 0.95, 1.00,
 	1.00, 1.00, 1.00
-	) * abs(v_normal);
+	) * abs(normal);
     // Down bad
-    if(v_normal.z < 0.0) normalCol *= 0.8;
+    if(normal.z < 0.0) normalCol *= 0.8;
 
 #ifdef SKY
     // Color the shadow the color of the sky
@@ -241,7 +235,7 @@ void main() {
 
 #ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
-    float ambDist = sdf(cellPos + ivec3(v_normal), fractPos);
+    float ambDist = sdf(cellPos + ivec3(normal), fractPos);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
 #else
@@ -249,8 +243,8 @@ void main() {
 #endif
 
     // Check if we're facing towards Sun
-    float shadeFactor = sunDir.z < 0. ? 0.0
-      : sqrt(max(0.0, dot(v_normal, sunDir)));
+    float shadeFactor = (isGlass || sunDir.z < 0.0) ? 0.0
+      : sqrt(max(0.0, dot(normal, sunDir)));
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
