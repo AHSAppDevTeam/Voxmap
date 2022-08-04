@@ -9,8 +9,11 @@
 const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
 
+const int GLASS = 8505300;
+
 int pal[MAX]; // palette
 std::set<int> pal_set; // palette set
+int pal_size;
 int col[X][Y][Z]; // color
 int bin[X][Y][Z]; // 1 if block, else 0
 int sum[X][Y][Z]; // summed volume table
@@ -147,6 +150,7 @@ int main()
 			in >> std::dec >> x >> y >> z >> std::hex >> color;
 		 ) {
 		x += 512; y += 5; z += 0;
+		if(color == GLASS) color = 0x1000000;
 		pal_set.insert(color);
 		col[x][y][z] = color;
 		bin[x][y][z] = 1;
@@ -170,6 +174,7 @@ int main()
 			pal[i] = color;
 			i++;
 		}
+		pal_size = i;
 		std::cout << "vec3(1);" << std::endl;
 	}
 
@@ -183,12 +188,46 @@ int main()
 
 	std::cout << "Writing to vertex file..." << std::flush;
 
+	// Draw skybox
+	{
+		quad(
+			0, 0, Y,
+			X, 0, 0,
+			0, Y, 0,
+			0, 1, 1
+		);
+		quad(
+			0, 0, 0,
+			X, 0, 0,
+			0, 0, Y,
+			0, 1, 1
+		);
+		quad(
+			X, 0, 0,
+			0, Y, 0,
+			0, 0, Y,
+			0, 1, 1
+		);
+		quad(
+			X, Y, 0,
+			-X, 0, 0,
+			0, 0, Y,
+			0, 1, 1
+		);
+		quad(
+			0, Y, 0,
+			0,-Y, 0,
+			0, 0, Y,
+			0, 1, 1
+		);
+	}
+
 	// https://gist.github.com/Vercidium/a3002bd083cce2bc854c9ff8f0118d33
 	
-	forChunkXYZ([](int cx, int cy, int cz) {
+	for(int color = 0; color < pal_size; color++)
+	forChunkXYZ([&](int cx, int cy, int cz) {
 		for(int d = 0; d < 3; d++) // dimensions
 		for(int normal = 0; normal < 2; normal++)
-		for(int color = 0; color < pal_set.size(); color++)
 		{
 			int i = 0, j = 0, k = 0, l = 0, w = 0, h = 0;
 			int u = (d + 1) % 3;
@@ -237,8 +276,8 @@ int main()
 					du[u] = w;
 					dv[v] = h;
 
-					// glass material (color=7) has id=2
-					int id = color == 7 ? 2 : 0;
+					// glass material has id=2
+					int id = color == pal_size-1 ? 2 : 0;
 					quad(
 							cx+p[0], cy+p[1], cz+p[2],
 							du[0], du[1], du[2],
@@ -258,41 +297,6 @@ int main()
 			}
 		}
 	});
-
-	// Draw skybox
-	{
-		quad(
-			0, 0, Y,
-			X, 0, 0,
-			0, Y, 0,
-			0, 1, 1
-		);
-		quad(
-			0, 0, 0,
-			X, 0, 0,
-			0, 0, Y,
-			0, 1, 1
-		);
-		quad(
-			X, 0, 0,
-			0, Y, 0,
-			0, 0, Y,
-			0, 1, 1
-		);
-		quad(
-			X, Y, 0,
-			-X, 0, 0,
-			0, 0, Y,
-			0, 1, 1
-		);
-		quad(
-			0, Y, 0,
-			0,-Y, 0,
-			0, 0, Y,
-			0, 1, 1
-		);
-	}
-
 
 	std::cout << "Done." << std::endl;
 
