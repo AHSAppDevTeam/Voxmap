@@ -498,7 +498,7 @@ async function update_state(time, delta) {
     )
     cam.rot = controls.rot
 
-    let hour = time / 60 / 60 / 12 * Math.PI
+    let hour = 4000*time / 60 / 60 / 12 * Math.PI
     weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)
     weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
     weather.sun[z] = Math.abs(Math.cos(hour))

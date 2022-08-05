@@ -6,7 +6,6 @@ precision lowp int;
 
 #if QUALITY > 0
 #define SHADOWS
-#define SKY
 #endif
 
 #if QUALITY > 1

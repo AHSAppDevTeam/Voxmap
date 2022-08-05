@@ -137,34 +137,30 @@ void main() {
   bool isSky = v_id == 1;
   bool isGlass = v_id == 2;
 
-  const vec3 litCol = vec3(1.0, 0.97, 0.95);
+  const vec3 litCol = vec3(0.7, 0.6, 0.5);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
-
-  if(isGlass) c_diffuse.a = 0.4 - 0.2*abs(dot(rayDir, v_normal));
+  vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.1);
 
   vec3 sunDir = jitter(u_sunDir, 1.0);
-#ifdef SKY
+
   // Fancy sky!
 
   // Color of the sky where the Sun is
   const vec3 sunCol = vec3(1.4, 1.0, 0.5);
-  float sunFactor = max(0.0, dot(u_sunDir, rayDir)) - 1.0;
+  float sunFactor = max(0.0, dot(u_sunDir, reflectDir)) - 1.0;
   float glow = exp2(8.0 * sunFactor);
-  sunFactor = exp2(800.0 * sunFactor) + 0.25 * glow;
+  sunFactor = exp2(4000.0 * sunFactor) + 0.3 * glow;
 
   // Color of the sky where the Sun isn't
   float scatter = 1.0 - sqrt(max(0.0, sunDir.z));
-  vec3 spaceCol = mix(vec3(0.3,0.5,0.7),vec3(0.1,0.3,0.5), scatter);
-  vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.0), scatter);
-  vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, rayDir.z)));
+  vec3 spaceCol = mix(vec3(0.2,0.4,0.7),vec3(0.2,0.3,0.5), scatter);
+  vec3 scatterCol = mix(vec3(0.7, 0.9, 1.0),vec3(1.0,0.3,0.2), scatter);
+  vec3 atmCol = mix(scatterCol, spaceCol, sqrt(max(0.0, reflectDir.z)));
   // Mix where the Sun is and where the Sun isn't
   vec3 skyCol = sunCol*sunFactor + atmCol;
 
   // Make sure values don't overflow (the Sun can be very bright)
   skyCol = clamp(skyCol, vec3(0), vec3(1));
-#else
-  vec3 skyCol = mix(vec3(0.8, 0.9, 1.0), vec3(0.1, 0.3, 0.6), rayDir.z);
-#endif
 
   if(isSky) {
 
@@ -179,7 +175,7 @@ void main() {
       );
     skyPos += 1e-4 * (vec2(u_cellPos.xy) + u_fractPos.xy); 
     float cloudFactor = exp2(6.0 * (fbm(skyPos + vec2(2, -9)*cloudTime) - 1.0));
-    vec3 cloudCol = mix(sunCol, litCol, sqrt(cloudFactor));
+    vec3 cloudCol = mix(sunCol, vec3(0.8), sqrt(cloudFactor));
 #else
     vec3 cloudCol = vec3(1);
     float cloudFactor = 0.0;
@@ -208,14 +204,8 @@ void main() {
     // Down bad
     if(v_normal.z < 0.0) normalCol *= 0.8;
 
-#ifdef SKY
-    // Color the shadow the color of the sky
-    vec3 shadeCol = mix(scatterCol, spaceCol, rayDir.z*0.5 + 0.5);
-#else
-    vec3 shadeCol = skyCol * 0.7;
-#endif
-    // Make shadow more gray
-    shadeCol = mix(shadeCol, vec3(0.6), 0.3);
+    // Color the shadow the color of the sky, plus some gray
+    vec3 shadeCol = mix(atmCol, vec3(0.6), 0.3);
 
 #ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
@@ -253,7 +243,7 @@ void main() {
 #endif
 
     // Mix sunlight and shade
-    vec3 lightCol = mix(shadeCol, litCol, shadeFactor);
+    vec3 lightCol = shadeCol + litCol*shadeFactor;
 
 #ifdef REFRACTIONS
     if(v_color == 7) {
@@ -262,7 +252,6 @@ void main() {
 #endif
 
 #ifdef REFLECTIONS
-    vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.1);
 
     float reflectFactor = 0.4 * exp2(-8.0 * dot(reflectDir, v_normal)) - 0.05;
     if(reflectFactor > 0.0) {
@@ -279,5 +268,11 @@ void main() {
 
     // Multiply everything together
     c_diffuse.rgb = baseCol * normalCol * lightCol * ambCol;
+
+    if(isGlass) {
+      c_diffuse.a = 0.5 * exp2(dot(rayDir, v_normal));
+      c_diffuse.rgb *= atmCol;
+    }
+
   }
 }
