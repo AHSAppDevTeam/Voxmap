@@ -51,7 +51,10 @@ float sdf_dir(ivec3 c, float dir) {
   vec2 d = tex(c).rg;
   return mix(d.r, d.g, 1.0-dir);
 }
-// Fancy trilinear interpolator (stolen from Wikipedia)
+float sdf_dir(ivec3 c, vec3 f, float dir) {
+  vec2 d = tex(c, f).rg;
+  return mix(d.r, d.g, 1.0-dir);
+}
 float sdf(ivec3 c, vec3 f) {
   vec2 d = tex(c, f).rg;
   return min(d.r, d.g);
@@ -229,16 +232,18 @@ void main() {
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
-      March sun = march(v_cellPos, v_fractPos, sunDir);
-
 #ifdef SOFT
-      March sun2 = march(sun.cellPos, sun.fractPos+sunDir, sunDir);
-      shadeFactor *= clamp(min(
-	  sdf(sun.cellPos, sun.fractPos + sunDir),
-	  sdf(sun2.cellPos, sun2.fractPos + sunDir)
-	  ),0.5, 1.0) * 2.0 - 1.0;
+      float md = Zf;
+      float i = 1.0;
+      while(i < Zf) {
+	float d = sdf_dir(v_cellPos, v_fractPos + i*sunDir, 1.0) - 0.5;
+	md = min(d, md);
+	i += max(0.1, d);
+      }
+      shadeFactor *= clamp(md, 0.0, 1.0);
 #else
-      shadeFactor *= sun.step == MAX_STEPS ? 1.0 : 0.0;
+      March sun = march(v_cellPos, v_fractPos, sunDir);
+      shadeFactor *= float(sun.step == MAX_STEPS);
 #endif
     }
     /*
