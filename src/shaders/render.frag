@@ -224,13 +224,14 @@ void main() {
     if( shadeFactor > 0.){
 #ifdef SOFT
       float md = Zf;
-      float i = 1.0;
+      float i = 0.1;
+      float dd = 0.1;
       while(i < Zf) {
 	float d = sdf_dir(v_cellPos, v_fractPos + i*sunDir, 1.0) - 0.5;
 	md = min(d, md);
-	i += max(0.1, d);
+	i += max(dd, d);
       }
-      shadeFactor *= clamp(md, 0.0, 1.0);
+      shadeFactor *= smoothstep(0.0, 1.0, md*Zf*4.0/(i-0.1));
 #else
       March sun = march(v_cellPos, v_fractPos, sunDir);
       shadeFactor *= float(sun.step == MAX_STEPS);

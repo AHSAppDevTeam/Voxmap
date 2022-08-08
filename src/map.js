@@ -1,24 +1,40 @@
+// Link up HTML elements
 const debug = document.getElementById("debug")
 const canvas = document.getElementById("canvas")
 const joystick = document.getElementById("joystick")
 const form = document.getElementById("form")
 const gl = canvas.getContext("webgl2", { alpha: false, antialias: false } )
 
+//-- Numerical constants
+
+// heights of things
+const H_ground = 5.0
+const H_human = 1.6
+
+// sizes of basic data, in bytes
+const N_int8 = 1
+const N_int16 = 2
+const N_stride = 6 * N_int16 + 4 * N_int8
+
+// How long to average fps over
+const N_time_samples = 120
+
+// This is so I can do vector[x]
 const x = 0
 const y = 1
 const z = 2
 
+// World parameters
 const Z = 32 // height
 const Y = 256 // N-S length
 const X = 1024 // E-W width
-const C = 4 // 4 channels
+const C = 4 // 4 channels (RGBA)
 
-let size = []
-let matrix = []
-
-let quality = get_param("quality") || "3"
-
+// if not over HTTPS, probably means we're in debug mode
 const encrypted = url.protocol === "https:"
+
+//-- Single-letter "folders" for organizing WebGL objects
+// Also has some helper functions
 
 // Shaders
 const S = {
@@ -68,18 +84,14 @@ const O = {}
 // Buffers
 const B = {}
 
-const H_ground = 5.0
-const H_human = 1.6
-
-const N_int8 = 1
-const N_int16 = 2
-const N_stride = 6 * N_int16 + 4 * N_int8
-const N_time_samples = 120
-const times = Array(N_time_samples).fill(0)
-
-let frame = 0
+//-- Dynamic parameters
 
 const start_time = Date.now() - new Date().getTimezoneOffset() * 60 * 1000
+const times = Array(N_time_samples).fill(0)
+let frame = 0
+
+const size = [100, 100] // size of canvas
+let quality = get_param("quality") || "3" // render quality
 
 const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
@@ -89,6 +101,7 @@ const cam = get_json_param(".cam") || {
     vel: [0, 0, 0],
     acc: [0, 0, 0],
     rot: [0, 0, 0],
+    matrix: Array(16),
 }
 
 const controls = {
@@ -96,6 +109,8 @@ const controls = {
     rot: [0.01, 0, -0.2],
     size: 100,
 }
+
+//-- Pregenerated array fetching
 
 const fetch_array = (regular_url, encrypted_url) => 
     fetch(encrypted ? encrypted_url : regular_url)
@@ -116,38 +131,70 @@ const composit_array = new Float32Array([
      1,  1,
 ])
 
+//-- Helper functions
+
+const floor = x => Math.floor(x)
+const fract = x => x - floor(x)
+const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
+const clamps = (x, a, b) => Math.min(Math.max(x, a), b)
+const clamp = (x, a) => clamps(x, -a, a)
+
 const clamp_xyzc = (xyzc) => [X,Y,Z,C].map((max, i) => clamps(xyzc[i], 0, max - 1))
 const project_xyzc = ([_x, _y, _z, _c]) => C*(X*(Y*(_z)+_y)+_x)+_c
 const tex = (xyz) => Promise.all(
     [0,1,2].map( _c => map_array.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
 )
 
+// Do the thing
 main()
 
+// (the thing:)
 async function main() {
     resize()
 
+    //-- Enable some features
+
+    // Depth testing so closer objects occlude farther ones
     gl.enable(gl.DEPTH_TEST)
 
+    // Blending colors by alpha is needed for glass
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
+    // Cull back-facing faces based on normal
+    // (which is in turn based on vertex order)
     gl.enable(gl.CULL_FACE)
     gl.cullFace(gl.BACK)
 
+    //-- Set up GLSL programs
+    // The map drawing pipeline is made of two programs:
+    // the renderer and the compositor.
+    //
+    // The renderer takes in the school mesh and spits out a rendering that
+    // includes the base color, shadows, and the sky (the diffuse pass),
+    // and another rendering which has the UV coordinates of where the
+    // reflections go.
+    //
+    // The compositor takes the diffuse pass and the reflections UV and adds
+    // reflections to the final rendering.
+
+    // Load shaders
     await Promise.all(Object.keys(S).map(file => 
         fetch("src/shaders/" + file)
         .then(res => res.text())
         .then(text => S[file] = text)
     ))
 
+    // Set custom quality parameter
     S["render.h"] = S["render.h"]
         .replace(
             "#define QUALITY 3", 
             "#define QUALITY " + quality
         )
 
-    // setup GLSL program
+    // Create programs
+    // Each has a vertex and fragment shader,
+    // along with shared header inserted at the top of both shaders.
     P.renderer = createProgramFromSources(gl, [
         S["render.vert"], 
         S["render.frag"]
@@ -158,14 +205,18 @@ async function main() {
         S["composit.frag"]
     ].map(s => S["composit.h"]+s))
 
+    //-- Set renderer parameters
+
     gl.useProgram(P.renderer)
 
+    // Initialize vertex attributes to pass from the mesh
     A.cellPos = gl.getAttribLocation(P.renderer, "a_cellPos")
     A.fractPos = gl.getAttribLocation(P.renderer, "a_fractPos")
     A.color = gl.getAttribLocation(P.renderer, "a_color")
     A.normal = gl.getAttribLocation(P.renderer, "a_normal")
     A.id = gl.getAttribLocation(P.renderer, "a_id")
 
+    // Initialize uniforms for view matrix, camera position, and other scene parameters
     U.matrix = gl.getUniformLocation(P.renderer, "u_matrix")
     U.cellPos = gl.getUniformLocation(P.renderer, "u_cellPos")
     U.fractPos = gl.getUniformLocation(P.renderer, "u_fractPos")
@@ -173,11 +224,20 @@ async function main() {
     U.time = gl.getUniformLocation(P.renderer, "u_time")
     U.sunDir = gl.getUniformLocation(P.renderer, "u_sunDir")
 
+    // Initialize uniform texture samplers for the SDF (necessary for shadows and
+    // reflections raymarching) and noise texture (for clouds and stuff)
     U.map = gl.getUniformLocation(P.renderer, "u_map")
     U.noise = gl.getUniformLocation(P.renderer, "u_noise")
 
-    // Create separate render buffer for storing diffuse
-    // and reflection passes before merging them together
+    // The renderer is broken down into two parts: a rasterizer and a sampler.
+    //
+    // The rasterizer first outputs its diffuse, reflection, and depth passes into
+    // multisample-supporting render buffers, which the sampler then converts into
+    // 1x-sampled textures for the compositor to use.
+    //
+    // This is necessary in order to antialias (smoothen) the edges of the
+    // polygons, as we first need to render at a higher sample rate and then
+    // downsample that with smooth interpolation.
     RB.diffuse = gl.createRenderbuffer()
     RB.reflection = gl.createRenderbuffer()
     RB.depth = gl.createRenderbuffer()
@@ -195,6 +255,7 @@ async function main() {
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
                                gl.RENDERBUFFER, RB.depth)
 
+    // Load in the pregenerated textures
     T.map = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_3D, T.map)
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
@@ -224,6 +285,9 @@ async function main() {
     gl.bindTexture(gl.TEXTURE_2D, T.noise)
     gl.uniform1i(U.noise, 1)
 
+    // Load in the vertex data, which contains the quad positions (cellPos),
+    // vertex positions relative to their respective quads (fractPos), along
+    // with quad color, normal, and id attributes.
     O.vertex_array = gl.createVertexArray()
     gl.bindVertexArray(O.vertex_array)
 
@@ -272,8 +336,8 @@ async function main() {
         N_stride, 6 * N_int16 + 2 * N_int8
     )
     
-    //////////////////////
-
+    // Create textures for the sampler to output to from downsampling (aka
+    // blitting) the render bufers.
     T.diffuse = gl.createTexture()
     T.reflection = gl.createTexture()
 
@@ -287,6 +351,8 @@ async function main() {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
                                gl.TEXTURE_2D, T.reflection, 0)
 
+    // Set up the parameters for the compositor, which uses the 1x-sampled
+    // default framebuffer.
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     gl.useProgram(P.compositor)
 
@@ -303,35 +369,91 @@ async function main() {
     gl.bufferData(gl.ARRAY_BUFFER, composit_array, gl.STATIC_DRAW)
     gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
 
-    requestAnimationFrame(render)
+    // Add event listeners to keyboard and touchscreen inputs
     add_listeners()
+
+    // Begin render loop
+    requestAnimationFrame(render)
 }
 
-async function decrypt(buffer) {
-    const crypto_initial = new Uint8Array([
-        55, 44, 146, 89,
-        30, 93, 68, 30,
-        209, 23, 56, 140,
-        88, 149, 55, 221
+async function render(now) {
+
+    // Update array of times for calculating average framerate
+    times.pop()
+    times.unshift((start_time + now) / 1000)
+
+    // Update camera position, orientation, and world parameters
+    await update_state(times[0], times[0] - times[1])
+
+
+    //-- Begin drawing stuff
+    // First draw to the multisampling raster framebuffer, which rasterizes the
+    // mesh and outputs a diffuse and a reflection pass into its renderbuffers. 
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
+
+    gl.viewport(0, 0, ...size)
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+    gl.useProgram(P.renderer)
+    gl.bindVertexArray(O.vertex_array)
+
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
+
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, T.noise)
+
+    // Set the matrix.
+    gl.uniformMatrix4fv(U.matrix, false, cam.matrix)
+    gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
+    gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
+    gl.uniform3f(U.sunDir, ...weather.sun)
+    gl.uniform1i(U.frame, frame)
+    gl.uniform1f(U.time, times[0] % 1e3)
+    gl.uniform1i(U.map, 0)
+
+    gl.drawBuffers([
+       gl.COLOR_ATTACHMENT0,
+       gl.COLOR_ATTACHMENT1
     ])
+    gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_stride)
+    
+    // Then downsample (blit) the raster framebuffer's renderbuffers into the
+    // sampler framebuffer's 1x-sampling textures.
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, B.raster)
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, B.sampler)
+    gl.readBuffer(gl.COLOR_ATTACHMENT0)
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, null])
+    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
+                     gl.COLOR_BUFFER_BIT, gl.LINEAR)
+    gl.readBuffer(gl.COLOR_ATTACHMENT1)
+    gl.drawBuffers([null, gl.COLOR_ATTACHMENT1])
+    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
+                     gl.COLOR_BUFFER_BIT, gl.LINEAR)
 
-    const crypto_key = await crypto.subtle.importKey("jwk", {
-            "alg": "A256CBC",
-            "ext": true,
-            "k": url.searchParams.get("password") || prompt("password"),
-            "key_ops": ["encrypt", "decrypt"],
-            "kty": "oct"
-        }, {
-            "name": "AES-CBC"
-        },
-        false,
-        ["encrypt", "decrypt"]
-    )
+    // Finally send these textures to the default framebuffer to composit into
+    // the final image.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
-    return crypto.subtle.decrypt({
-            'name': 'AES-CBC',
-            'iv': crypto_initial
-        }, crypto_key, buffer)
+    gl.viewport(0, 0, ...size)
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+    gl.useProgram(P.compositor)
+    gl.bindVertexArray(O.composit_array)
+
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
+
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, T.reflection)
+
+    gl.uniform1i(U.diffuse, 0)
+    gl.uniform1i(U.reflection, 1)
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6)
+
+    //-- Then do it all again
+    requestAnimationFrame(render)
 }
 
 async function add_listeners() {
@@ -406,84 +528,6 @@ async function add_listeners() {
     window.addEventListener('resize', updateTextures)
 }
 
-const floor = x => Math.floor(x)
-const fract = x => x - floor(x)
-const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
-const clamps = (x, a, b) => Math.min(Math.max(x, a), b)
-const clamp = (x, a) => clamps(x, -a, a)
-
-async function render(now) {
-    times.pop()
-    times.unshift((start_time + now) / 1000)
-
-    await update_state(times[0], times[0] - times[1])
-
-    ////////
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
-
-    gl.viewport(0, 0, ...size)
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-    gl.useProgram(P.renderer)
-    gl.bindVertexArray(O.vertex_array)
-
-    gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_3D, T.map)
-
-    gl.activeTexture(gl.TEXTURE1)
-    gl.bindTexture(gl.TEXTURE_2D, T.noise)
-
-    // Set the matrix.
-    gl.uniformMatrix4fv(U.matrix, false, matrix)
-    gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
-    gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
-    gl.uniform3f(U.sunDir, ...weather.sun)
-    gl.uniform1i(U.frame, frame)
-    gl.uniform1f(U.time, times[0] % 1e3)
-    gl.uniform1i(U.map, 0)
-
-    gl.drawBuffers([
-       gl.COLOR_ATTACHMENT0,
-       gl.COLOR_ATTACHMENT1
-    ])
-    gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_stride)
-    
-    ////////////////
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, B.raster)
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, B.sampler)
-    gl.readBuffer(gl.COLOR_ATTACHMENT0)
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, null])
-    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
-                     gl.COLOR_BUFFER_BIT, gl.LINEAR)
-    gl.readBuffer(gl.COLOR_ATTACHMENT1)
-    gl.drawBuffers([null, gl.COLOR_ATTACHMENT1])
-    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
-                     gl.COLOR_BUFFER_BIT, gl.LINEAR)
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-
-    gl.viewport(0, 0, ...size)
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-    gl.useProgram(P.compositor)
-    gl.bindVertexArray(O.composit_array)
-
-    gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
-
-    gl.activeTexture(gl.TEXTURE1)
-    gl.bindTexture(gl.TEXTURE_2D, T.reflection)
-
-    gl.uniform1i(U.diffuse, 0)
-    gl.uniform1i(U.reflection, 1)
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6)
-
-    //////////////
-
-    requestAnimationFrame(render)
-}
 
 async function update_state(time, delta) {
 
@@ -518,7 +562,7 @@ async function update_state(time, delta) {
     cam.rot = controls.rot
 
     const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
-    matrix = m4.multiply(
+    cam.matrix = m4.multiply(
         m4.projection(...size, distance),
         m4.xRotation(-Math.PI/2),
         m4.xRotation(-cam.rot[x]),
@@ -526,7 +570,7 @@ async function update_state(time, delta) {
         m4.translation(...cam.pos.map(a=>-a/2))
     )
 
-    let hour = 4000*time / 60 / 60 / 12 * Math.PI
+    let hour = time / 60 / 60 / 12 * Math.PI
     weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)
     weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
     weather.sun[z] = Math.abs(Math.cos(hour))
@@ -551,6 +595,32 @@ async function update_state(time, delta) {
     }
 }
 
+async function decrypt(buffer) {
+    const crypto_initial = new Uint8Array([
+        55, 44, 146, 89,
+        30, 93, 68, 30,
+        209, 23, 56, 140,
+        88, 149, 55, 221
+    ])
+
+    const crypto_key = await crypto.subtle.importKey("jwk", {
+            "alg": "A256CBC",
+            "ext": true,
+            "k": url.searchParams.get("password") || prompt("password"),
+            "key_ops": ["encrypt", "decrypt"],
+            "kty": "oct"
+        }, {
+            "name": "AES-CBC"
+        },
+        false,
+        ["encrypt", "decrypt"]
+    )
+
+    return crypto.subtle.decrypt({
+            'name': 'AES-CBC',
+            'iv': crypto_initial
+        }, crypto_key, buffer)
+}
 async function resize() {
     size[0] = window.innerWidth * window.devicePixelRatio
     size[1] = window.innerHeight * window.devicePixelRatio

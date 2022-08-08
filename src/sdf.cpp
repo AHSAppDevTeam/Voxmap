@@ -150,7 +150,7 @@ int main()
 			in >> std::dec >> x >> y >> z >> std::hex >> color;
 		 ) {
 		x += 512; y += 5; z += 0;
-		if(color == GLASS) color = 0x1000000;
+		if(color == GLASS) color += 0x1000000;
 		pal_set.insert(color);
 		col[x][y][z] = color;
 		bin[x][y][z] = 1;
