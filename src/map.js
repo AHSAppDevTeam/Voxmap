@@ -35,13 +35,38 @@ const P = {}
 const U = {}
 // Vertex attributes
 const A = {}
-// Textures
-const T = {}
+// Textures: for rendering to and reading data from
+const T = {
+    colorUpdate: t => {
+        gl.bindTexture(gl.TEXTURE_2D, t)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
+                      ...size, 0,
+                      gl.RGBA, gl.UNSIGNED_BYTE, null)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    }
+}
+// Renderbuffers: like textures, but for multisampled rendering
+const RB = {
+    colorUpdate: rb => {
+        gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
+                                          gl.getParameter(gl.MAX_SAMPLES), 
+                                          gl.RGBA8, ...size)
+    },
+    depthUpdate: rb => {
+        gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
+                                          gl.getParameter(gl.MAX_SAMPLES), 
+                                          gl.DEPTH_COMPONENT24, ...size)
+    }
+}
 // Objects
 const O = {}
 // Buffers
 const B = {}
-const RB = {}
 
 const H_ground = 5.0
 const H_human = 1.6
@@ -99,17 +124,6 @@ const tex = (xyz) => Promise.all(
 
 main()
 
-function updateColorTexture(texture){
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
-                  ...size, 0,
-                  gl.RGBA, gl.UNSIGNED_BYTE, null)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-}
-
 async function main() {
     resize()
 
@@ -165,20 +179,13 @@ async function main() {
     // Create separate render buffer for storing diffuse
     // and reflection passes before merging them together
     RB.diffuse = gl.createRenderbuffer()
-    gl.bindRenderbuffer(gl.RENDERBUFFER, RB.diffuse)
-    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
-                                      gl.getParameter(gl.MAX_SAMPLES), 
-                                      gl.RGBA8, ...size)
     RB.reflection = gl.createRenderbuffer()
-    gl.bindRenderbuffer(gl.RENDERBUFFER, RB.reflection)
-    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
-                                      gl.getParameter(gl.MAX_SAMPLES), 
-                                      gl.RGBA8, ...size)
     RB.depth = gl.createRenderbuffer()
-    gl.bindRenderbuffer(gl.RENDERBUFFER, RB.depth)
-    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
-                                      gl.getParameter(gl.MAX_SAMPLES), 
-                                      gl.DEPTH_COMPONENT24, ...size)
+
+    RB.colorUpdate(RB.diffuse)
+    RB.colorUpdate(RB.reflection)
+    RB.depthUpdate(RB.depth)
+
     B.raster = gl.createFramebuffer()
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
@@ -266,13 +273,12 @@ async function main() {
     )
     
     //////////////////////
-    gl.useProgram(P.compositor)
 
     T.diffuse = gl.createTexture()
     T.reflection = gl.createTexture()
 
-    updateColorTexture(T.diffuse)
-    updateColorTexture(T.reflection)
+    T.colorUpdate(T.diffuse)
+    T.colorUpdate(T.reflection)
 
     B.sampler = gl.createFramebuffer()
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
@@ -280,6 +286,9 @@ async function main() {
                                gl.TEXTURE_2D, T.diffuse, 0)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
                                gl.TEXTURE_2D, T.reflection, 0)
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.useProgram(P.compositor)
 
     A.texCoord = gl.getAttribLocation(P.compositor, "a_texCoord")
     U.diffuse = gl.getUniformLocation(P.compositor, "u_diffuse")
@@ -443,6 +452,12 @@ async function render(now) {
     ////////////////
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, B.raster)
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, B.sampler)
+    gl.readBuffer(gl.COLOR_ATTACHMENT0)
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, null])
+    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
+                     gl.COLOR_BUFFER_BIT, gl.LINEAR)
+    gl.readBuffer(gl.COLOR_ATTACHMENT1)
+    gl.drawBuffers([null, gl.COLOR_ATTACHMENT1])
     gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
                      gl.COLOR_BUFFER_BIT, gl.LINEAR)
 
@@ -543,6 +558,9 @@ async function resize() {
     canvas.height = size[1]
 }
 async function updateTextures() {
-    updateColorTexture(T.diffuse)
-    updateColorTexture(T.reflection)
+    T.colorUpdate(T.diffuse)
+    T.colorUpdate(T.reflection)
+    RB.colorUpdate(RB.diffuse)
+    RB.colorUpdate(RB.reflection)
+    RB.depthUpdate(RB.depth)
 }
