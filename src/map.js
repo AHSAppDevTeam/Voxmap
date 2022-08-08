@@ -2,7 +2,12 @@ const debug = document.getElementById("debug")
 const canvas = document.getElementById("canvas")
 const joystick = document.getElementById("joystick")
 const form = document.getElementById("form")
-const gl = canvas.getContext("webgl2", { alpha: false, antialias: true } )
+const gl = canvas.getContext("webgl")
+const ext = {
+    draw: gl.getExtension('WEBGL_draw_buffers'),
+    depth: gl.getExtension('WEBGL_depth_texture'),
+    vao: gl.getExtension('OES_vertex_array_object')
+}
 
 const x = 0
 const y = 1
@@ -44,9 +49,9 @@ const B = {}
 const H_ground = 5.0
 const H_human = 1.6
 
-const N_int8 = 1
-const N_int16 = 2
-const N_stride = 6 * N_int16 + 4 * N_int8
+const N_float = 4
+const N_attributes = 9
+const N_stride = N_attributes * N_float
 const N_time_samples = 120
 const times = Array(N_time_samples).fill(0)
 
@@ -79,6 +84,8 @@ const fetch_array = (regular_url, encrypted_url) =>
 
 const map_array = fetch_array("out/texture.bin.gz", "src/map.blob")
 const vertex_array = fetch_array("out/vertex.bin.gz", "src/vertex.blob")
+    .then(array => new Uint16Array(array.buffer))
+    .then(array => new Float32Array(array))
 const noise_array = fetch_array("out/noise.bin.gz", "src/noise.blob")
 const composit_array = new Float32Array([
     -1, -1,
@@ -109,7 +116,7 @@ function updateColorTexture(texture){
 }
 function updateDepthTexture(texture){
     gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24,
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT,
                   ...size, 0,
                   gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
@@ -175,9 +182,9 @@ async function main() {
     // and reflection passes before merging them together
     B.render = gl.createFramebuffer()
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.render)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, ext.draw.COLOR_ATTACHMENT0_WEBGL,
                             gl.TEXTURE_2D, T.diffuse, 0)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, ext.draw.COLOR_ATTACHMENT1_WEBGL,
                             gl.TEXTURE_2D, T.reflection, 0)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
                             gl.TEXTURE_2D, T.depth, 0)
@@ -185,18 +192,17 @@ async function main() {
 
     
     T.map = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_3D, T.map)
-    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
-        X, Y, Z, 0,
+    gl.bindTexture(gl.TEXTURE_2D, T.map)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
+        X, Y*Z, 0,
         gl.RGBA, gl.UNSIGNED_BYTE, await map_array)
-    gl.generateMipmap(gl.TEXTURE_3D)
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.generateMipmap(gl.TEXTURE_2D)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_3D, T.map)
+    gl.bindTexture(gl.TEXTURE_2D, T.map)
     gl.uniform1i(U.map, 0)
 
     T.noise = gl.createTexture()
@@ -213,53 +219,38 @@ async function main() {
     gl.bindTexture(gl.TEXTURE_2D, T.noise)
     gl.uniform1i(U.noise, 1)
 
-    O.vertex_array = gl.createVertexArray()
-    gl.bindVertexArray(O.vertex_array)
+    O.vertex_array = ext.vao.createVertexArrayOES()
+    ext.vao.bindVertexArrayOES(O.vertex_array)
 
     B.cellPos = gl.createBuffer()
     gl.enableVertexAttribArray(A.cellPos)
     gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
     gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.cellPos, 3, gl.SHORT,
-        N_stride, 0
-    )
+    gl.vertexAttribPointer(A.cellPos, 3, gl.FLOAT, false, N_stride, 0)
 
     B.fractPos = gl.createBuffer()
     gl.enableVertexAttribArray(A.fractPos)
     gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
     gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.fractPos, 3, gl.SHORT,
-        N_stride, 3 * N_int16
-    )
+    gl.vertexAttribPointer(A.fractPos, 3, gl.FLOAT, false, N_stride, 3 * N_float)
 
     B.color = gl.createBuffer()
     gl.enableVertexAttribArray(A.color)
     gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
     gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.color, 1, gl.BYTE,
-        N_stride, 6 * N_int16
-    )
+    gl.vertexAttribPointer(A.color, 1, gl.FLOAT, false, N_stride, 6 * N_float)
 
     B.normal = gl.createBuffer()
     gl.enableVertexAttribArray(A.normal)
     gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
     gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.normal, 1, gl.BYTE,
-        N_stride, 6 * N_int16 + 1 * N_int8
-    )
+    gl.vertexAttribPointer(A.normal, 1, gl.FLOAT, false, N_stride, 7 * N_float)
 
     B.id = gl.createBuffer()
     gl.enableVertexAttribArray(A.id)
     gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
     gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.id, 1, gl.BYTE,
-        N_stride, 6 * N_int16 + 2 * N_int8
-    )
+    gl.vertexAttribPointer(A.id, 1, gl.FLOAT, false, N_stride, 8 * N_float)
 
     gl.enable(gl.DEPTH_TEST)
 
@@ -278,8 +269,8 @@ async function main() {
     U.diffuse = gl.getUniformLocation(P.compositor, "u_diffuse")
     U.reflection = gl.getUniformLocation(P.compositor, "u_reflection")
 
-    O.composit_array = gl.createVertexArray()
-    gl.bindVertexArray(O.composit_array)
+    O.composit_array = ext.vao.createVertexArrayOES()
+    ext.vao.bindVertexArrayOES(O.composit_array)
 
     B.texCoord = gl.createBuffer()
     gl.enableVertexAttribArray(A.texCoord)
@@ -408,10 +399,10 @@ async function render(now) {
     gl.viewport(0, 0, ...size)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
     gl.useProgram(P.renderer)
-    gl.bindVertexArray(O.vertex_array)
+    ext.vao.bindVertexArrayOES(O.vertex_array)
 
     gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_3D, T.map)
+    gl.bindTexture(gl.TEXTURE_2D, T.map)
 
     gl.activeTexture(gl.TEXTURE1)
     gl.bindTexture(gl.TEXTURE_2D, T.noise)
@@ -436,11 +427,11 @@ async function render(now) {
 
     gl.uniform1i(U.map, 0)
 
-    gl.drawBuffers([
-       gl.COLOR_ATTACHMENT0,
-       gl.COLOR_ATTACHMENT1,
+    ext.draw.drawBuffersWEBGL([
+       ext.draw.COLOR_ATTACHMENT0_WEBGL,
+       ext.draw.COLOR_ATTACHMENT1_WEBGL,
     ])
-    gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_stride)
+    gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_attributes)
     
     ////////////////
 
@@ -448,7 +439,7 @@ async function render(now) {
     gl.viewport(0, 0, ...size)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
     gl.useProgram(P.compositor)
-    gl.bindVertexArray(O.composit_array)
+    ext.vao.bindVertexArrayOES(O.composit_array)
 
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, T.diffuse)

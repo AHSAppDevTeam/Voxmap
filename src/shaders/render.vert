@@ -1,15 +1,15 @@
-in ivec4 a_cellPos;
-in ivec4 a_fractPos;
-in int a_color;
-in int a_normal;
-in int a_id;
+attribute vec4 a_cellPos;
+attribute vec4 a_fractPos;
+attribute float a_color;
+attribute float a_normal;
+attribute float a_id;
 
-flat out ivec3 v_cellPos;
-smooth out vec3 v_fractPos;
-flat out vec3 v_color;
-flat out vec3 v_normal;
-smooth out vec3 v_rayDir;
-flat out int v_id;
+varying vec3 _v_cellPos;
+varying vec3 _v_fractPos;
+varying vec3 v_color;
+varying vec3 v_normal;
+varying vec3 v_rayDir;
+varying float _v_id;
 
 vec3 normal(int n) {
   return
@@ -26,9 +26,9 @@ void main() {
     vec4 position = u_matrix * vec4(a_cellPos + a_fractPos);
     gl_Position = vec4(position.xyz, position.z + 1e-4);
 
-    v_cellPos = a_cellPos.xyz;
-    v_fractPos = vec3(a_fractPos.xyz);
-    v_color = palette(a_color);
-    v_normal = normal(a_normal);
-    v_id = a_id;
+    _v_cellPos = a_cellPos.xyz;
+    _v_fractPos = vec3(a_fractPos.xyz);
+    v_color = palette(int(a_color));
+    v_normal = normal(int(a_normal));
+    _v_id = a_id;
 }

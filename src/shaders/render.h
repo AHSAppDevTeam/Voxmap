@@ -1,4 +1,5 @@
-#version 300 es
+#extension GL_EXT_draw_buffers : require
+
 precision highp float;
 precision lowp int;
 
@@ -39,6 +40,6 @@ const float Xf = float(X);
 const float Yf = float(Y);
 const float Zf = float(Z);
 
-const vec3 Sf = 1.0 / vec3(Xf, Yf, Zf);
+const vec2 Sf = 1.0 / vec2(Xf, Yf*Zf);
 
 

@@ -86,10 +86,9 @@ auto vert = [](int x, int y, int z, int dx, int dy, int dz, int color, int norma
 {
 	o_vertex_16(x); o_vertex_16(y); o_vertex_16(z);
 	o_vertex_16(dx); o_vertex_16(dy); o_vertex_16(dz);
-	o_vertex_8(color);
-	o_vertex_8(normal);
-	o_vertex_8(id);
-	o_vertex_8(0);
+	o_vertex_16(color);
+	o_vertex_16(normal);
+	o_vertex_16(id);
 };
 auto tri = [](
 		int x, int y, int z,

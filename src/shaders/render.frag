@@ -1,14 +1,11 @@
-uniform highp sampler3D u_map;
+uniform highp sampler2D u_map;
 uniform highp sampler2D u_noise;
 
-flat in ivec3 v_cellPos;
-smooth in vec3 v_fractPos;
-flat in vec3 v_color;
-flat in vec3 v_normal;
-flat in int v_id;
-
-layout(location=0) out vec4 c_diffuse;
-layout(location=1) out vec4 c_reflection;
+varying vec3 _v_cellPos;
+varying vec3 _v_fractPos;
+varying vec3 v_color;
+varying vec3 v_normal;
+varying float _v_id;
 
 // Quality-adjustable raytracing parameters
 const int MAX_STEPS = X * (QUALITY + 1)/3;
@@ -16,7 +13,7 @@ const int MAX_STEPS = X * (QUALITY + 1)/3;
 // Utility functions
 //-------------------
 vec4 noise(vec2 p) {
-  return 1.0 - 2.0 * texture(u_noise, p);
+  return 1.0 - 2.0 * texture2D(u_noise, p);
 }
 float white(vec2 p) { return noise(p).r; }
 float fbm(vec2 p) { return noise(p).g; }
@@ -35,15 +32,20 @@ vec3 jitter(vec3 v, float f) {
   return v;
 }
 
-// Read data from texture
+// Read data from texture2D
 //------------------------
-vec3 tex(ivec3 c) {
-  return texelFetch(u_map, c, 0).rgb * 255.;
-}
 vec3 tex(ivec3 c, vec3 f) {
-  return texture(u_map, (vec3(c) + f)*Sf).rgb * 255.;
+  vec3 p = vec3(c) + f;
+  return 255.0 * mix(
+      texture2D(u_map, vec2(p.x, p.y + float(Y*c.z))*Sf),
+      texture2D(u_map, vec2(p.x, p.y + float(Y*c.z+Y))*Sf),
+      f.z
+    ).rgb;
 }
-// SDF texture is split into two directions:
+vec3 tex(ivec3 c) {
+  return texture2D(u_map, vec2(c.x, c.y + Y*c.z)*Sf).rgb;
+}
+// SDF texture2D is split into two directions:
 // one for the distance to the closest thing above
 // and one for the distance to the closest thing below,
 // speeding up raymarching
@@ -90,7 +92,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
   float dir = rayDir.z > 0.0 ? 1.0 : 0.0;
 
   // Start marchin'
-  while(res.step < MAX_STEPS && dist != 0.0) {
+  for (int i = 0; i < MAX_STEPS; i++) {
     // Distances to each axis
     axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-4;
 
@@ -116,9 +118,9 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
       break;
     }
 
+    res.step = i;
     dist = sdf_dir(res.cellPos, dir);
-
-    res.step++;
+    if(dist != 0.0 || res.cellPos == rayCellPos) break;
   }
 
   // Calculate normals
@@ -131,8 +133,12 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
 //-----------
 
 void main() {
-  c_diffuse = vec4(0,0,0,1);
-  c_reflection = vec4(0,0,0,1);
+  ivec3 v_cellPos = ivec3(_v_cellPos + _v_fractPos);
+  vec3 v_fractPos = fract(_v_fractPos);
+  int v_id = int(_v_id);
+
+  gl_FragData[0] = vec4(0,0,0,1);
+  gl_FragData[1] = vec4(0,0,0,1);
 
   bool isSky = v_id == 1;
   bool isGlass = v_id == 2;
@@ -191,12 +197,12 @@ void main() {
       skyCol = mix(skyCol, cloudCol, cloudFactor);
     }
 
-    c_diffuse.rgb = skyCol;
+    gl_FragData[0].rgb = skyCol;
   } else {
 
     vec3 baseCol = v_color;
 
-    vec3 normalCol = mat3x3(
+    vec3 normalCol = mat3(
 	0.90, 0.90, 0.95,
 	0.95, 0.95, 1.00,
 	1.00, 1.00, 1.00
@@ -237,7 +243,7 @@ void main() {
 #endif
     }
     /*
-      c_diffuse.rgb = vec3(sdf(v_cellPos, v_fractPos - 0.5*v_normal - rayDir));
+      gl_FragData[0].rgb = vec3(sdf(v_cellPos, v_fractPos - 0.5*v_normal - rayDir));
       return;
       */
 #endif
@@ -260,18 +266,18 @@ void main() {
       p.xy /= p.z + 1e-5;
       float bounds = max(p.x*p.x, p.y*p.y);
       if(bounds < 1.0) {
-	c_reflection.rg = 0.5 + 0.5*p.xy;
-	c_reflection.b = reflectFactor * (1.0 - bounds);
+	gl_FragData[1].rg = 0.5 + 0.5*p.xy;
+	gl_FragData[1].b = reflectFactor * (1.0 - bounds);
       }
     }
 #endif
 
     // Multiply everything together
-    c_diffuse.rgb = baseCol * normalCol * lightCol * ambCol;
+    gl_FragData[0].rgb = baseCol * normalCol * lightCol * ambCol;
 
     if(isGlass) {
-      c_diffuse.a = 0.5 * exp2(dot(rayDir, v_normal));
-      c_diffuse.rgb *= atmCol;
+      gl_FragData[0].a = 0.5 * exp2(dot(rayDir, v_normal));
+      gl_FragData[0].rgb *= atmCol;
     }
 
   }
