@@ -2,7 +2,7 @@ const debug = document.getElementById("debug")
 const canvas = document.getElementById("canvas")
 const joystick = document.getElementById("joystick")
 const form = document.getElementById("form")
-const gl = canvas.getContext("webgl2", { alpha: false, antialias: true } )
+const gl = canvas.getContext("webgl2", { alpha: false, antialias: false } )
 
 const x = 0
 const y = 1
@@ -14,6 +14,7 @@ const X = 1024 // E-W width
 const C = 4 // 4 channels
 
 let size = []
+let matrix = []
 
 let quality = get_param("quality") || "3"
 
@@ -40,6 +41,7 @@ const T = {}
 const O = {}
 // Buffers
 const B = {}
+const RB = {}
 
 const H_ground = 5.0
 const H_human = 1.6
@@ -107,19 +109,17 @@ function updateColorTexture(texture){
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 }
-function updateDepthTexture(texture){
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24,
-                  ...size, 0,
-                  gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-}
 
 async function main() {
     resize()
+
+    gl.enable(gl.DEPTH_TEST)
+
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
+    gl.enable(gl.CULL_FACE)
+    gl.cullFace(gl.BACK)
 
     await Promise.all(Object.keys(S).map(file => 
         fetch("src/shaders/" + file)
@@ -162,28 +162,32 @@ async function main() {
     U.map = gl.getUniformLocation(P.renderer, "u_map")
     U.noise = gl.getUniformLocation(P.renderer, "u_noise")
 
-    T.diffuse = gl.createTexture()
-    updateColorTexture(T.diffuse)
-    
-    T.reflection = gl.createTexture()
-    updateColorTexture(T.reflection)
-
-    T.depth = gl.createTexture()
-    updateDepthTexture(T.depth)
-
     // Create separate render buffer for storing diffuse
     // and reflection passes before merging them together
-    B.render = gl.createFramebuffer()
-    gl.bindFramebuffer(gl.FRAMEBUFFER, B.render)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                            gl.TEXTURE_2D, T.diffuse, 0)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
-                            gl.TEXTURE_2D, T.reflection, 0)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
-                            gl.TEXTURE_2D, T.depth, 0)
-    console.log(gl.checkFramebufferStatus(gl.FRAMEBUFFER), gl.FRAMEBUFFER_COMPLETE)
+    RB.diffuse = gl.createRenderbuffer()
+    gl.bindRenderbuffer(gl.RENDERBUFFER, RB.diffuse)
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
+                                      gl.getParameter(gl.MAX_SAMPLES), 
+                                      gl.RGBA8, ...size)
+    RB.reflection = gl.createRenderbuffer()
+    gl.bindRenderbuffer(gl.RENDERBUFFER, RB.reflection)
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
+                                      gl.getParameter(gl.MAX_SAMPLES), 
+                                      gl.RGBA8, ...size)
+    RB.depth = gl.createRenderbuffer()
+    gl.bindRenderbuffer(gl.RENDERBUFFER, RB.depth)
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
+                                      gl.getParameter(gl.MAX_SAMPLES), 
+                                      gl.DEPTH_COMPONENT24, ...size)
+    B.raster = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                               gl.RENDERBUFFER, RB.diffuse)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
+                               gl.RENDERBUFFER, RB.reflection)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
+                               gl.RENDERBUFFER, RB.depth)
 
-    
     T.map = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_3D, T.map)
     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
@@ -260,19 +264,22 @@ async function main() {
         A.id, 1, gl.BYTE,
         N_stride, 6 * N_int16 + 2 * N_int8
     )
-
-    gl.enable(gl.DEPTH_TEST)
-
-    gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-
-    gl.enable(gl.CULL_FACE)
-    gl.cullFace(gl.BACK)
     
     //////////////////////
-
     gl.useProgram(P.compositor)
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+    T.diffuse = gl.createTexture()
+    T.reflection = gl.createTexture()
+
+    updateColorTexture(T.diffuse)
+    updateColorTexture(T.reflection)
+
+    B.sampler = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                               gl.TEXTURE_2D, T.diffuse, 0)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
+                               gl.TEXTURE_2D, T.reflection, 0)
 
     A.texCoord = gl.getAttribLocation(P.compositor, "a_texCoord")
     U.diffuse = gl.getUniformLocation(P.compositor, "u_diffuse")
@@ -400,13 +407,15 @@ async function render(now) {
     times.pop()
     times.unshift((start_time + now) / 1000)
 
-    update_state(times[0], times[0] - times[1])
+    await update_state(times[0], times[0] - times[1])
 
     ////////
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, B.render)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
+
     gl.viewport(0, 0, ...size)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
     gl.useProgram(P.renderer)
     gl.bindVertexArray(O.vertex_array)
 
@@ -416,37 +425,32 @@ async function render(now) {
     gl.activeTexture(gl.TEXTURE1)
     gl.bindTexture(gl.TEXTURE_2D, T.noise)
 
-    const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
-    const matrix = m4.multiply(
-        m4.projection(...size, distance),
-        m4.xRotation(-Math.PI/2),
-        m4.xRotation(-cam.rot[x]),
-        m4.zRotation(-cam.rot[z]),
-        m4.translation(...cam.pos.map(a=>-a/2))
-    )
-
     // Set the matrix.
     gl.uniformMatrix4fv(U.matrix, false, matrix)
-
     gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
     gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
     gl.uniform3f(U.sunDir, ...weather.sun)
     gl.uniform1i(U.frame, frame)
     gl.uniform1f(U.time, times[0] % 1e3)
-
     gl.uniform1i(U.map, 0)
 
     gl.drawBuffers([
        gl.COLOR_ATTACHMENT0,
-       gl.COLOR_ATTACHMENT1,
+       gl.COLOR_ATTACHMENT1
     ])
     gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_stride)
     
     ////////////////
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, B.raster)
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, B.sampler)
+    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
+                     gl.COLOR_BUFFER_BIT, gl.LINEAR)
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
     gl.viewport(0, 0, ...size)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
     gl.useProgram(P.compositor)
     gl.bindVertexArray(O.composit_array)
 
@@ -498,6 +502,15 @@ async function update_state(time, delta) {
     )
     cam.rot = controls.rot
 
+    const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
+    matrix = m4.multiply(
+        m4.projection(...size, distance),
+        m4.xRotation(-Math.PI/2),
+        m4.xRotation(-cam.rot[x]),
+        m4.zRotation(-cam.rot[z]),
+        m4.translation(...cam.pos.map(a=>-a/2))
+    )
+
     let hour = 4000*time / 60 / 60 / 12 * Math.PI
     weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)
     weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
@@ -532,5 +545,4 @@ async function resize() {
 async function updateTextures() {
     updateColorTexture(T.diffuse)
     updateColorTexture(T.reflection)
-    updateDepthTexture(T.depth)
 }
