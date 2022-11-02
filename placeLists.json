@@ -1,0 +1,215 @@
+{
+  "building_A" : {
+    "name" : "A building",
+    "icon" : "A",
+    "sort" : 20,
+    "places" : {
+      "building_A_000" : 0,
+      "room_A_101" : 1,
+      "room_A_102" : 1,
+      "room_A_103" : 1,
+      "room_A_104" : 1,
+      "room_A_105" : 1,
+      "room_A_106" : 1,
+      "room_A_107" : 1,
+      "room_A_108" : 1,
+      "room_A_109" : 1,
+      "room_A_201" : 1,
+      "room_A_202" : 1,
+      "room_A_203" : 1,
+      "room_A_204" : 1,
+      "room_A_205" : 1,
+      "room_A_206" : 1,
+      "room_A_207" : 1,
+      "room_A_208" : 1,
+      "room_A_209" : 1
+    }
+  },
+  "row_B" : {
+    "name" : "B row",
+    "icon" : "B",
+    "sort" : 21,
+    "places" : {
+      "row_B_000" : 0,
+      "room_B_101" : 1,
+      "room_B_102" : 1,
+      "room_B_103" : 1,
+      "room_B_104" : 1
+    }
+  },
+  "row_C" : {
+    "name" : "C row",
+    "icon" : "C",
+    "sort" : 22,
+    "places" : {
+      "row_C_000" : 0,
+      "room_C_101" : 1,
+      "room_C_102" : 1,
+      "room_C_103" : 1,
+      "room_C_104" : 1
+    }
+  },
+  "row_D" : {
+    "name" : "D row",
+    "icon" : "D",
+    "sort" : 23,
+    "places" : {
+      "row_D_000" : 0,
+      "room_D_101" : 1,
+      "room_D_102" : 1,
+      "room_D_103" : 1,
+      "room_D_104" : 1
+    }
+  },
+  "row_E" : {
+    "name" : "E row",
+    "icon" : "E",
+    "sort" : 24,
+    "places" : {
+      "row_E_000" : 0,
+      "room_E_101" : 1,
+      "room_E_102" : 1,
+      "room_E_103" : 1,
+      "room_E_104" : 1
+    }
+  },
+  "building_F" : {
+    "name" : "F row",
+    "icon" : "F",
+    "sort" : 25,
+    "places" : {
+      "row_F_000" : 0,
+      "room_F_101" : 1,
+      "room_F_102" : 1,
+      "room_F_103" : 1,
+      "room_F_104" : 1
+    }
+  },
+  "row_G" : {
+    "name" : "G row",
+    "icon" : "G",
+    "sort" : 26,
+    "places" : {
+      "row_G_000" : 0,
+      "room_G_101" : 1,
+      "room_G_102" : 1,
+      "room_G_103" : 1,
+      "room_G_104" : 1
+    }
+  },
+  "row_H" : {
+    "name" : "H row",
+    "icon" : "H",
+    "sort" : 27,
+    "places" : {
+      "row_H_000" : 0,
+      "room_H_101" : 1,
+      "room_H_102" : 1,
+      "room_H_103" : 1,
+      "room_H_104" : 1
+    }
+  },
+  "row_I" : {
+    "name" : "I row",
+    "icon" : "I",
+    "sort" : 28,
+    "places" : {
+      "row_I_000" : 0,
+      "room_I_101" : 1,
+      "room_I_102" : 1,
+      "room_I_103" : 1,
+      "room_I_104" : 1
+    }
+  },
+  "building_J" : {
+    "name" : "J building",
+    "icon" : "J",
+    "sort" : 29,
+    "places" : {
+      "building_J_000" : 0,
+      "room_J_101" : 1,
+      "room_J_102" : 1,
+      "room_J_103" : 1,
+      "room_J_104" : 1
+    }
+  },
+  "building_S" : {
+    "name" : "S building",
+    "icon" : "S",
+    "sort" : 30,
+    "places" : {
+      "building_Science_000" : 0,
+      "room_S_101" : 1,
+      "room_S_102" : 1,
+      "room_S_103" : 1,
+      "room_S_104" : 1,
+      "room_S_105" : 1,
+      "room_S_106" : 1,
+      "room_S_107" : 1,
+      "room_S_108" : 1,
+      "room_S_109" : 1,
+      "room_S_201" : 1,
+      "room_S_202" : 1,
+      "room_S_203" : 1,
+      "room_S_204" : 1,
+      "room_S_205" : 1,
+      "room_S_206" : 1,
+      "room_S_207" : 1,
+      "room_S_208" : 1,
+      "room_S_209" : 1
+    }
+  },
+  "building_Library" : {
+    "sort" : 31,
+    "name" : "Library",
+	 "icon" : "book",
+    "places" : {
+      "building_Library" : 0
+    }
+  },
+  "building_MPC" : {
+    "sort" : 32,
+    "name" : "MPC",
+    "icon" : "chair",
+    "places" : {
+      "building_MPC" : 0
+    }
+  },
+  "building_PAC" : {
+    "name" : "PAC",
+    "sort" : 33,
+    "icon" : "theater_comedy",
+    "places" : {
+      "building_PAC" : 0
+    }
+  },
+  "collection_Food" : {
+    "icon" : "restaurant",
+    "sort" : 10,
+    "name" : "Food",
+    "places" : {
+      "building_Snack_000" : 1,
+      "building_Cafeteria_000" : 0
+    }
+  },
+  "collection_Sports" : {
+    "sort" : 11,
+    "name": "Sports",
+    "icon" : "sports_football"
+  },
+  "collection_Water" : {
+    "sort" : 12,
+    "icon" : "water_drop",
+    "name" : "Water"
+  },
+  "collection_Clubs" : {
+    "sort" : 13,
+    "icon" : "groups",
+    "name" : "Clubs"
+  },
+  "collection_Restrooms" : {
+    "sort" : 14,
+    "icon" : "wc",
+    "name": "Restrooms"
+  }
+}

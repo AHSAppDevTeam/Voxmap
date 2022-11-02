@@ -49,12 +49,76 @@ signInWithPopup(auth, provider)
     // ...
   }).then(() => {
 
-    const keyRef = ref(database, 'places/key/name');
-    onValue(keyRef, (snapshot) => {
-        map.src = "map.html?quality=3&password=" + snapshot.val()
-        map.focus()
-    });
-    signin.style.display = "none"
+    display()
+
+
   })
 })
+
+async function display() {
+    let places, placeLists, password
+
+    const $places = document.getElementById("places")
+    const $placeLists = document.getElementById("placeLists")
+
+    const placesRef = ref(database, 'places');
+    const placeListsRef = ref(database, 'placeLists')
+
+    onValue(placesRef, (snapshot) => {
+        places = snapshot.val()
+        password = places.key.name
+        map.src = "map.html?quality=3&password=" + password
+        map.focus()
+    })
+    onValue(placeListsRef, (snapshot) => {
+        while($placeLists.firstChild) 
+            $placeLists.removeChild($placeLists.firstChild)
+
+        placeLists = Object.fromEntries(
+          Object.entries(snapshot.val())
+          .sort((a, b) => (a[1].sort - b[1].sort))
+        )
+        for(const placeListKey in placeLists) {
+          const placeList = placeLists[placeListKey]
+          const $placeList = document.createElement("li")
+
+          const $icon = document.createElement("span")
+          $icon.textContent = placeList.icon
+          $icon.classList.add("material-symbols-outlined")
+
+          $placeList.append($icon, placeList.name)
+          $placeList.addEventListener("click", event => {
+            while($places.firstChild) 
+                $places.removeChild($places.firstChild)
+
+            $placeList.after($places)
+
+            const placeKeys = Object.fromEntries(
+              Object.entries(placeList.places)
+              .sort((a, b) => (a[1] - b[1]))
+            )
+            console.log(placeKeys)
+            for(const placeKey in placeKeys) {
+              const $place = document.createElement("li")
+              const place = places[placeKey]
+              $place.textContent = place.name
+              $place.addEventListener("click", event => {
+                map.src = "map.html?quality=3&password=" + password +
+                  "&cam=" + encodeURIComponent(JSON.stringify({
+    pos: [place.x, place.y, 6.6 ],
+    vel: [0, 0, 0],
+    acc: [0, 0, 0],
+    rot: [0, 0, 0],
+    matrix: Array(16),
+                }))
+              })
+              $places.append($place)
+            }
+          })
+
+          $placeLists.append($placeList)
+        }
+    })
+    signin.style.display = "none"
+}
 

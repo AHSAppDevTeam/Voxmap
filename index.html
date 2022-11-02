@@ -19,55 +19,15 @@
 </head>
 
 <body>
-	<iframe id="map" src="restricted.html"></iframe>
+	<iframe id="map" src="map.html?quality=1"></iframe>
 	<form id="form">
 		<button id="signin">Sign in with your AUSD account</button>
-		<div>(Currently broken on iOS will fix soon)</div>
-		<div>&darr; Nonfunctional placeholder UI thingies lol &darr;</div>
 		<label>
 			<input id="search" placeholder="Search...">
 		</label>
 		<label>
-			<ul id="categories">
-				<li>
-					<span class="material-symbols-outlined"> restaurant </span>
-					Food
-				</li>
-				<li>
-					<span class="material-symbols-outlined"> water_drop </span>
-					Water
-				</li>
-				<li>
-					<span class="material-symbols-outlined"> sports_football
-					</span>
-					Sports
-				</li>
-				<li>
-					<span class="material-symbols-outlined"> groups </span>
-					Clubs
-				</li>
-				<li>
-					<span class="material-symbols-outlined"> wc </span>
-					Restrooms
-				</li>
-			</ul>
-		</label>
-		<label>
-			<ul id="buildings">
-				<li><span></span>A</li>
-				<li><span></span>B</li>
-				<li><span></span>C</li>
-				<li><span></span>D</li>
-				<li><span></span>E</li>
-				<li><span></span>F</li>
-				<li><span></span>G</li>
-				<li><span></span>H</li>
-				<li><span></span>I</li>
-				<li><span></span>J</li>
-				<li><span></span>Library</li>
-				<li><span></span>MPC</li>
-				<li><span></span>PAC</li>
-			</ul>
+			<ul id="placeLists"> </ul>
+			<ul id="places"> </ul>
 		</label>
 		<label>
 			Built and programmed by Xing between 2021 and 2022, with help from Shin,
@@ -77,7 +37,6 @@
 	</form>
 	<script src=src/url.js></script>
 	<script type=module src=src/ui.js></script>
-
 </body>
 
 </html>

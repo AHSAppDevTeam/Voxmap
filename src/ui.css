@@ -93,6 +93,7 @@ body * {
 	justify-content: center;
 	align-items: center;
 	gap: 0.5rem;
+	cursor: pointer;
 }
 
 #form li span {
@@ -106,8 +107,10 @@ body * {
 	border-radius: 100%;
 }
 
-#buildings li span {
-	background: #fca;
+#form ul ul li {
+	background: #ffa;
+	border-radius: 1rem;
+	padding: 0.2rem;
 }
 
 .material-symbols-outlined {
