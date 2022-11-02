@@ -103,14 +103,7 @@ async function display() {
               const place = places[placeKey]
               $place.textContent = place.name
               $place.addEventListener("click", event => {
-                map.src = "map.html?quality=3&password=" + password +
-                  "&cam=" + encodeURIComponent(JSON.stringify({
-    pos: [place.x, place.y, 6.6 ],
-    vel: [0, 0, 0],
-    acc: [0, 0, 0],
-    rot: [0, 0, 0],
-    matrix: Array(16),
-                }))
+                map.contentWindow.postMessage(place, "*")
               })
               $places.append($place)
             }

@@ -96,7 +96,6 @@ let quality = get_param("quality") || "3" // render quality
 const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
 }
-console.log(get_json_param("cam"))
 const cam = get_json_param("cam") || {
     pos: [381.5, 128.1, H_ground + H_human],
     vel: [0, 0, 0],
@@ -104,6 +103,10 @@ const cam = get_json_param("cam") || {
     rot: [0, 0, 0],
     matrix: Array(16),
 }
+window.addEventListener("message", event => {
+    const place = event.data
+    cam.pos = [ place.x, place.y, place.z + H_human ]
+})
 
 const controls = {
     move: [0, 0, 0],
