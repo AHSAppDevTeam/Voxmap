@@ -105,7 +105,7 @@ const cam = get_json_param("cam") || {
 }
 window.addEventListener("message", event => {
     const place = event.data
-    cam.pos = [ place.x, place.y, place.z + H_human ]
+    cam.pos = [ place.x, place.y, place.z + 10 ]
 })
 
 const controls = {
