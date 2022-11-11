@@ -3,6 +3,7 @@ const $debug = document.getElementById("debug")
 const $map3d = document.getElementById("map-3d")
 const $map2d = document.getElementById("map-2d")
 const $overlay = document.getElementById("map-overlay")
+const $toggle = document.getElementById("toggle")
 const $joystick = document.getElementById("joystick")
 const gl = $map3d.getContext("webgl2", { alpha: false, antialias: false } )
 const map2d = $map2d.getContext("2d") 
@@ -116,6 +117,9 @@ const cam = get_json_param("cam") || {
 
 let place, places
 window.addEventListener("message", ({ data }) => {
+    if( "mode" in data) {
+        mode = data.mode
+    }
     if( "places" in data) {
         places = data.places
     }
@@ -482,14 +486,17 @@ async function render(now) {
 }
 
 
-const image = new Image()
-image.src = "/res/2d.png" 
-overlay.font = "20px Helvetica, Roboto"
+const img2d = new Image()
+img2d.src = "/res/2d.png" 
+
 overlay.lineWidth = 3
-overlay.strokeStyle = "#fff"
-overlay.fillStyle = "#000"
 overlay.lineJoin = "round"
 overlay.textAlign = "center"
+
+let mode = 0
+$toggle.addEventListener("click", event=>{
+    mode = 1-mode
+})
 
 async function drawOverlay(){
 
@@ -501,18 +508,25 @@ async function drawOverlay(){
         size[x]/2 - cam.pos[x]*s,
         size[y]/2 + cam.pos[y]*s
     ]
-    //map2d.drawImage(image, center[x], center[y]-Y*s, X*s, Y*s)
+    if(mode == 0) {
+       map2d.drawImage(img2d, center[x], center[y]-Y*s, X*s, Y*s)
+       for(key in places) { 
+           if(!key.startsWith("building_")) continue
+           const place = places[key]
+            overlay.font = "20px Roboto"
+            overlay.strokeStyle = "#fff"
+            overlay.fillStyle = "#000"
+               overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+               overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+       }
+       return
+    }
     //map2d.drawImage(image, 0, 0, X, Y)
     
     if(!places) return;
 
    for(key in places) {
        const place = places[key]
-
-       /* 2D
-       overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
-       overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
-       */
 
        // Multiply by the camera matrix to go from vertex space
        // to view frustum space, then divide by z to get
@@ -552,10 +566,10 @@ async function drawOverlay(){
        if(key.startsWith("room_")) {
            overlay.globalAlpha = smoothstep(p, 0.5, 0.6)
            overlay.font = `${18*p}px sans-serif`
-           overlay.strokeStyle = "#222"
-           overlay.fillStyle = "#eee"
+           overlay.strokeStyle = "#444"
+           overlay.fillStyle = "#fff"
        } else if (key.startsWith("building_")) {
-           overlay.globalAlpha = 1 - smoothstep(p, 0.6, 0.7)
+           overlay.globalAlpha = 1 - smoothstep(p, 0.5, 0.6)
            overlay.font = `${18 + 4*p}px sans-serif`
            overlay.strokeStyle = "#fff"
            overlay.fillStyle = "#000"
@@ -671,13 +685,19 @@ async function update_state(time, delta) {
     feet_pos[z] -= H_human
     let [above, below, color] = await tex(feet_pos.map(floor))
     if(below < 1) cam.acc[z] += 20
+    if(below < 0.5) cam.vel[z] = 0
     if(below > 1) cam.acc[z] -= 20
 
-    let drag = 1 / 8
+    let drag = 1/12
 
     cam.acc = cam.acc.map((a, i) => a - cam.vel[i] * drag / delta)
     cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
     cam.pos = cam.pos.map((p, i) => p + cam.vel[i] * delta)
+    cam.pos = [
+        clamps(cam.pos[x], -X, 2*X),
+        clamps(cam.pos[y], -Y, 2*Y),
+        clamps(cam.pos[z], 0, X)
+    ]
 
     cam.rot = cam.rot.map( 
         (a, i) => cam.rot[i] + 

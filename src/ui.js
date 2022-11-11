@@ -14,7 +14,7 @@ const firebaseConfig = {
 }
 
 const map = document.getElementById("map")
-const toggle = document.getElementById("toggle")
+const signin = document.getElementById("signin")
 const search = document.getElementById("search")
 
 // Initialize Firebase
@@ -29,10 +29,12 @@ const placesRef = ref(database, 'places')
 const placeListsRef = ref(database, 'placeLists')
 const passwordRef = ref(database, 'ausd-secrets/map')
 let places, placeLists, password
+let mode = 0
+let authed = false
 
 display2D()
 
-toggle.addEventListener("click", event => {
+signin.addEventListener("click", event => {
   event.preventDefault()
   signInWithPopup(auth, provider)
   .then((result) => {

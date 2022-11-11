@@ -191,6 +191,8 @@ void main() {
       skyCol = mix(skyCol, cloudCol, cloudFactor);
     }
 
+    if(rayDir.z < 0.) skyCol = vec3(0.8);
+
     c_diffuse.rgb = skyCol;
   } else {
 

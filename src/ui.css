@@ -10,22 +10,23 @@ body {
 	font-size: 14px;
 }
 
-#toggle {
-	padding: 4rem;
+#signin {
+	padding: 2rem;
 	margin-bottom: 2rem;
 	font-family: inherit;
 	font-size: 1.2rem;
 	border-radius: 10rem;
 	border: 0;
 	cursor: pointer;
-	background: url("/res/render.jpg");
+	background: #cfd;
 	background-size: cover;
 	background-position: cover;
 	box-shadow: 0 2px 0 #48b;
 	color: #248;
 	transition-duration: 200ms;
 }
-#toggle:hover {
+#signin:hover {
+	background: #afc;
 	box-shadow: 0 6px 0 #48b;
 }
 
@@ -95,6 +96,7 @@ body * {
 	align-items: center;
 	gap: 0.5rem;
 	cursor: pointer;
+	user-select: none;
 }
 
 #form li span {
