@@ -483,9 +483,9 @@ async function render(now) {
 const image = new Image()
 image.src = "/res/2d.png" 
 overlay.font = "20px Helvetica, Roboto"
-overlay.lineWidth = 4
-overlay.strokeStyle = "#000"
-overlay.fillStyle = "#fff"
+overlay.lineWidth = 3
+overlay.strokeStyle = "#fff"
+overlay.fillStyle = "#000"
 overlay.textAlign = "center"
 
 async function drawOverlay(){
@@ -505,6 +505,11 @@ async function drawOverlay(){
 
    for(key in places) {
        const place = places[key]
+
+       /* 2D
+       overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+       overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+       */
 
        // Multiply by the camera matrix to go from vertex space
        // to view frustum space, then divide by z to get
@@ -539,14 +544,20 @@ async function drawOverlay(){
 
    for(key in places) { 
        const place = places[key]
+       const p = clamps(1 - 5*place.vz, 0, 1) // proximity
 
-       overlay.font = `${clamps(2/place.vz+2, 10, 20)}px sans-serif`
+       if(key.startsWith("room_")) {
+           overlay.globalAlpha = p
+           overlay.font = `${18*p}px sans-serif`
+       } else if (key.startsWith("building_")) {
+           overlay.globalAlpha = Math.exp(-p*p*p*p)
+           overlay.font = `${18 + 4*p}px sans-serif`
+       } else {
+           overlay.globalAlpha = 0.5;
+           overlay.font = `${14}px sans-serif`
+       }
        overlay.strokeText(place.name, place.vx, place.vy)
        overlay.fillText(place.name, place.vx, place.vy)
-       /*
-       overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
-       overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
-       */
    }
 }
 
@@ -555,11 +566,12 @@ async function add_listeners() {
     $overlay.addEventListener('click', (event) => {
         /*
         const name = prompt("name")
-        list["room_"+name.replace("-","_")] = {
-            name: name,
+        //list["room_"+name.replace("-","_")] = {
+        list["building_"+name+"_001"] = {
+            name: name+" row",
             x: event.offsetX, 
             y: Y-event.offsetY,
-            z: 3
+            z: 12
         }
         console.log(list)
         */
