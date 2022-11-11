@@ -158,6 +158,8 @@ const floor = x => Math.floor(x)
 const fract = x => x - floor(x)
 const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
 const clamps = (x, a, b) => Math.min(Math.max(x, a), b)
+const smoothstep_polynomial = x => x*x*(3-2*x)
+const smoothstep = (x, a, b) => x < a ? 0 : x >= b ? 1 : smoothstep_polynomial((x-a)/(b-a))
 const clamp = (x, a) => clamps(x, -a, a)
 
 const clamp_xyzc = (xyzc) => [X,Y,Z,C].map((max, i) => clamps(xyzc[i], 0, max - 1))
@@ -486,6 +488,7 @@ overlay.font = "20px Helvetica, Roboto"
 overlay.lineWidth = 3
 overlay.strokeStyle = "#fff"
 overlay.fillStyle = "#000"
+overlay.lineJoin = "round"
 overlay.textAlign = "center"
 
 async function drawOverlay(){
@@ -544,14 +547,18 @@ async function drawOverlay(){
 
    for(key in places) { 
        const place = places[key]
-       const p = clamps(1 - 5*place.vz, 0, 1) // proximity
+       const p = clamps(3e-2/place.vz, 0, 1) // proximity
 
        if(key.startsWith("room_")) {
-           overlay.globalAlpha = p
+           overlay.globalAlpha = smoothstep(p, 0.5, 0.6)
            overlay.font = `${18*p}px sans-serif`
+           overlay.strokeStyle = "#222"
+           overlay.fillStyle = "#eee"
        } else if (key.startsWith("building_")) {
-           overlay.globalAlpha = Math.exp(-p*p*p*p)
+           overlay.globalAlpha = 1 - smoothstep(p, 0.6, 0.7)
            overlay.font = `${18 + 4*p}px sans-serif`
+           overlay.strokeStyle = "#fff"
+           overlay.fillStyle = "#000"
        } else {
            overlay.globalAlpha = 0.5;
            overlay.font = `${14}px sans-serif`
