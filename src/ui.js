@@ -70,7 +70,7 @@ async function display2D() {
 
     await get(placesRef).then((snapshot) => {
         places = sort(snapshot.val())
-        map.contentWindow.postMessage({ places }, "*")
+        //map.contentWindow.postMessage({ places }, "*")
     })
 
     await get(placeListsRef).then((snapshot) => {
@@ -120,6 +120,9 @@ async function display3D() {
         password = snapshot.val()
         map.src = "map.html?quality=3&password=" + password
         map.focus()
+        map.addEventListener("load",()=>{
+          map.contentWindow.postMessage({ places }, "*")
+        })
     })
 }
 

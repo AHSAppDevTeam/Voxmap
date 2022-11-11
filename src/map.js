@@ -496,6 +496,11 @@ overlay.textAlign = "center"
 let mode = 0
 $toggle.addEventListener("click", event=>{
     mode = 1-mode
+    if(mode == 0) {
+        $toggle.style.backgroundImage = 'url("/res/render.png")'
+    } else {
+        $toggle.style.backgroundImage = 'url("/res/2d.png")'
+    }
 })
 
 async function drawOverlay(){
@@ -670,6 +675,7 @@ async function add_listeners() {
 async function update_state(time, delta) {
 
     frame++
+    if(mode == 0) cam.rot = [0, 0, 0]
     let sin = Math.sin(cam.rot[z])
     let cos = Math.cos(cam.rot[z])
 

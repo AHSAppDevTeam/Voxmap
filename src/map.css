@@ -27,10 +27,11 @@ canvas,
    position: fixed;
    bottom: 1rem;
    right: 1rem;
+   border-radius: 1rem;
    background-image: url("/res/render.png");
    background-size: cover;
    background-position: center;
-   padding: 4rem;
+   padding: 4rem 6rem;
 }
 
 #joystick {
