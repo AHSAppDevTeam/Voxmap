@@ -10,21 +10,22 @@ body {
 	font-size: 14px;
 }
 
-#signin {
-	padding: 2rem;
+#toggle {
+	padding: 4rem;
 	margin-bottom: 2rem;
 	font-family: inherit;
 	font-size: 1.2rem;
 	border-radius: 10rem;
 	border: 0;
 	cursor: pointer;
-	background: #cfd;
+	background: url("/res/render.jpg");
+	background-size: cover;
+	background-position: cover;
 	box-shadow: 0 2px 0 #48b;
 	color: #248;
 	transition-duration: 200ms;
 }
-#signin:hover {
-	background: #afc;
+#toggle:hover {
 	box-shadow: 0 6px 0 #48b;
 }
 

@@ -1,9 +1,12 @@
 // Link up HTML elements
-const debug = document.getElementById("debug")
-const canvas = document.getElementById("canvas")
-const joystick = document.getElementById("joystick")
-const form = document.getElementById("form")
-const gl = canvas.getContext("webgl2", { alpha: false, antialias: false } )
+const $debug = document.getElementById("debug")
+const $map3d = document.getElementById("map-3d")
+const $map2d = document.getElementById("map-2d")
+const $overlay = document.getElementById("map-overlay")
+const $joystick = document.getElementById("joystick")
+const gl = $map3d.getContext("webgl2", { alpha: false, antialias: false } )
+const map2d = $map2d.getContext("2d") 
+const overlay = $overlay.getContext("2d") 
 
 //-- Numerical constants
 
@@ -103,9 +106,17 @@ const cam = get_json_param("cam") || {
     rot: [0, 0, 0],
     matrix: Array(16),
 }
-window.addEventListener("message", event => {
-    const place = event.data
-    cam.pos = [ place.x, place.y, place.z + 10 ]
+
+
+let place, places
+window.addEventListener("message", ({ data }) => {
+    if( "places" in data) {
+        places = data.places
+    }
+    if( "place" in data) {
+        place = data.place
+        cam.pos = [ place.x, place.y, place.z + 10 ]
+    }
 })
 
 const controls = {
@@ -456,31 +467,93 @@ async function render(now) {
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
 
+    drawOverlay()
+
     //-- Then do it all again
     requestAnimationFrame(render)
 }
 
+
+const image = new Image()
+image.src = "/res/2d.png" 
+overlay.font = "20px Helvetica, Roboto"
+overlay.lineWidth = 4
+overlay.strokeStyle = "#000"
+overlay.fillStyle = "#fff"
+overlay.textAlign = "center"
+
+async function drawOverlay(){
+
+    overlay.clearRect(0, 0, size[x], size[y])
+    map2d.clearRect(0, 0, size[x], size[y])
+
+    const s = 3 // scale
+    const center = [
+        size[x]/2 - cam.pos[x]*s,
+        size[y]/2 + cam.pos[y]*s
+    ]
+    //map2d.drawImage(image, center[x], center[y]-Y*s, X*s, Y*s)
+    //map2d.drawImage(image, 0, 0, X, Y)
+
+   for(key in places) {
+       const place = places[key]
+       const m = cam.matrix,
+           m11 = m[0], m12 = m[4], m13 = m[ 8], m14 = m[12],
+           m21 = m[1], m22 = m[5], m23 = m[ 9], m24 = m[13],
+           m31 = m[2], m32 = m[6], m33 = m[10], m34 = m[14],
+           m41 = m[3], m42 = m[7], m43 = m[11], m44 = m[15],
+           px = place.x, py = place.y, pz = place.z
+
+       const view = [
+           m11*px + m12*py + m13*pz + m14,
+           m21*px + m22*py + m23*pz + m24,
+           m31*px + m32*py + m33*pz + m34
+       ]
+       view[z] += 1e-4
+       view[x] /= view[z]
+       view[y] /= view[z]
+
+       overlay.strokeText(place.name, size[x]*(view[x]+1)/2, -size[y]*(view[y]-1)/2)
+       overlay.fillText(place.name, size[x]*(view[x]+1)/2, -size[y]*(view[y]-1)/2)
+       /*
+       overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+       overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+       */
+   }
+}
+
+const list = {}
 async function add_listeners() {
-    canvas.addEventListener('click', (event) => {
+    $overlay.addEventListener('click', (event) => {
+        /*
+        const name = prompt("name")
+        list["room_"+name.replace("-","_")] = {
+            name: name,
+            x: event.offsetX, 
+            y: Y-event.offsetY,
+            z: 3
+        }
+        console.log(list)
+        */
         event.preventDefault()
-        canvas.requestPointerLock()
+        $overlay.requestPointerLock()
     })
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))
-    canvas.addEventListener('pointermove', (event) => {
+    $overlay.addEventListener('pointermove', (event) => {
         controls.rot[z] -= 2 * event.movementX / controls.size
         controls.rot[x] -= event.movementY / controls.size
         controls.rot[x] = clamp(controls.rot[x], Math.PI/2)
     })
-    joystick.addEventListener('touchstart', () => {
+    $joystick.addEventListener('touchstart', () => {
         controls.active = true
     })
-    joystick.addEventListener('pointermove', (event) => {
+    $joystick.addEventListener('pointermove', (event) => {
         if (controls.active) {
             controls.move[x] = +2*clamp(event.offsetX / controls.size - 1, 1)
             controls.move[y] = -2*clamp(event.offsetY / controls.size - 1, 1)
         }
     })
-    joystick.addEventListener('touchend', (event) => {
+    $joystick.addEventListener('touchend', (event) => {
         controls.active = false
         controls.move[x] = 0
         controls.move[y] = 0
@@ -579,7 +652,7 @@ async function update_state(time, delta) {
     weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
     weather.sun[z] = Math.abs(Math.cos(hour))
 
-    joystick.firstElementChild.style.transform =
+    $joystick.firstElementChild.style.transform =
         `translate(${controls.move[x]*15}%, ${-controls.move[y]*15}%)`
 
     const num = x => x.toFixed(1)
@@ -628,8 +701,8 @@ async function decrypt(buffer) {
 async function resize() {
     size[0] = window.innerWidth * window.devicePixelRatio
     size[1] = window.innerHeight * window.devicePixelRatio
-    canvas.width = size[0]
-    canvas.height = size[1]
+    $map3d.width = $map2d.width = $overlay.width = size[0]
+    $map3d.height = $map2d.height = $overlay.height = size[1]
 }
 async function updateTextures() {
     T.colorUpdate(T.diffuse)

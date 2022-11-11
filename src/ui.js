@@ -1,6 +1,6 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.9.1/firebase-app.js";
-import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.9.1/firebase-database.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/9.9.1/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.9.1/firebase-app.js"
+import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/9.9.1/firebase-database.js"
+import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/9.9.1/firebase-auth.js"
 
 const firebaseConfig = {
   apiKey: "AIzaSyDweQSkpqQSGP42qBgoiSm5VAhDoe9dJA8",
@@ -11,73 +11,72 @@ const firebaseConfig = {
   messagingSenderId: "654225823864",
   appId: "1:654225823864:web:944772a5cadae0c8b7758d",
   measurementId: "G-YGN0551PM8"
-};
+}
 
 const map = document.getElementById("map")
-const signin = document.getElementById("signin")
+const toggle = document.getElementById("toggle")
 const search = document.getElementById("search")
 
-
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const database = getDatabase();
-const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
-provider.setCustomParameters({
-  'hd': 'ausd.net'
-})
+const app = initializeApp(firebaseConfig)
+const database = getDatabase()
 
-signin.addEventListener("click", event => {
+const auth = getAuth(app)
+const provider = new GoogleAuthProvider()
+provider.setCustomParameters({ hd: 'ausd.net' })
+
+const placesRef = ref(database, 'places')
+const placeListsRef = ref(database, 'placeLists')
+const passwordRef = ref(database, 'ausd-secrets/map')
+let places, placeLists, password
+
+display2D()
+
+toggle.addEventListener("click", event => {
   event.preventDefault()
-signInWithPopup(auth, provider)
+  signInWithPopup(auth, provider)
   .then((result) => {
     // This gives you a Google Access Token. You can use it to access the Google API.
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const token = credential.accessToken;
+    const credential = GoogleAuthProvider.credentialFromResult(result)
+    const token = credential.accessToken
     // The signed-in user info.
-    const user = result.user;
+    const user = result.user
     console.log(result)
     // ...
   }).catch((error) => {
     // Handle Errors here.
-    const errorCode = error.code;
-    const errorMessage = error.message;
+    const errorCode = error.code
+    const errorMessage = error.message
     // The email of the user's account used.
-    const email = error.customData.email;
+    const email = error.customData.email
     // The AuthCredential type that was used.
-    const credential = GoogleAuthProvider.credentialFromError(error);
+    const credential = GoogleAuthProvider.credentialFromError(error)
     // ...
-  }).then(() => {
-
-    display()
-
-
-  })
+  }).then(display3D)
 })
 
-async function display() {
-    let places, placeLists, password
+const sort = (obj, key) => 
+    Object.fromEntries(
+      Object.entries(obj)
+      .sort((a, b) => key ? a[1][key]-b[1][key] : a[1]-b[1] )
+    )
+
+async function display2D() {
 
     const $places = document.getElementById("places")
     const $placeLists = document.getElementById("placeLists")
 
-    const placesRef = ref(database, 'places');
-    const placeListsRef = ref(database, 'placeLists')
-
-    onValue(placesRef, (snapshot) => {
-        places = snapshot.val()
-        password = places.key.name
-        map.src = "map.html?quality=3&password=" + password
-        map.focus()
+    await get(placesRef).then((snapshot) => {
+        places = sort(snapshot.val())
+        map.contentWindow.postMessage({ places }, "*")
     })
-    onValue(placeListsRef, (snapshot) => {
+
+    await get(placeListsRef).then((snapshot) => {
         while($placeLists.firstChild) 
             $placeLists.removeChild($placeLists.firstChild)
 
-        placeLists = Object.fromEntries(
-          Object.entries(snapshot.val())
-          .sort((a, b) => (a[1].sort - b[1].sort))
-        )
+        placeLists = sort(snapshot.val(), "sort")
+
         for(const placeListKey in placeLists) {
           const placeList = placeLists[placeListKey]
           const $placeList = document.createElement("li")
@@ -103,7 +102,7 @@ async function display() {
               const place = places[placeKey]
               $place.textContent = place.name
               $place.addEventListener("click", event => {
-                map.contentWindow.postMessage(place, "*")
+                map.contentWindow.postMessage({ place }, "*")
               })
               $places.append($place)
             }
@@ -112,6 +111,13 @@ async function display() {
           $placeLists.append($placeList)
         }
     })
-    signin.style.display = "none"
+}
+
+async function display3D() {
+    get(passwordRef).then((snapshot) => {
+        password = snapshot.val()
+        map.src = "map.html?quality=3&password=" + password
+        map.focus()
+    })
 }
 
