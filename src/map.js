@@ -36,6 +36,12 @@ const C = 4 // 4 channels (RGBA)
 // if not over HTTPS, probably means we're in debug mode
 const encrypted = url.protocol === "https:"
 
+const sort = (obj, key, order) => 
+    Object.fromEntries(
+      Object.entries(obj)
+      .sort((a, b) => order * (key ? a[1][key]-b[1][key] : a[1]-b[1]) )
+    )
+
 //-- Single-letter "folders" for organizing WebGL objects
 // Also has some helper functions
 
@@ -494,6 +500,8 @@ async function drawOverlay(){
     ]
     //map2d.drawImage(image, center[x], center[y]-Y*s, X*s, Y*s)
     //map2d.drawImage(image, 0, 0, X, Y)
+    
+    if(!places) return;
 
    for(key in places) {
        const place = places[key]
@@ -518,12 +526,23 @@ async function drawOverlay(){
            m31*px + m32*py + m33*pz + m34
        ]
        view[z] += 1e-4
-       if(view[z] < 0) break;
+       if(view[z] < 0) continue;
        view[x] /= view[z]
        view[y] /= view[z]
 
-       overlay.strokeText(place.name, size[x]*(view[x]+1)/2, -size[y]*(view[y]-1)/2)
-       overlay.fillText(place.name, size[x]*(view[x]+1)/2, -size[y]*(view[y]-1)/2)
+       place.vx = size[x]*(view[x]+1)/2
+       place.vy = -size[y]*(view[y]-1)/2
+       place.vz = view[z]
+   }
+
+   places = sort(places, "vz", -1)
+
+   for(key in places) { 
+       const place = places[key]
+
+       overlay.font = `${clamps(2/place.vz+2, 10, 20)}px sans-serif`
+       overlay.strokeText(place.name, place.vx, place.vy)
+       overlay.fillText(place.name, place.vx, place.vy)
        /*
        overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
        overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
