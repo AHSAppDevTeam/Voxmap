@@ -497,12 +497,20 @@ async function drawOverlay(){
 
    for(key in places) {
        const place = places[key]
+
+       // Multiply by the camera matrix to go from vertex space
+       // to view frustum space, then divide by z to get
+       // perspective. Remove all with negative z.
+       //
+       // Basically the same thing as render.vert except WebGL
+       // does the z-divide and culling automatically.
        const m = cam.matrix,
            m11 = m[0], m12 = m[4], m13 = m[ 8], m14 = m[12],
            m21 = m[1], m22 = m[5], m23 = m[ 9], m24 = m[13],
            m31 = m[2], m32 = m[6], m33 = m[10], m34 = m[14],
            m41 = m[3], m42 = m[7], m43 = m[11], m44 = m[15],
-           px = place.x, py = place.y, pz = place.z
+           px = place.x/2, py = place.y/2, pz = place.z/2
+       //why divide by two? idk
 
        const view = [
            m11*px + m12*py + m13*pz + m14,
@@ -510,6 +518,7 @@ async function drawOverlay(){
            m31*px + m32*py + m33*pz + m34
        ]
        view[z] += 1e-4
+       if(view[z] < 0) break;
        view[x] /= view[z]
        view[y] /= view[z]
 
