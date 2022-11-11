@@ -1,9 +1,13 @@
 // Link up HTML elements
-const debug = document.getElementById("debug")
-const canvas = document.getElementById("canvas")
-const joystick = document.getElementById("joystick")
-const form = document.getElementById("form")
-const gl = canvas.getContext("webgl2", { alpha: false, antialias: false } )
+const $debug = document.getElementById("debug")
+const $map3d = document.getElementById("map-3d")
+const $map2d = document.getElementById("map-2d")
+const $overlay = document.getElementById("map-overlay")
+const $toggle = document.getElementById("toggle")
+const $joystick = document.getElementById("joystick")
+const gl = $map3d.getContext("webgl2", { alpha: false, antialias: false } )
+const map2d = $map2d.getContext("2d") 
+const overlay = $overlay.getContext("2d") 
 
 //-- Numerical constants
 
@@ -32,6 +36,12 @@ const C = 4 // 4 channels (RGBA)
 
 // if not over HTTPS, probably means we're in debug mode
 const encrypted = url.protocol === "https:"
+
+const sort = (obj, key, order) => 
+    Object.fromEntries(
+      Object.entries(obj)
+      .sort((a, b) => order * (key ? a[1][key]-b[1][key] : a[1]-b[1]) )
+    )
 
 //-- Single-letter "folders" for organizing WebGL objects
 // Also has some helper functions
@@ -103,9 +113,20 @@ const cam = get_json_param("cam") || {
     rot: [0, 0, 0],
     matrix: Array(16),
 }
-window.addEventListener("message", event => {
-    const place = event.data
-    cam.pos = [ place.x, place.y, place.z + 10 ]
+
+
+let place, places
+window.addEventListener("message", ({ data }) => {
+    if( "mode" in data) {
+        mode = data.mode
+    }
+    if( "places" in data) {
+        places = data.places
+    }
+    if( "place" in data) {
+        place = data.place
+        cam.pos = [ place.x, place.y, place.z + 10 ]
+    }
 })
 
 const controls = {
@@ -141,6 +162,8 @@ const floor = x => Math.floor(x)
 const fract = x => x - floor(x)
 const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
 const clamps = (x, a, b) => Math.min(Math.max(x, a), b)
+const smoothstep_polynomial = x => x*x*(3-2*x)
+const smoothstep = (x, a, b) => x < a ? 0 : x >= b ? 1 : smoothstep_polynomial((x-a)/(b-a))
 const clamp = (x, a) => clamps(x, -a, a)
 
 const clamp_xyzc = (xyzc) => [X,Y,Z,C].map((max, i) => clamps(xyzc[i], 0, max - 1))
@@ -456,31 +479,142 @@ async function render(now) {
 
     gl.drawArrays(gl.TRIANGLES, 0, 6)
 
+    drawOverlay()
+
     //-- Then do it all again
     requestAnimationFrame(render)
 }
 
+
+const img2d = new Image()
+img2d.src = "/res/2d.png" 
+
+overlay.lineWidth = 3
+overlay.lineJoin = "round"
+overlay.textAlign = "center"
+
+let mode = 0
+$toggle.addEventListener("click", event=>{
+    mode = 1-mode
+})
+
+async function drawOverlay(){
+
+    overlay.clearRect(0, 0, size[x], size[y])
+    map2d.clearRect(0, 0, size[x], size[y])
+
+    const s = 3 // scale
+    const center = [
+        size[x]/2 - cam.pos[x]*s,
+        size[y]/2 + cam.pos[y]*s
+    ]
+    if(mode == 0) {
+       map2d.drawImage(img2d, center[x], center[y]-Y*s, X*s, Y*s)
+       for(key in places) { 
+           if(!key.startsWith("building_")) continue
+           const place = places[key]
+            overlay.font = "20px Roboto"
+            overlay.strokeStyle = "#fff"
+            overlay.fillStyle = "#000"
+               overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+               overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+       }
+       return
+    }
+    //map2d.drawImage(image, 0, 0, X, Y)
+    
+    if(!places) return;
+
+   for(key in places) {
+       const place = places[key]
+
+       // Multiply by the camera matrix to go from vertex space
+       // to view frustum space, then divide by z to get
+       // perspective. Remove all with negative z.
+       //
+       // Basically the same thing as render.vert except WebGL
+       // does the z-divide and culling automatically.
+       const m = cam.matrix,
+           m11 = m[0], m12 = m[4], m13 = m[ 8], m14 = m[12],
+           m21 = m[1], m22 = m[5], m23 = m[ 9], m24 = m[13],
+           m31 = m[2], m32 = m[6], m33 = m[10], m34 = m[14],
+           m41 = m[3], m42 = m[7], m43 = m[11], m44 = m[15],
+           px = place.x/2, py = place.y/2, pz = place.z/2
+       //why divide by two? idk
+
+       const view = [
+           m11*px + m12*py + m13*pz + m14,
+           m21*px + m22*py + m23*pz + m24,
+           m31*px + m32*py + m33*pz + m34
+       ]
+       view[z] += 1e-4
+       if(view[z] < 0) continue;
+       view[x] /= view[z]
+       view[y] /= view[z]
+
+       place.vx = size[x]*(view[x]+1)/2
+       place.vy = -size[y]*(view[y]-1)/2
+       place.vz = view[z]
+   }
+
+   places = sort(places, "vz", -1)
+
+   for(key in places) { 
+       const place = places[key]
+       const p = clamps(3e-2/place.vz, 0, 1) // proximity
+
+       if(key.startsWith("room_")) {
+           overlay.globalAlpha = smoothstep(p, 0.5, 0.6)
+           overlay.font = `${18*p}px sans-serif`
+           overlay.strokeStyle = "#444"
+           overlay.fillStyle = "#fff"
+       } else if (key.startsWith("building_")) {
+           overlay.globalAlpha = 1 - smoothstep(p, 0.5, 0.6)
+           overlay.font = `${18 + 4*p}px sans-serif`
+           overlay.strokeStyle = "#fff"
+           overlay.fillStyle = "#000"
+       } else {
+           overlay.globalAlpha = 0.5;
+           overlay.font = `${14}px sans-serif`
+       }
+       overlay.strokeText(place.name, place.vx, place.vy)
+       overlay.fillText(place.name, place.vx, place.vy)
+   }
+}
+
+const list = {}
 async function add_listeners() {
-    canvas.addEventListener('click', (event) => {
+    $overlay.addEventListener('click', (event) => {
+        /*
+        const name = prompt("name")
+        //list["room_"+name.replace("-","_")] = {
+        list["building_"+name+"_001"] = {
+            name: name+" row",
+            x: event.offsetX, 
+            y: Y-event.offsetY,
+            z: 12
+        }
+        console.log(list)
+        */
         event.preventDefault()
-        canvas.requestPointerLock()
+        $overlay.requestPointerLock()
     })
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))
-    canvas.addEventListener('pointermove', (event) => {
+    $overlay.addEventListener('pointermove', (event) => {
         controls.rot[z] -= 2 * event.movementX / controls.size
         controls.rot[x] -= event.movementY / controls.size
         controls.rot[x] = clamp(controls.rot[x], Math.PI/2)
     })
-    joystick.addEventListener('touchstart', () => {
+    $joystick.addEventListener('touchstart', () => {
         controls.active = true
     })
-    joystick.addEventListener('pointermove', (event) => {
+    $joystick.addEventListener('pointermove', (event) => {
         if (controls.active) {
             controls.move[x] = +2*clamp(event.offsetX / controls.size - 1, 1)
             controls.move[y] = -2*clamp(event.offsetY / controls.size - 1, 1)
         }
     })
-    joystick.addEventListener('touchend', (event) => {
+    $joystick.addEventListener('touchend', (event) => {
         controls.active = false
         controls.move[x] = 0
         controls.move[y] = 0
@@ -551,13 +685,19 @@ async function update_state(time, delta) {
     feet_pos[z] -= H_human
     let [above, below, color] = await tex(feet_pos.map(floor))
     if(below < 1) cam.acc[z] += 20
+    if(below < 0.5) cam.vel[z] = 0
     if(below > 1) cam.acc[z] -= 20
 
-    let drag = 1 / 8
+    let drag = 1/12
 
     cam.acc = cam.acc.map((a, i) => a - cam.vel[i] * drag / delta)
     cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
     cam.pos = cam.pos.map((p, i) => p + cam.vel[i] * delta)
+    cam.pos = [
+        clamps(cam.pos[x], -X, 2*X),
+        clamps(cam.pos[y], -Y, 2*Y),
+        clamps(cam.pos[z], 0, X)
+    ]
 
     cam.rot = cam.rot.map( 
         (a, i) => cam.rot[i] + 
@@ -579,7 +719,7 @@ async function update_state(time, delta) {
     weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
     weather.sun[z] = Math.abs(Math.cos(hour))
 
-    joystick.firstElementChild.style.transform =
+    $joystick.firstElementChild.style.transform =
         `translate(${controls.move[x]*15}%, ${-controls.move[y]*15}%)`
 
     const num = x => x.toFixed(1)
@@ -628,8 +768,8 @@ async function decrypt(buffer) {
 async function resize() {
     size[0] = window.innerWidth * window.devicePixelRatio
     size[1] = window.innerHeight * window.devicePixelRatio
-    canvas.width = size[0]
-    canvas.height = size[1]
+    $map3d.width = $map2d.width = $overlay.width = size[0]
+    $map3d.height = $map2d.height = $overlay.height = size[1]
 }
 async function updateTextures() {
     T.colorUpdate(T.diffuse)

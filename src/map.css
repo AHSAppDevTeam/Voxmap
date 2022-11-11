@@ -1,6 +1,6 @@
 html,
 body,
-#canvas {
+canvas {
    margin: 0;
    padding: 0;
    width: 100%;
@@ -17,11 +17,20 @@ body,
    left: 0.5rem;
 }
 
-#canvas,
-#joystick,
-#form {
+canvas,
+#joystick {
    position: fixed;
    touch-action: none;
+}
+
+#toggle {
+   position: fixed;
+   bottom: 1rem;
+   right: 1rem;
+   background-image: url("/res/render.png");
+   background-size: cover;
+   background-position: center;
+   padding: 4rem;
 }
 
 #joystick {

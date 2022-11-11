@@ -19,6 +19,8 @@ body {
 	border: 0;
 	cursor: pointer;
 	background: #cfd;
+	background-size: cover;
+	background-position: cover;
 	box-shadow: 0 2px 0 #48b;
 	color: #248;
 	transition-duration: 200ms;
@@ -94,6 +96,7 @@ body * {
 	align-items: center;
 	gap: 0.5rem;
 	cursor: pointer;
+	user-select: none;
 }
 
 #form li span {
