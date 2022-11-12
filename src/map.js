@@ -588,16 +588,18 @@ async function drawOverlay(){
 
        if(key.startsWith("room_")) {
            overlay.globalAlpha = 1-smoothstep(depth, 0.3, 0.4)
-           overlay.font = `${28*proximity}px Roboto, sans-serif`
+           overlay.font = `${28*proximity}px "Josefin Sans", sans-serif`
+           overlay.lineJoin = "miter"
            overlay.lineWidth = 3*proximity
            overlay.strokeStyle = "#000"
            overlay.fillStyle = "#fff"
        } else if (key.startsWith("building_")) {
-           overlay.font = `${4*28*proximity}px Roboto, sans-serif`
-           overlay.lineWidth = 4*3*proximity
            overlay.globalAlpha = smoothstep(depth, 0.3, 0.4) * (1-smoothstep(depth, fog, fog+0.1))
-           overlay.strokeStyle = "#fff"
-           overlay.fillStyle = "#000"
+           overlay.font = `${4*28*proximity}px "Quicksand", sans-serif`
+           overlay.lineJoin = "round"
+           overlay.lineWidth = 4*3*proximity
+           overlay.strokeStyle = "#fffc"
+           overlay.fillStyle = "#000c"
        } else {
            overlay.globalAlpha = 0.5;
            overlay.font = `${14}px sans-serif`

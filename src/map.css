@@ -7,6 +7,15 @@ canvas {
    height: 100%;
 }
 
+@font-face {
+   font-family: "Quicksand";
+   src: url("/res/fonts/Quicksand-Medium.ttf") format("truetype");
+}
+@font-face {
+   font-family: "Josefin Sans";
+   src: url("/res/fonts/JosefinSans-Regular.ttf") format("truetype");
+}
+
 #debug {
    font-family: Monospace, Monospace;
    font-size: 0.7rem;
