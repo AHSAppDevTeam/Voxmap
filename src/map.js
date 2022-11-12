@@ -492,6 +492,7 @@ img2d.src = "/res/2d.png"
 overlay.lineWidth = 3
 overlay.lineJoin = "round"
 overlay.textAlign = "center"
+overlay.shadowColor = '#000'
 
 let mode = 0
 $toggle.addEventListener("click", event=>{
@@ -515,7 +516,7 @@ async function drawOverlay(){
     ]
     if(mode == 0) {
        map2d.drawImage(img2d, center[x], center[y]-Y*s, X*s, Y*s)
-       for(key in places) { 
+       for(const key in places) { 
            if(!key.startsWith("building_")) continue
            const place = places[key]
             overlay.font = "20px Roboto"
@@ -528,9 +529,7 @@ async function drawOverlay(){
     }
     //map2d.drawImage(image, 0, 0, X, Y)
     
-    if(!places) return;
-
-   for(key in places) {
+   for(const key in places) {
        const place = places[key]
 
        // Multiply by the camera matrix to go from vertex space
@@ -553,7 +552,6 @@ async function drawOverlay(){
            m31*px + m32*py + m33*pz + m34
        ]
        view[z] += 1e-4
-       if(view[z] < 0) continue;
        view[x] /= view[z]
        view[y] /= view[z]
 
@@ -564,8 +562,9 @@ async function drawOverlay(){
 
    places = sort(places, "vz", -1)
 
-   for(key in places) { 
+   for(const key in places) { 
        const place = places[key]
+       if(place.vz < 0) continue
 
        /*
        let flag = false
@@ -578,17 +577,25 @@ async function drawOverlay(){
        if(flag) continue
        */
 
-       const p = clamps(3e-2/place.vz, 0, 1) // proximity
-       const d = clamps(1 - cam.pos[z]/Z, 0.3, 0.8)
+        const dx = place.x-cam.pos[x]
+        const dy = place.y-cam.pos[y]
+        const dz = place.z-cam.pos[z]
+
+        const distance = Math.sqrt(dx*dx + dy*dy + dz*dz)
+       const depth = clamps(distance/150, 0, 1)
+       const proximity = clamps(15/distance, 0.2, 2)
+       const fog = clamps(cam.pos[z]/Z, 0.6, 1)
 
        if(key.startsWith("room_")) {
-           overlay.globalAlpha = smoothstep(p, d, d+0.1)
-           overlay.font = `${18*p}px sans-serif`
-           overlay.strokeStyle = "#444"
+           overlay.globalAlpha = 1-smoothstep(depth, fog-0.4, fog-0.3)
+           overlay.font = `${24*proximity}px Roboto, sans-serif`
+           overlay.lineWidth = 3*proximity
+           overlay.strokeStyle = "#000"
            overlay.fillStyle = "#fff"
        } else if (key.startsWith("building_")) {
-           overlay.font = `${18 + 4*p}px sans-serif`
-           overlay.globalAlpha = (1-smoothstep(p, d, d+0.1)) * smoothstep(p, d-0.4, d-0.3)
+           overlay.font = `${3*24*proximity}px Roboto, sans-serif`
+           overlay.lineWidth = 3*3*proximity
+           overlay.globalAlpha = smoothstep(depth, fog-0.4, fog-0.3) * (1-smoothstep(depth, fog, fog+0.1))
            overlay.strokeStyle = "#fff"
            overlay.fillStyle = "#000"
        } else {
