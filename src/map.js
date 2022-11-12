@@ -587,15 +587,15 @@ async function drawOverlay(){
        const fog = clamps(cam.pos[z]/Z, 0.6, 1)
 
        if(key.startsWith("room_")) {
-           overlay.globalAlpha = 1-smoothstep(depth, fog-0.4, fog-0.3)
-           overlay.font = `${24*proximity}px Roboto, sans-serif`
+           overlay.globalAlpha = 1-smoothstep(depth, 0.3, 0.4)
+           overlay.font = `${28*proximity}px Roboto, sans-serif`
            overlay.lineWidth = 3*proximity
            overlay.strokeStyle = "#000"
            overlay.fillStyle = "#fff"
        } else if (key.startsWith("building_")) {
-           overlay.font = `${3*24*proximity}px Roboto, sans-serif`
-           overlay.lineWidth = 3*3*proximity
-           overlay.globalAlpha = smoothstep(depth, fog-0.4, fog-0.3) * (1-smoothstep(depth, fog, fog+0.1))
+           overlay.font = `${4*28*proximity}px Roboto, sans-serif`
+           overlay.lineWidth = 4*3*proximity
+           overlay.globalAlpha = smoothstep(depth, 0.3, 0.4) * (1-smoothstep(depth, fog, fog+0.1))
            overlay.strokeStyle = "#fff"
            overlay.fillStyle = "#000"
        } else {
