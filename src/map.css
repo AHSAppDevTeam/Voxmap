@@ -25,13 +25,14 @@ canvas,
 
 #toggle {
    position: fixed;
-   bottom: 1rem;
-   right: 1rem;
-   border-radius: 1rem;
+   bottom: 2vmin;
+   right: 2vmin;
+   border-radius: 4vmin;
    background-image: url("/res/render.png");
    background-size: cover;
    background-position: center;
-   padding: 4rem 6rem;
+   width: 36vmin;
+   height: 24vmin;
 }
 
 #joystick {
