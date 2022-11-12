@@ -677,6 +677,18 @@
     "y" : 122,
     "z" : 9
   },
+  "room_Restroom_000" : {
+    "name" : "Restroom",
+    "x" : 383,
+    "y" : 121,
+    "z" : 9
+  },
+  "room_Restroom_001" : {
+    "name" : "Restroom",
+    "x" : 383,
+    "y" : 146,
+    "z" : 9
+  },
   "room_S_101" : {
     "name" : "S-101",
     "x" : 100,
@@ -791,24 +803,6 @@
     "y" : 161,
     "z" : 9
   },
-  "room_Restroom_000" : {
-    "name" : "Restroom",
-    "x" : 383,
-    "y" : 121,
-    "z" : 9
-  },
-  "room_Restroom_001" : {
-    "name" : "Restroom",
-    "x" : 383,
-    "y" : 166,
-    "z" : 9
-  },
-  "room_Vending_000" : {
-    "name" : "Vending machines",
-    "x" : 285,
-    "y" : 139,
-    "z" : 9
-  },
   "room_Vending_000" : {
     "name" : "Vending machines",
     "x" : 285,
@@ -826,5 +820,19 @@
     "x" : 383,
     "y" : 151,
     "z" : 9
-  }
+  },
+"building_Field_000": {"name": "Football field", "x": 698, "y": 170, "z": 12 },
+"building_Field_001": {"name": "Baseball field", "x": 559, "y": 197, "z": 12 },
+"building_Court_000": {"name": "Basketball courts", "x": 568, "y": 129, "z": 12 },
+"building_Court_001": {"name": "Volleyball courts", "x": 561, "y": 87, "z": 12 },
+"building_Court_002": {"name": "Tennis courts", "x": 718, "y": 96, "z": 12 },
+"building_Pool_000": {"name": "Aquatic center", "x": 527, "y": 77, "z": 12 },
+"building_Gym_000": {"name": "North gym", "x": 468, "y": 128, "z": 12 },
+"building_Gym_001": {"name": "South gym", "x": 474, "y": 61, "z": 12 },
+"building_Locker_000": {"name": "Boys’ locker room", "x": 470, "y": 160, "z": 12 },
+"building_Locker_001": {"name": "Girls’ locker room", "x": 471, "y": 93, "z": 12 },
+"room_Locker_001": {"name": "ASB office", "x": 514, "y": 158, "z": 12 },
+"room_MPR_001": {"name": "Multi-purpose room", "x": 400, "y": 218, "z": 12 },
+"room_PAC_001": {"name": "Orchestra room", "x": 206, "y": 188, "z": 12 }
 }
+

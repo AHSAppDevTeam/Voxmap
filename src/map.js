@@ -125,7 +125,7 @@ window.addEventListener("message", ({ data }) => {
     }
     if( "place" in data) {
         place = data.place
-        cam.pos = [ place.x, place.y, place.z + 10 ]
+        cam.pos = [ place.x, place.y, place.z ]
     }
 })
 
@@ -514,6 +514,7 @@ async function drawOverlay(){
         size[x]/2 - cam.pos[x]*s,
         size[y]/2 + cam.pos[y]*s
     ]
+    //return map2d.drawImage(img2d, 0, 0, X, Y)
     if(mode == 0) {
        map2d.drawImage(img2d, center[x], center[y]-Y*s, X*s, Y*s)
        for(const key in places) { 
@@ -527,7 +528,6 @@ async function drawOverlay(){
        }
        return
     }
-    //map2d.drawImage(image, 0, 0, X, Y)
     
    for(const key in places) {
        const place = places[key]
@@ -616,13 +616,12 @@ async function add_listeners() {
         /*
         const name = prompt("name")
         //list["room_"+name.replace("-","_")] = {
-        list["building_"+name+"_001"] = {
+        console.log({
             name: name+" row",
             x: event.offsetX, 
             y: Y-event.offsetY,
             z: 12
-        }
-        console.log(list)
+        })
         */
         event.preventDefault()
         $overlay.requestPointerLock()
@@ -710,7 +709,7 @@ async function update_state(time, delta) {
     cam.acc = [
         f[x] * cos - f[y] * sin,
         f[x] * sin + f[y] * cos,
-        f[z]
+        f[z] * 2
     ]
 
     /*
@@ -725,8 +724,9 @@ async function update_state(time, delta) {
     if(below < 1) cam.acc[z] += 20
     if(below < 0.5) cam.vel[z] = 0
     if(below > 1) cam.acc[z] -= 20
+    if(below > 4) cam.acc[z] -= 20
 
-    let drag = 1/12
+    let drag = 1/4
 
     cam.acc = cam.acc.map((a, i) => a - cam.vel[i] * drag / delta)
     cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)

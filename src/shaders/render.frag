@@ -18,9 +18,19 @@ const int MAX_STEPS = X * (QUALITY + 1)/3;
 vec4 noise(vec2 p) {
   return 1.0 - 2.0 * texture(u_noise, p);
 }
+
+// white noise
 float white(vec2 p) { return noise(p).r; }
+
+// fractal brownian motion noise
 float fbm(vec2 p) { return noise(p).g; }
 
+// cos and sine of white noise
+vec2 rotNoise(vec2 p) { return noise(p).ba; }
+
+vec2 rotate2d(vec2 v, vec2 a) {
+  return vec2(v.x*a.x - v.y*a.y, v.y*a.x + v.x*a.y);
+}
 vec2 rotate2d(vec2 v, float a) {
   float sinA = sin(a);
   float cosA = cos(a);
@@ -31,6 +41,9 @@ vec3 jitter(vec3 v, float f) {
 #ifdef JITTER
   v.xz = rotate2d(v.xz, white(f*(v_fractPos.xy + v_fractPos.z)));
   v.xy = rotate2d(v.xy, white(f*(v_fractPos.xy + v_fractPos.z)));
+  //vec2 a = rotNoise(f*(v_fractPos.xy + v_fractPos.z));
+  //v.xz = rotate2d(v.xz, a);
+  //v.xy = rotate2d(v.xy, a);
 #endif
   return v;
 }
@@ -137,7 +150,7 @@ void main() {
   bool isSky = v_id == 1;
   bool isGlass = v_id == 2;
 
-  const vec3 litCol = vec3(0.7, 0.6, 0.5);
+  const vec3 litCol = vec3(0.4, 0.35, 0.3);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
   vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.1);
 
@@ -194,7 +207,8 @@ void main() {
     if(rayDir.z < 0.) skyCol = vec3(0.8);
 
     c_diffuse.rgb = skyCol;
-  } else {
+
+  } else { // Determine color of block
 
     vec3 baseCol = v_color;
 
@@ -207,7 +221,7 @@ void main() {
     if(v_normal.z < 0.0) normalCol *= 0.8;
 
     // Color the shadow the color of the sky, plus some gray
-    vec3 shadeCol = mix(atmCol, vec3(0.6), 0.3);
+    vec3 shadeCol = 0.7 * scatterCol;
 
 #ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
@@ -273,8 +287,8 @@ void main() {
     c_diffuse.rgb = baseCol * normalCol * lightCol * ambCol;
 
     if(isGlass) {
-      c_diffuse.a = 0.5 * exp2(dot(rayDir, v_normal));
-      c_diffuse.rgb *= atmCol;
+      c_diffuse.a = 0.8 * exp2(dot(rayDir, v_normal));
+      c_diffuse.rgb *= 0.2 * atmCol;
     }
 
   }

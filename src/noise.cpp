@@ -34,10 +34,12 @@ int main() {
 	for(int x = 0; x < X; x++)
 	for(int y = 0; y < X; y++)
 	{
-		o_noise.put((char) std::rand() % 256);
+		int n = std::rand() % 256;
+		double f = n/128.0 - 1.0;
+		o_noise.put((char) n);
 		o_noise.put((char) fractal(x, y, 10));
-		o_noise.put((char) 0);
-		o_noise.put((char) 0);
+		o_noise.put((char) (int) (128.0 * (cos(f) + 1.0)));
+		o_noise.put((char) (int) (128.0 * (sin(f) + 1.0)));
 	}
 	o_noise.close();
 }
