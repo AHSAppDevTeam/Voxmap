@@ -33,6 +33,7 @@ let mode = 0
 let authed = false
 
 display2D()
+display3D()
 
 signin.addEventListener("click", event => {
   event.preventDefault()

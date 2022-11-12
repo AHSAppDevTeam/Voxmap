@@ -521,8 +521,8 @@ async function drawOverlay(){
             overlay.font = "20px Roboto"
             overlay.strokeStyle = "#fff"
             overlay.fillStyle = "#000"
-               overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
-               overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+            overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
+            overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
        }
        return
     }
@@ -566,22 +566,36 @@ async function drawOverlay(){
 
    for(key in places) { 
        const place = places[key]
+
+       /*
+       let flag = false
+       for(kb in places) {
+           if(key == kb) continue
+           const pb = places[kb]
+           if( place.vz > pb.vz && Math.abs(place.vx-pb.vx) < 20 && Math.abs(place.vy-pb.vy) < 10 ) 
+               flag = true
+       }
+       if(flag) continue
+       */
+
        const p = clamps(3e-2/place.vz, 0, 1) // proximity
+       const d = clamps(1 - cam.pos[z]/Z, 0.3, 0.8)
 
        if(key.startsWith("room_")) {
-           overlay.globalAlpha = smoothstep(p, 0.5, 0.6)
+           overlay.globalAlpha = smoothstep(p, d, d+0.1)
            overlay.font = `${18*p}px sans-serif`
            overlay.strokeStyle = "#444"
            overlay.fillStyle = "#fff"
        } else if (key.startsWith("building_")) {
-           overlay.globalAlpha = 1 - smoothstep(p, 0.5, 0.6)
            overlay.font = `${18 + 4*p}px sans-serif`
+           overlay.globalAlpha = (1-smoothstep(p, d, d+0.1)) * smoothstep(p, d-0.4, d-0.3)
            overlay.strokeStyle = "#fff"
            overlay.fillStyle = "#000"
        } else {
            overlay.globalAlpha = 0.5;
            overlay.font = `${14}px sans-serif`
        }
+
        overlay.strokeText(place.name, place.vx, place.vy)
        overlay.fillText(place.name, place.vx, place.vy)
    }
@@ -676,6 +690,7 @@ async function update_state(time, delta) {
 
     frame++
     if(mode == 0) cam.rot = [0, 0, 0]
+
     let sin = Math.sin(cam.rot[z])
     let cos = Math.cos(cam.rot[z])
 
