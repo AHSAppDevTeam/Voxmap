@@ -144,7 +144,7 @@ const fetch_array = (regular_url, encrypted_url) =>
     .then(buffer => new Uint8Array(buffer))
     .then(array => pako.ungzip(array))
 
-const map_array = fetch_array("out/texture.bin.gz", "src/map.blob")
+const map_array = fetch_array("out/map.bin.gz", "src/map.blob")
 const vertex_array = fetch_array("out/vertex.bin.gz", "src/vertex.blob")
 const noise_array = fetch_array("out/noise.bin.gz", "src/noise.blob")
 const composit_array = new Float32Array([
