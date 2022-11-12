@@ -695,6 +695,8 @@ async function add_listeners() {
 }
 
 
+const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b*b))
+
 async function update_state(time, delta) {
 
     frame++
@@ -708,11 +710,17 @@ async function update_state(time, delta) {
     cam.acc = [
         f[x] * cos - f[y] * sin,
         f[x] * sin + f[y] * cos,
-        f[z],
+        f[z]
     ]
+
+    /*
+    for(let i = 0; i < magnitude(cam.vel)*delta, i++) {
+
+    }*/
 
     const feet_pos = [...cam.pos]
     feet_pos[z] -= H_human
+
     let [above, below, color] = await tex(feet_pos.map(floor))
     if(below < 1) cam.acc[z] += 20
     if(below < 0.5) cam.vel[z] = 0
