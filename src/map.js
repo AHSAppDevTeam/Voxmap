@@ -107,10 +107,11 @@ const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
 }
 const cam = get_json_param("cam") || {
-    pos: [381.5, 128.1, H_ground + H_human],
+    sbj: [381.5, 128.1, H_ground + 16], // camera subject
+    pos: [0, 0, 0],
     vel: [0, 0, 0],
     acc: [0, 0, 0],
-    rot: [0, 0, 0],
+    rot: [Math.PI/2, 0, 0],
     matrix: Array(16),
 }
 
@@ -125,7 +126,7 @@ window.addEventListener("message", ({ data }) => {
     }
     if( "place" in data) {
         place = data.place
-        cam.pos = [ place.x, place.y, place.z ]
+        cam.sbj = [ place.x, place.y, place.z ]
     }
 })
 
@@ -431,7 +432,7 @@ async function render(now) {
     gl.bindTexture(gl.TEXTURE_2D, T.noise)
 
     // Set the matrix.
-    gl.uniformMatrix4fv(U.matrix, false, cam.matrix)
+    gl.uniformMatrix4fv(U.matrix, false, cam.projection_matrix)
     gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
     gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
     gl.uniform3f(U.sunDir, ...weather.sun)
@@ -511,8 +512,8 @@ async function drawOverlay(){
 
     const s = 3 // scale
     const center = [
-        size[x]/2 - cam.pos[x]*s,
-        size[y]/2 + cam.pos[y]*s
+        size[x]/2 - cam.sbj[x]*s,
+        size[y]/2 + cam.sbj[y]*s
     ]
     //return map2d.drawImage(img2d, 0, 0, X, Y)
     if(mode == 0) {
@@ -538,19 +539,10 @@ async function drawOverlay(){
        //
        // Basically the same thing as render.vert except WebGL
        // does the z-divide and culling automatically.
-       const m = cam.matrix,
-           m11 = m[0], m12 = m[4], m13 = m[ 8], m14 = m[12],
-           m21 = m[1], m22 = m[5], m23 = m[ 9], m24 = m[13],
-           m31 = m[2], m32 = m[6], m33 = m[10], m34 = m[14],
-           m41 = m[3], m42 = m[7], m43 = m[11], m44 = m[15],
-           px = place.x/2, py = place.y/2, pz = place.z/2
-       //why divide by two? idk
 
-       const view = [
-           m11*px + m12*py + m13*pz + m14,
-           m21*px + m22*py + m23*pz + m24,
-           m31*px + m32*py + m33*pz + m34
-       ]
+       const view = m4.v3(cam.projection_matrix, [ place.x/2, place.y/2, place.z/2 ])
+       // why divide by two? idk
+
        view[z] += 1e-4
        view[x] /= view[z]
        view[y] /= view[z]
@@ -581,7 +573,7 @@ async function drawOverlay(){
         const dy = place.y-cam.pos[y]
         const dz = place.z-cam.pos[z]
 
-        const distance = Math.sqrt(dx*dx + dy*dy + dz*dz)
+       const distance = Math.sqrt(dx*dx + dy*dy + dz*dz)
        const depth = clamps(distance/150, 0, 1)
        const proximity = clamps(15/distance, 0.2, 2)
        const fog = clamps(cam.pos[z]/Z, 0.6, 1)
@@ -630,7 +622,7 @@ async function add_listeners() {
     $overlay.addEventListener('pointermove', (event) => {
         controls.rot[z] -= 2 * event.movementX / controls.size
         controls.rot[x] -= event.movementY / controls.size
-        controls.rot[x] = clamp(controls.rot[x], Math.PI/2)
+        controls.rot[x] = clamps(controls.rot[x], 0, Math.PI)
     })
     $joystick.addEventListener('touchstart', () => {
         controls.active = true
@@ -666,7 +658,7 @@ async function add_listeners() {
                 controls.move[x] = power
                 break;
             case "Space":
-                controls.move[z] = power
+                controls.move[z] = event.shiftKey ? -1 : 1
                 break;
         }
     })
@@ -717,24 +709,26 @@ async function update_state(time, delta) {
 
     }*/
 
-    const feet_pos = [...cam.pos]
+    const feet_pos = [...cam.sbj]
     feet_pos[z] -= H_human
 
     let [above, below, color] = await tex(feet_pos.map(floor))
+    /*
     if(below < 1) cam.acc[z] += 20
     if(below < 0.5) cam.vel[z] = 0
     if(below > 1) cam.acc[z] -= 20
     if(below > 4) cam.acc[z] -= 20
+    */
 
     let drag = 1/4
 
     cam.acc = cam.acc.map((a, i) => a - cam.vel[i] * drag / delta)
     cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
-    cam.pos = cam.pos.map((p, i) => p + cam.vel[i] * delta)
-    cam.pos = [
-        clamps(cam.pos[x], -X, 2*X),
-        clamps(cam.pos[y], -Y, 2*Y),
-        clamps(cam.pos[z], 0, X)
+    cam.sbj = cam.sbj.map((p, i) => p + cam.vel[i] * delta)
+    cam.sbj = [
+        clamps(cam.sbj[x], -X, 2*X),
+        clamps(cam.sbj[y], -Y, 2*Y),
+        clamps(cam.sbj[z], 0, X)
     ]
 
     cam.rot = cam.rot.map( 
@@ -744,12 +738,19 @@ async function update_state(time, delta) {
     cam.rot = controls.rot
 
     const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
-    cam.matrix = m4.multiply(
+    const orbit_radius = cam.sbj[z]
+    cam.orbit_matrix = m4.multiply(
+        m4.translation(...cam.sbj),
+        m4.zRotation(cam.rot[z]),
+        m4.xRotation(cam.rot[x]),
+        m4.translation(0, 0, orbit_radius)
+    )
+    cam.pos = m4.v3(cam.orbit_matrix, [0,0,0])
+    cam.projection_matrix = m4.multiply(
         m4.projection(...size, distance),
-        m4.xRotation(-Math.PI/2),
         m4.xRotation(-cam.rot[x]),
         m4.zRotation(-cam.rot[z]),
-        m4.translation(...cam.pos.map(a=>-a/2))
+        m4.translation(...cam.pos.map(a=>-a/2)) // why divide by 2? idk
     )
 
     let hour = time / 60 / 60 / 12 * Math.PI
