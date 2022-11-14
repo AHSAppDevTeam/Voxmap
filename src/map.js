@@ -414,13 +414,12 @@ async function render(now) {
     // Update camera position, orientation, and world parameters
     await update_state(times[0], times[0] - times[1])
 
+    gl.viewport(0, 0, ...size)
 
     //-- Begin drawing stuff
     // First draw to the multisampling raster framebuffer, which rasterizes the
     // mesh and outputs a diffuse and a reflection pass into its renderbuffers. 
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
-
-    gl.viewport(0, 0, ...size)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
     gl.useProgram(P.renderer)
@@ -451,6 +450,8 @@ async function render(now) {
     // sampler framebuffer's 1x-sampling textures.
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, B.raster)
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, B.sampler)
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
     gl.readBuffer(gl.COLOR_ATTACHMENT0)
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, null])
     gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
@@ -463,8 +464,6 @@ async function render(now) {
     // Finally send these textures to the default framebuffer to composit into
     // the final image.
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-
-    gl.viewport(0, 0, ...size)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
     gl.useProgram(P.compositor)
@@ -557,7 +556,7 @@ async function drawOverlay(){
 
    for(const key in places) { 
        const place = places[key]
-       if(place.vz < 0) continue
+       if(place.vz < 0 || Math.max(place.vx*place.vx, place.vy*place.vy) > 1) continue
 
        /*
        let flag = false

@@ -170,7 +170,7 @@ void main() {
 
   const vec3 litCol = vec3(0.4, 0.35, 0.3);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
-  vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.5);
+  vec3 reflectDir = reflect(rayDir, v_normal);
 
   vec3 sunDir = u_sunDir; //jitter(u_sunDir, 0.5);
 
@@ -227,6 +227,8 @@ void main() {
     c_diffuse.rgb = skyCol;
 
   } else { // Determine color of block
+
+    reflectDir = jitter(reflectDir, 0.5);
 
     vec3 baseCol = v_color;
 
