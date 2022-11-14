@@ -112,7 +112,8 @@ const cam = get_json_param("cam") || {
     vel: [0, 0, 0],
     acc: [0, 0, 0],
     rot: [Math.PI/2, 0, 0],
-    matrix: Array(16),
+    orbit_matrix: Array(16),
+    projection_matrix: Array(16),
 }
 
 

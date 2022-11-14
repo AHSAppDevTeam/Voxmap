@@ -39,8 +39,9 @@ vec2 rotate2d(vec2 v, float a) {
 
 vec3 jitter(vec3 v, float f) {
 #ifdef JITTER
-  v.xz = rotate2d(v.xz, white(f*(v_fractPos.xy + v_fractPos.z)));
-  v.xy = rotate2d(v.xy, white(f*(v_fractPos.xy + v_fractPos.z)));
+  vec2 p = 0.1*(v_fractPos.xy + v_fractPos.z);
+  v.xz = rotate2d(v.xz, f*white(p));
+  v.xy = rotate2d(v.xy, f*white(p));
   //vec2 a = rotNoise(f*(v_fractPos.xy + v_fractPos.z));
   //v.xz = rotate2d(v.xz, a);
   //v.xy = rotate2d(v.xy, a);
@@ -152,9 +153,9 @@ void main() {
 
   const vec3 litCol = vec3(0.4, 0.35, 0.3);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
-  vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.1);
+  vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.5);
 
-  vec3 sunDir = jitter(u_sunDir, 1.0);
+  vec3 sunDir = jitter(u_sunDir, 0.5);
 
   // Fancy sky!
 
@@ -233,8 +234,8 @@ void main() {
 #endif
 
     // Check if we're facing towards Sun
-    float shadeFactor = sunDir.z < 0. ? 0.0
-      : sqrt(max(0.0, dot(v_normal, sunDir)));
+    float shadeFactor = u_sunDir.z < 0. ? 0.0
+      : sqrt(max(0.0, dot(v_normal, u_sunDir)));
 #ifdef SHADOWS
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
