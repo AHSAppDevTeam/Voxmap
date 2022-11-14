@@ -530,6 +530,8 @@ async function drawOverlay(){
        return
     }
     
+    let visible = {}
+    
    for(const key in places) {
        const place = places[key]
 
@@ -544,19 +546,23 @@ async function drawOverlay(){
        // why divide by two? idk
 
        view[z] += 1e-4
+       if(view[z] < 0) continue // Discard places behind the camera
+       
        view[x] /= view[z]
        view[y] /= view[z]
+       
+       if(Math.abs(view[x]) > 1 || Math.abs(view[y]) > 1) continue // Behind places out of view
 
        place.vx = size[x]*(view[x]+1)/2
        place.vy = -size[y]*(view[y]-1)/2
        place.vz = view[z]
+       visible[key] = place
    }
 
-   places = sort(places, "vz", -1)
+   visible = sort(visible, "vz", -1)
 
-   for(const key in places) { 
-       const place = places[key]
-       if(place.vz < 0 || Math.max(place.vx*place.vx, place.vy*place.vy) > 1) continue
+   for(const key in visible) { 
+       const place = visible[key]
 
        /*
        let flag = false
