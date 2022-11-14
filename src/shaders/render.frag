@@ -82,6 +82,7 @@ struct March {
   ivec3 cellPos; // integer cell position
   vec3 fractPos; // floating point fractional cell position [0, 1)
   vec3 normal;
+  float minDist;
   int step; // number of steps taken
 };
 
@@ -95,32 +96,43 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
   res.step = 0;
   res.cellPos = rayCellPos;
   res.fractPos = rayFractPos;
+  res.minDist = Zf;
 
   vec3 axisCellDist;
-  vec3 axisRayDist; vec3 minAxis; float minAxisDist;
-  float dist = 1.0;
+  vec3 axisRayTime; vec3 minAxisDir; float minAxisDist;
+  float safeSteps = 1.0;
 
   // is ray up or down, because SDF is split for performance reasons
   float dir = rayDir.z > 0.0 ? 1.0 : 0.0;
 
   // Start marchin'
-  while(res.step < MAX_STEPS && dist != 0.0) {
+  while(res.step < MAX_STEPS && safeSteps != 0.0) {
     // Distances to each axis
     axisCellDist = fract(-res.fractPos * sign(rayDir)) + 1e-4;
 
     // How quickly the ray would reach each axis
-    axisRayDist = axisCellDist / abs(rayDir);
+    axisRayTime = axisCellDist / abs(rayDir);
 
     // Pick the axis where the ray hits first
-    minAxis = vec3(lessThanEqual(
-	  axisRayDist.xyz, min(
-	    axisRayDist.yzx,
-	    axisRayDist.zxy
-	    )));
-    minAxisDist = length(minAxis * axisRayDist);
+    minAxisDir = vec3(lessThanEqual(
+	  axisRayTime.xyz, min(
+	  axisRayTime.yzx,
+	  axisRayTime.zxy
+    )));
+    minAxisDist = length(minAxisDir * axisRayTime);
+    /*
+    vec3 maxAxisDir = vec3(greaterThanEqual(
+	  axisRayTime.xyz, max(
+	  axisRayTime.yzx,
+	  axisRayTime.zxy
+    )));
+    vec3 midAxisDir = vec3(1) - minAxisDir - maxAxisDir;
+    float maxAxisDist = length(maxAxisDir * axisRayTime);
+    float midAxisDist = length(midAxisDir * axisRayTime);
+    */
 
     // March along that axis
-    res.fractPos += rayDir * dist * minAxisDist;
+    res.fractPos += rayDir * safeSteps * minAxisDist;
     res.cellPos += ivec3(floor(res.fractPos));
     res.fractPos = fract(res.fractPos);
 
@@ -130,13 +142,18 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
       break;
     }
 
-    dist = sdf_dir(res.cellPos, dir);
+    safeSteps = sdf_dir(res.cellPos, dir);
+    /*
+    if(minAxisDist > 0.001 && safeSteps == 1.0) res.minDist = min(
+	(minAxisDist*length(vec2(midAxisDist, maxAxisDist)))/length(vec3(minAxisDist, midAxisDist, maxAxisDist)), res.minDist);
+    //res.minDist = min(safeSteps-1.0, res.minDist);
+    */
 
     res.step++;
   }
 
   // Calculate normals
-  res.normal = -sign(rayDir * minAxis);
+  res.normal = -sign(rayDir * minAxisDir);
 
   return res;
 }
@@ -155,7 +172,7 @@ void main() {
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
   vec3 reflectDir = jitter(reflect(rayDir, v_normal), 0.5);
 
-  vec3 sunDir = jitter(u_sunDir, 0.5);
+  vec3 sunDir = u_sunDir; //jitter(u_sunDir, 0.5);
 
   // Fancy sky!
 
@@ -251,6 +268,10 @@ void main() {
       shadeFactor *= smoothstep(0.0, 1.0, md*Zf*4.0/(i-0.1));
 #else
       March sun = march(v_cellPos, v_fractPos, sunDir);
+      /*
+      c_diffuse.rgb = vec3(sun.minDist);
+      return;
+      */
       shadeFactor *= float(sun.step == MAX_STEPS);
 #endif
     }
