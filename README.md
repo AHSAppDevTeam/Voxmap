@@ -13,7 +13,7 @@ that into a triangle mesh using a greedy simplification algorithm mentioned by L
 is rasterizable by WebGL, and gives me the base colors of the blocks projected correctly in 3D space.
 
 I also convert the block-by-block representation into a distance field, with each integer coordinate encoding
-the taxicab coordinates to the nearest full block. (When smoothly interpolated, it has the nice side effect of 
+the taxicab distance to the nearest full block. (When smoothly interpolated, it has the nice side effect of 
 providing cheap ambient occlusion.) This distance field allows me to accelerate Xor's raymarching algorithm
 to calculate the sharp shadows and reflections which WebGL's rasterizer cannot natively do.
 
@@ -40,9 +40,10 @@ but I plan on focusing on a birds-eye view that navigates more like a regular ma
 
 ## How to update the map (for AHS App Dev Team members)
 
-1. Edit `maps/map.vox` in MagicaVoxel
+1. Edit `maps/map.vox` in MagicaVoxel (get the lastest version from our Discord server)
 2. Convert to mesh and texture files with `make all`
-3. Set the environmental variable `KEY` as an AES-CBC JSON Web Key, then `make encrypted`
+3. Set the environmental variable `KEY` as our AES-CBC JSON Web Key, then `make encrypted`
+4. Push your changes
 
 ## Long-term to-do list
 
