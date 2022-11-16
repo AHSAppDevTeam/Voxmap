@@ -35,7 +35,8 @@ Their coordinates are mapped with the camera's projectiont matrix onto an HTML c
 with opacity controlled by their distance from the camera (a rough estimate of importance)
 and the camera's height off the ground (a rough estimate of view distance as I haven't depth-culled them yet).
 
-The gestures are a work in progress.
+The gestures are a work in progress. Thanks for Charles for making them acceleration-based for first-person navigation,
+but I plan on focusing on a birds-eye view that navigates more like a regular map.
 
 ## How to update the map (for AHS App Dev Team members)
 
