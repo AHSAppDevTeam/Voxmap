@@ -45,6 +45,11 @@ but I plan on focusing on a birds-eye view that navigates more like a regular ma
 3. Set the environmental variable `KEY` as our AES-CBC JSON Web Key, then `make encrypted`
 4. Push your changes
 
+## How to update the labels
+
+1. Do it by hand lol
+2. I will make an editor for this soonishly<sup>TM</sup>
+
 ## Long-term to-do list
 
 * 3<sup>3</sup> × upscaling
@@ -53,7 +58,7 @@ but I plan on focusing on a birds-eye view that navigates more like a regular ma
 * Prettier clouds
 * Live weather
 
-## Full credits:
+## Full credits
 
 * 3D model, processing pipeline, labels database, user interface and WebGL renderer: [Xing Liu](https://github.com/FlyOrBoom)
 * C++ assistance: [Shin Umeda](https://github.com/DolphinGUI)
