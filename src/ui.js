@@ -119,7 +119,7 @@ async function display2D() {
 async function display3D() {
     get(passwordRef).then((snapshot) => {
         password = snapshot.val()
-        map.src = "map.html?quality=4&password=" + password
+        map.src = "map.html?quality=2&password=" + password
         map.focus()
         map.addEventListener("load",()=>{
           map.contentWindow.postMessage({ places }, "*")

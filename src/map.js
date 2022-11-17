@@ -101,7 +101,7 @@ const times = Array(N_time_samples).fill(0)
 let frame = 0
 
 const size = [100, 100] // size of canvas
-let quality = get_param("quality") || "3" // render quality
+let quality = get_param("quality") || "2" // render quality
 
 const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
@@ -214,192 +214,10 @@ async function main() {
         .then(text => S[file] = text)
     ))
 
-    // Set custom quality parameter
-    S["render.h"] = S["render.h"]
-        .replace(
-            "#define QUALITY 3", 
-            "#define QUALITY " + quality
-        )
-
-    // Create programs
-    // Each has a vertex and fragment shader,
-    // along with shared header inserted at the top of both shaders.
-    P.renderer = createProgramFromSources(gl, [
-        S["render.vert"], 
-        S["render.frag"]
-    ].map(s => S["render.h"]+s))
-
-    P.compositor = createProgramFromSources(gl, [
-        S["composit.vert"], 
-        S["composit.frag"]
-    ].map(s => S["composit.h"]+s))
-
-    //-- Set renderer parameters
-
-    gl.useProgram(P.renderer)
-
-    // Initialize vertex attributes to pass from the mesh
-    A.cellPos = gl.getAttribLocation(P.renderer, "a_cellPos")
-    A.fractPos = gl.getAttribLocation(P.renderer, "a_fractPos")
-    A.color = gl.getAttribLocation(P.renderer, "a_color")
-    A.normal = gl.getAttribLocation(P.renderer, "a_normal")
-    A.id = gl.getAttribLocation(P.renderer, "a_id")
-
-    // Initialize uniforms for view matrix, camera position, and other scene parameters
-    U.matrix = gl.getUniformLocation(P.renderer, "u_matrix")
-    U.cellPos = gl.getUniformLocation(P.renderer, "u_cellPos")
-    U.fractPos = gl.getUniformLocation(P.renderer, "u_fractPos")
-    U.frame = gl.getUniformLocation(P.renderer, "u_frame")
-    U.time = gl.getUniformLocation(P.renderer, "u_time")
-    U.sunDir = gl.getUniformLocation(P.renderer, "u_sunDir")
-
-    // Initialize uniform texture samplers for the SDF (necessary for shadows and
-    // reflections raymarching) and noise texture (for clouds and stuff)
-    U.map = gl.getUniformLocation(P.renderer, "u_map")
-    U.noise = gl.getUniformLocation(P.renderer, "u_noise")
-
-    // The renderer is broken down into two parts: a rasterizer and a sampler.
-    //
-    // The rasterizer first outputs its diffuse, reflection, and depth passes into
-    // multisample-supporting render buffers, which the sampler then converts into
-    // 1x-sampled textures for the compositor to use.
-    //
-    // This is necessary in order to antialias (smoothen) the edges of the
-    // polygons, as we first need to render at a higher sample rate and then
-    // downsample that with smooth interpolation.
-    RB.diffuse = gl.createRenderbuffer()
-    RB.reflection = gl.createRenderbuffer()
-    RB.depth = gl.createRenderbuffer()
-
-    RB.colorUpdate(RB.diffuse)
-    RB.colorUpdate(RB.reflection)
-    RB.depthUpdate(RB.depth)
-
-    B.raster = gl.createFramebuffer()
-    gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                               gl.RENDERBUFFER, RB.diffuse)
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
-                               gl.RENDERBUFFER, RB.reflection)
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
-                               gl.RENDERBUFFER, RB.depth)
-
-    // Load in the pregenerated textures
-    T.map = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_3D, T.map)
-    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
-        X, Y, Z, 0,
-        gl.RGBA, gl.UNSIGNED_BYTE, await map_array)
-    gl.generateMipmap(gl.TEXTURE_3D)
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_3D, T.map)
-    gl.uniform1i(U.map, 0)
-
-    T.noise = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_2D, T.noise)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
-        X, X, 0,
-        gl.RGBA, gl.UNSIGNED_BYTE, await noise_array)
-    gl.generateMipmap(gl.TEXTURE_2D)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    gl.activeTexture(gl.TEXTURE1)
-    gl.bindTexture(gl.TEXTURE_2D, T.noise)
-    gl.uniform1i(U.noise, 1)
-
-    // Load in the vertex data, which contains the quad positions (cellPos),
-    // vertex positions relative to their respective quads (fractPos), along
-    // with quad color, normal, and id attributes.
-    O.vertex_array = gl.createVertexArray()
-    gl.bindVertexArray(O.vertex_array)
-
-    B.cellPos = gl.createBuffer()
-    gl.enableVertexAttribArray(A.cellPos)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.cellPos, 3, gl.SHORT,
-        N_stride, 0
-    )
-
-    B.fractPos = gl.createBuffer()
-    gl.enableVertexAttribArray(A.fractPos)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.fractPos, 3, gl.SHORT,
-        N_stride, 3 * N_int16
-    )
-
-    B.color = gl.createBuffer()
-    gl.enableVertexAttribArray(A.color)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.color, 1, gl.BYTE,
-        N_stride, 6 * N_int16
-    )
-
-    B.normal = gl.createBuffer()
-    gl.enableVertexAttribArray(A.normal)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.normal, 1, gl.BYTE,
-        N_stride, 6 * N_int16 + 1 * N_int8
-    )
-
-    B.id = gl.createBuffer()
-    gl.enableVertexAttribArray(A.id)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.id, 1, gl.BYTE,
-        N_stride, 6 * N_int16 + 2 * N_int8
-    )
-    
-    // Create textures for the sampler to output to from downsampling (aka
-    // blitting) the render bufers.
-    T.diffuse = gl.createTexture()
-    T.reflection = gl.createTexture()
-
-    T.colorUpdate(T.diffuse)
-    T.colorUpdate(T.reflection)
-
-    B.sampler = gl.createFramebuffer()
-    gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                               gl.TEXTURE_2D, T.diffuse, 0)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
-                               gl.TEXTURE_2D, T.reflection, 0)
-
-    // Set up the parameters for the compositor, which uses the 1x-sampled
-    // default framebuffer.
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-    gl.useProgram(P.compositor)
-
-    A.texCoord = gl.getAttribLocation(P.compositor, "a_texCoord")
-    U.diffuse = gl.getUniformLocation(P.compositor, "u_diffuse")
-    U.reflection = gl.getUniformLocation(P.compositor, "u_reflection")
-
-    O.composit_array = gl.createVertexArray()
-    gl.bindVertexArray(O.composit_array)
-
-    B.texCoord = gl.createBuffer()
-    gl.enableVertexAttribArray(A.texCoord)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.texCoord)
-    gl.bufferData(gl.ARRAY_BUFFER, composit_array, gl.STATIC_DRAW)
-    gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
+    await updatePrograms()
 
     // Add event listeners to keyboard and touchscreen inputs
-    add_listeners()
+    addListeners()
 
     // Begin render loop
     requestAnimationFrame(render)
@@ -609,7 +427,7 @@ async function drawOverlay(){
 }
 
 const list = {}
-async function add_listeners() {
+async function addListeners() {
     $overlay.addEventListener('click', (event) => {
         /*
         const name = prompt("name")
@@ -771,6 +589,17 @@ async function update_state(time, delta) {
 
     const fps = 1 / delta
     const avg_fps = (N_time_samples - 1) / (time - times[N_time_samples - 1])
+
+    if(frame % 100 == 0) {
+        if(avg_fps > 30 && quality < 4) {
+            quality++
+            await updatePrograms()
+        } else if(avg_fps < 20 && quality > 1) {
+            quality--
+            await updatePrograms()
+        }
+    }
+
     if (!get_param("clean")) debug.innerText = 
         `${size.map(num).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
         position: ${cam.pos.map(num).join(", ")}
@@ -816,6 +645,192 @@ async function resize() {
     $map3d.width = $map2d.width = $overlay.width = size[0]
     $map3d.height = $map2d.height = $overlay.height = size[1]
 }
+
+async function updatePrograms() {
+    // Set custom quality parameter
+    S["render.h"] = S["render.h"]
+        .replace(
+            /#define QUALITY \d/, 
+            "#define QUALITY " + quality
+        )
+
+    // Create programs
+    // Each has a vertex and fragment shader,
+    // along with shared header inserted at the top of both shaders.
+    P.renderer = createProgramFromSources(gl, [
+        S["render.vert"], 
+        S["render.frag"]
+    ].map(s => S["render.h"]+s))
+
+    P.compositor = createProgramFromSources(gl, [
+        S["composit.vert"], 
+        S["composit.frag"]
+    ].map(s => S["composit.h"]+s))
+
+    //-- Set renderer parameters
+
+    gl.useProgram(P.renderer)
+
+    // Initialize vertex attributes to pass from the mesh
+    A.cellPos = gl.getAttribLocation(P.renderer, "a_cellPos")
+    A.fractPos = gl.getAttribLocation(P.renderer, "a_fractPos")
+    A.color = gl.getAttribLocation(P.renderer, "a_color")
+    A.normal = gl.getAttribLocation(P.renderer, "a_normal")
+    A.id = gl.getAttribLocation(P.renderer, "a_id")
+
+    // Initialize uniforms for view matrix, camera position, and other scene parameters
+    U.matrix = gl.getUniformLocation(P.renderer, "u_matrix")
+    U.cellPos = gl.getUniformLocation(P.renderer, "u_cellPos")
+    U.fractPos = gl.getUniformLocation(P.renderer, "u_fractPos")
+    U.frame = gl.getUniformLocation(P.renderer, "u_frame")
+    U.time = gl.getUniformLocation(P.renderer, "u_time")
+    U.sunDir = gl.getUniformLocation(P.renderer, "u_sunDir")
+
+    // Initialize uniform texture samplers for the SDF (necessary for shadows and
+    // reflections raymarching) and noise texture (for clouds and stuff)
+    U.map = gl.getUniformLocation(P.renderer, "u_map")
+    U.noise = gl.getUniformLocation(P.renderer, "u_noise")
+    A.texCoord = gl.getAttribLocation(P.compositor, "a_texCoord")
+    U.diffuse = gl.getUniformLocation(P.compositor, "u_diffuse")
+    U.reflection = gl.getUniformLocation(P.compositor, "u_reflection")
+
+    // The renderer is broken down into two parts: a rasterizer and a sampler.
+    //
+    // The rasterizer first outputs its diffuse, reflection, and depth passes into
+    // multisample-supporting render buffers, which the sampler then converts into
+    // 1x-sampled textures for the compositor to use.
+    //
+    // This is necessary in order to antialias (smoothen) the edges of the
+    // polygons, as we first need to render at a higher sample rate and then
+    // downsample that with smooth interpolation.
+    RB.diffuse = gl.createRenderbuffer()
+    RB.reflection = gl.createRenderbuffer()
+    RB.depth = gl.createRenderbuffer()
+
+    RB.colorUpdate(RB.diffuse)
+    RB.colorUpdate(RB.reflection)
+    RB.depthUpdate(RB.depth)
+
+    B.raster = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                               gl.RENDERBUFFER, RB.diffuse)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
+                               gl.RENDERBUFFER, RB.reflection)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
+                               gl.RENDERBUFFER, RB.depth)
+
+    // Load in the pregenerated textures
+    T.map = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
+        X, Y, Z, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, await map_array)
+    gl.generateMipmap(gl.TEXTURE_3D)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
+    gl.uniform1i(U.map, 0)
+
+    T.noise = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, T.noise)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
+        X, X, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, await noise_array)
+    gl.generateMipmap(gl.TEXTURE_2D)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, T.noise)
+    gl.uniform1i(U.noise, 1)
+
+    // Load in the vertex data, which contains the quad positions (cellPos),
+    // vertex positions relative to their respective quads (fractPos), along
+    // with quad color, normal, and id attributes.
+    O.vertex_array = gl.createVertexArray()
+    gl.bindVertexArray(O.vertex_array)
+
+    B.cellPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.cellPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.cellPos, 3, gl.SHORT,
+        N_stride, 0
+    )
+
+    B.fractPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.fractPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.fractPos, 3, gl.SHORT,
+        N_stride, 3 * N_int16
+    )
+
+    B.color = gl.createBuffer()
+    gl.enableVertexAttribArray(A.color)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.color, 1, gl.BYTE,
+        N_stride, 6 * N_int16
+    )
+
+    B.normal = gl.createBuffer()
+    gl.enableVertexAttribArray(A.normal)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.normal, 1, gl.BYTE,
+        N_stride, 6 * N_int16 + 1 * N_int8
+    )
+
+    B.id = gl.createBuffer()
+    gl.enableVertexAttribArray(A.id)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer(
+        A.id, 1, gl.BYTE,
+        N_stride, 6 * N_int16 + 2 * N_int8
+    )
+    
+    // Create textures for the sampler to output to from downsampling (aka
+    // blitting) the render bufers.
+    T.diffuse = gl.createTexture()
+    T.reflection = gl.createTexture()
+
+    T.colorUpdate(T.diffuse)
+    T.colorUpdate(T.reflection)
+
+    B.sampler = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                               gl.TEXTURE_2D, T.diffuse, 0)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
+                               gl.TEXTURE_2D, T.reflection, 0)
+
+    // Set up the parameters for the compositor, which uses the 1x-sampled
+    // default framebuffer.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.useProgram(P.compositor)
+
+    O.composit_array = gl.createVertexArray()
+    gl.bindVertexArray(O.composit_array)
+
+    B.texCoord = gl.createBuffer()
+    gl.enableVertexAttribArray(A.texCoord)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.texCoord)
+    gl.bufferData(gl.ARRAY_BUFFER, composit_array, gl.STATIC_DRAW)
+    gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
+}
+
 async function updateTextures() {
     T.colorUpdate(T.diffuse)
     T.colorUpdate(T.reflection)
