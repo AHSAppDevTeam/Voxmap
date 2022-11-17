@@ -1,8 +1,0 @@
-3D voxel map pipeline and viewer for Arcadia High, by Xing
-2021-2023
-
-Additional credits:
-C++ assistance: Shin
-Smooth controls: Charles
-Voxel traversal: Xor [www.shadertoy.com/view/fstSRH]
-Mesh simplification: Mikola Lysenko and Vercidium [0fps.net/2012/06/30/meshing-in-a-minecraft-game]
