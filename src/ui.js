@@ -13,9 +13,9 @@ const firebaseConfig = {
   measurementId: "G-YGN0551PM8"
 }
 
-const map = document.getElementById("map")
-const signin = document.getElementById("signin")
-const search = document.getElementById("search")
+const $map = document.getElementById("map")
+const $signin = document.getElementById("signin")
+const $search = document.getElementById("search")
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig)
@@ -35,7 +35,7 @@ let authed = false
 display2D()
 display3D()
 
-signin.addEventListener("click", event => {
+$signin.addEventListener("click", event => {
   event.preventDefault()
   signInWithPopup(auth, provider)
   .then((result) => {
@@ -71,7 +71,7 @@ async function display2D() {
 
     await get(placesRef).then((snapshot) => {
         places = sort(snapshot.val())
-        //map.contentWindow.postMessage({ places }, "*")
+        //$map.contentWindow.postMessage({ places }, "*")
     })
 
     await get(placeListsRef).then((snapshot) => {
@@ -105,7 +105,7 @@ async function display2D() {
               const place = places[placeKey]
               $place.textContent = place.name
               $place.addEventListener("click", event => {
-                map.contentWindow.postMessage({ place }, "*")
+                $map.contentWindow.postMessage({ place }, "*")
               })
               $places.append($place)
             }
@@ -117,12 +117,13 @@ async function display2D() {
 }
 
 async function display3D() {
+    $signin.style.display = "none"
     get(passwordRef).then((snapshot) => {
         password = snapshot.val()
-        map.src = "map.html?quality=2&password=" + password
-        map.focus()
-        map.addEventListener("load",()=>{
-          map.contentWindow.postMessage({ places }, "*")
+        $map.src = "map.html?quality=2&password=" + password
+        $map.focus()
+        $map.addEventListener("load",()=>{
+          $map.contentWindow.postMessage({ places }, "*")
         })
     })
 }
