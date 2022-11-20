@@ -214,7 +214,7 @@ async function main() {
         .then(text => S[file] = text)
     ))
 
-    await updatePrograms()
+    await initPrograms()
 
     // Add event listeners to keyboard and touchscreen inputs
     addListeners()
@@ -250,6 +250,7 @@ async function render(now) {
     gl.bindTexture(gl.TEXTURE_2D, T.noise)
 
     // Set the matrix.
+    gl.uniform1i(U.quality, quality)
     gl.uniformMatrix4fv(U.matrix, false, cam.projection_matrix)
     gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
     gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
@@ -591,12 +592,10 @@ async function update_state(time, delta) {
     const avg_fps = (N_time_samples - 1) / (time - times[N_time_samples - 1])
 
     if(frame % 100 == 0) {
-        if(avg_fps > 30 && quality < 4) {
+        if(avg_fps > 30 && quality < 3) {
             quality++
-            await updatePrograms()
         } else if(avg_fps < 20 && quality > 1) {
             quality--
-            await updatePrograms()
         }
     }
 
@@ -604,7 +603,7 @@ async function update_state(time, delta) {
         `${size.map(num).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
         position: ${cam.pos.map(num).join(", ")}
         velocity: ${cam.vel.map(num).join(", ")}
-        quality: ${quality} / 4
+        quality: ${quality} / 3
         `
 
     if (frame % 60 == 0) {
@@ -646,28 +645,20 @@ async function resize() {
     $map3d.height = $map2d.height = $overlay.height = size[1]
 }
 
-async function updatePrograms() {
-    // Set custom quality parameter
-    S["render.h"] = S["render.h"]
-        .replace(
-            /#define QUALITY \d/, 
-            "#define QUALITY " + quality
-        )
+async function initPrograms() {
 
     // Create programs
     // Each has a vertex and fragment shader,
     // along with shared header inserted at the top of both shaders.
-    P.renderer = createProgramFromSources(gl, [
-        S["render.vert"], 
-        S["render.frag"]
-    ].map(s => S["render.h"]+s))
+    P.renderer = gl.createProgram()
+    await addShader(P.renderer, S["render.h"]+S["render.vert"], gl.VERTEX_SHADER)
+    await addShader(P.renderer, S["render.h"]+S["render.frag"], gl.FRAGMENT_SHADER)
+    gl.linkProgram(P.renderer)
 
-    P.compositor = createProgramFromSources(gl, [
-        S["composit.vert"], 
-        S["composit.frag"]
-    ].map(s => S["composit.h"]+s))
-
-    //-- Set renderer parameters
+    P.compositor = gl.createProgram()
+    await addShader(P.compositor, S["composit.h"]+S["composit.vert"], gl.VERTEX_SHADER)
+    await addShader(P.compositor, S["composit.h"]+S["composit.frag"], gl.FRAGMENT_SHADER)
+    gl.linkProgram(P.compositor)
 
     gl.useProgram(P.renderer)
 
@@ -679,6 +670,7 @@ async function updatePrograms() {
     A.id = gl.getAttribLocation(P.renderer, "a_id")
 
     // Initialize uniforms for view matrix, camera position, and other scene parameters
+    U.quality = gl.getUniformLocation(P.renderer, "u_quality")
     U.matrix = gl.getUniformLocation(P.renderer, "u_matrix")
     U.cellPos = gl.getUniformLocation(P.renderer, "u_cellPos")
     U.fractPos = gl.getUniformLocation(P.renderer, "u_fractPos")
@@ -837,4 +829,24 @@ async function updateTextures() {
     RB.colorUpdate(RB.diffuse)
     RB.colorUpdate(RB.reflection)
     RB.depthUpdate(RB.depth)
+}
+
+async function addShader(program, source, type) {
+    const shader = gl.createShader(type)
+    gl.shaderSource(shader, source)
+
+    gl.compileShader(shader)
+    const compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS)
+    if (!compiled) {
+        // Something went wrong during compilation; get the error
+        const lastError = gl.getShaderInfoLog(shader)
+        console.error(
+            `Error compiling shader '${shader}': ${lastError} 
+            ${source.split('\n').map((l, i) => (i+1) + ':' + l).join('\n')}`
+        )
+        gl.deleteShader(shader)
+        return null;
+    }
+
+    gl.attachShader(program, shader)
 }

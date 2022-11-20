@@ -10,8 +10,7 @@ flat in int v_id;
 layout(location=0) out vec4 c_diffuse;
 layout(location=1) out vec4 c_reflection;
 
-// Quality-adjustable raytracing parameters
-const int MAX_STEPS = X * (QUALITY + 1)/3;
+const int MAX_STEPS = X;
 
 // Utility functions
 //-------------------
@@ -20,13 +19,10 @@ vec4 noise(vec2 p) {
 }
 
 // white noise
-float white(vec2 p) { return noise(p).r; }
+vec3 white(vec2 p) { return noise(p).rgb; }
 
 // fractal brownian motion noise
-float fbm(vec2 p) { return noise(p).g; }
-
-// cos and sine of white noise
-vec2 rotNoise(vec2 p) { return noise(p).ba; }
+float fbm(vec2 p) { return noise(p).a; }
 
 vec2 rotate2d(vec2 v, vec2 a) {
   return vec2(v.x*a.x - v.y*a.y, v.y*a.x + v.x*a.y);
@@ -38,15 +34,9 @@ vec2 rotate2d(vec2 v, float a) {
 }
 
 vec3 jitter(vec3 v, float f) {
-#ifdef JITTER
-  vec2 p = 0.1*(v_fractPos.xy + v_fractPos.z);
-  v.xz = rotate2d(v.xz, f*white(p));
-  v.xy = rotate2d(v.xy, f*white(p));
-  //vec2 a = rotNoise(f*(v_fractPos.xy + v_fractPos.z));
-  //v.xz = rotate2d(v.xz, a);
-  //v.xy = rotate2d(v.xy, a);
-#endif
-  return v;
+  vec3 w = f*white(0.1*(v_fractPos.xy + v_fractPos.z));
+  vec3 mask = 1.0 - abs(v_normal);
+  return normalize((v + w)*mask + v_normal);
 }
 
 // Read data from texture
@@ -195,22 +185,21 @@ void main() {
 
   if(isSky) {
 
-#ifdef CLOUDS
-    float cloudTime = u_time * 4e-4;
-    vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
-    skyPos *= 0.1;
-    skyPos *= sqrt(length(skyPos));
-    skyPos *= 3.0 + vec2(
-	fbm(2.0*skyPos + cloudTime),
-	fbm(2.0*skyPos - cloudTime)
-      );
-    skyPos += 1e-4 * (vec2(u_cellPos.xy) + u_fractPos.xy); 
-    float cloudFactor = exp2(6.0 * (fbm(skyPos + vec2(2, -9)*cloudTime) - 1.0));
-    vec3 cloudCol = mix(sunCol, vec3(0.8), sqrt(cloudFactor));
-#else
     vec3 cloudCol = vec3(1);
     float cloudFactor = 0.0;
-#endif
+    if(u_quality > 1) { // Clouds
+      float cloudTime = u_time * 4e-4;
+      vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
+      skyPos *= 0.1;
+      skyPos *= sqrt(length(skyPos));
+      skyPos *= 3.0 + vec2(
+	  fbm(2.0*skyPos + cloudTime),
+	  fbm(2.0*skyPos - cloudTime)
+	);
+      skyPos += 1e-4 * (vec2(u_cellPos.xy) + u_fractPos.xy); 
+      cloudFactor = exp2(6.0 * (fbm(skyPos + vec2(2, -9)*cloudTime) - 1.0));
+      cloudCol = mix(sunCol, vec3(0.8), sqrt(cloudFactor));
+    }
 
     float mountainPos = rayDir.x / rayDir.y;
     float mountainHeight = 1.0 - fbm(vec2(0.3 * mountainPos));
@@ -228,7 +217,8 @@ void main() {
 
   } else { // Determine color of block
 
-    reflectDir = jitter(reflectDir, 0.5);
+    if(u_quality > 2) // Jitter
+      reflectDir = jitter(reflectDir, 0.8);
 
     vec3 baseCol = v_color;
 
@@ -243,19 +233,15 @@ void main() {
     // Color the shadow the color of the sky, plus some gray
     vec3 shadeCol = 0.7 * scatterCol;
 
-#ifdef AO
     // Do cheap ambient occlusion by interpolating SDFs
     float ambDist = sdf(v_cellPos + ivec3(v_normal), v_fractPos);
     float ambFactor = min(1.0 - sqrt(ambDist), 0.8);
     vec3 ambCol = mix(vec3(1), shadeCol, ambFactor);
-#else
-    vec3 ambCol = vec3(1);
-#endif
 
     // Check if we're facing towards Sun
     float shadeFactor = u_sunDir.z < 0. ? 0.0
       : sqrt(max(0.0, dot(v_normal, u_sunDir)));
-#ifdef SHADOWS
+
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
 #ifdef SOFT
@@ -281,7 +267,6 @@ void main() {
       c_diffuse.rgb = vec3(sdf(v_cellPos, v_fractPos - 0.5*v_normal - rayDir));
       return;
       */
-#endif
 
     // Mix sunlight and shade
     vec3 lightCol = shadeCol + litCol*shadeFactor;
@@ -292,20 +277,19 @@ void main() {
     }
 #endif
 
-#ifdef REFLECTIONS
-
-    float reflectFactor = 0.4 * exp2(-8.0 * dot(reflectDir, v_normal)) - 0.05;
-    if(reflectFactor > 0.0) {
-      March reflection = march(v_cellPos, v_fractPos, reflectDir);
-      vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 2.0);
-      p.xy /= p.z + 1e-5;
-      float bounds = max(p.x*p.x, p.y*p.y);
-      if(bounds < 1.0) {
-	c_reflection.rg = 0.5 + 0.5*p.xy;
-	c_reflection.b = reflectFactor * (1.0 - bounds);
+    if(u_quality > 2) { // Reflections
+      float reflectFactor = 0.4 * exp2(8.0 * dot(rayDir, v_normal)) - 0.05;
+      if(reflectFactor > 0.0) {
+	March reflection = march(v_cellPos, v_fractPos, reflectDir);
+	vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 2.0);
+	p.xy /= p.z + 1e-4;
+	float bounds = max(p.x*p.x, p.y*p.y);
+	if(bounds < 1.0) {
+	  c_reflection.rg = 0.5 + 0.5*p.xy;
+	  c_reflection.b = reflectFactor * (1.0 - bounds);
+	}
       }
     }
-#endif
 
     // Multiply everything together
     c_diffuse.rgb = baseCol * normalCol * lightCol * ambCol;
