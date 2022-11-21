@@ -1,10 +1,10 @@
 const m4 = {
 
-  projection: (width, height, depth) => ([
-    2 / width, 0, 0, 0,
-    0, 2 / height, 0, 0,
-    0, 0, -2 / depth, 0,
-    0, 0, 0, 1,
+  projection: (f, ratio, near, far) => ([
+    f/ratio, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (near+far)/(near-far), -1,
+    0, 0, 2*near*far/(near-far), 0,
   ]),
 
   _multiply: (a, b) => {

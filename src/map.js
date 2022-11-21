@@ -37,6 +37,8 @@ const C = 4 // 4 channels (RGBA)
 // if not over HTTPS, probably means we're in debug mode
 const encrypted = url.protocol === "https:"
 
+const fstop = (fov) => 1/Math.tan(fov*Math.PI/360)
+
 const sort = (obj, key, order) => 
     Object.fromEntries(
       Object.entries(obj)
@@ -250,7 +252,7 @@ async function render(now) {
     gl.bindTexture(gl.TEXTURE_2D, T.noise)
 
     // Set the matrix.
-    gl.uniform1i(U.quality, quality)
+    gl.uniform1i(U.quality, 3)
     gl.uniformMatrix4fv(U.matrix, false, cam.projection_matrix)
     gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
     gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
@@ -562,7 +564,6 @@ async function update_state(time, delta) {
     )
     cam.rot = controls.rot
 
-    const distance = ((x, y) => Math.sqrt(x*x + y*y))(...size)
     const orbit_radius = cam.sbj[z]
     cam.orbit_matrix = m4.multiply(
         m4.translation(...cam.sbj),
@@ -571,11 +572,16 @@ async function update_state(time, delta) {
         m4.translation(0, 0, orbit_radius)
     )
     cam.pos = m4.v3(cam.orbit_matrix, [0,0,0])
+
+    const fov = 30 // Field of view
+    const aspect = size[x]/size[y]
+    const near = 1
+    const far = X
     cam.projection_matrix = m4.multiply(
-        m4.projection(...size, distance),
+        m4.projection(fstop(fov), aspect, near, far),
         m4.xRotation(-cam.rot[x]),
         m4.zRotation(-cam.rot[z]),
-        m4.translation(...cam.pos.map(a=>-a/2)) // why divide by 2? idk
+        m4.translation(...cam.pos.map(a=>-a)) // why divide by 2? idk
     )
 
     let hour = time / 60 / 60 / 12 * Math.PI

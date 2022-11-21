@@ -218,7 +218,7 @@ void main() {
   } else { // Determine color of block
 
     if(u_quality > 2) // Jitter
-      reflectDir = jitter(reflectDir, 0.8);
+      reflectDir = jitter(reflectDir, 0.0);
 
     vec3 baseCol = v_color;
 
@@ -279,10 +279,11 @@ void main() {
 
     if(u_quality > 2) { // Reflections
       float reflectFactor = 0.4 * exp2(8.0 * dot(rayDir, v_normal)) - 0.05;
+      reflectFactor = 1.0;
       if(reflectFactor > 0.0) {
 	March reflection = march(v_cellPos, v_fractPos, reflectDir);
-	vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 2.0);
-	p.xy /= p.z + 1e-4;
+	vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 1.0);
+	p.xy /= p.w;
 	float bounds = max(p.x*p.x, p.y*p.y);
 	if(bounds < 1.0) {
 	  c_reflection.rg = 0.5 + 0.5*p.xy;

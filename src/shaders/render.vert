@@ -1,5 +1,5 @@
-in ivec4 a_cellPos;
-in ivec4 a_fractPos;
+in ivec3 a_cellPos;
+in ivec3 a_fractPos;
 in int a_color;
 in int a_normal;
 in int a_id;
@@ -22,8 +22,7 @@ vec3 palette(int p) {
 }
 
 void main() {
-    vec4 position = u_matrix * vec4(a_cellPos + a_fractPos);
-    gl_Position = vec4(position.xyz, position.z + 1e-4);
+    gl_Position = u_matrix * vec4(a_cellPos + a_fractPos, 1.0);
 
     v_cellPos = a_cellPos.xyz;
     v_fractPos = vec3(a_fractPos.xyz);
