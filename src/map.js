@@ -24,9 +24,7 @@ const N_stride = 6 * N_int16 + 4 * N_int8
 const N_time_samples = 120
 
 // This is so I can do vector[x]
-const x = 0
-const y = 1
-const z = 2
+const x = 0, y = 1, z = 2, w = 3
 
 // World parameters
 const Z = 32 // height
@@ -353,6 +351,7 @@ async function drawOverlay(){
     
     let visible = {}
     
+    // Project labels onto scene
    for(const key in places) {
        const place = places[key]
 
@@ -363,24 +362,22 @@ async function drawOverlay(){
        // Basically the same thing as render.vert except WebGL
        // does the z-divide and culling automatically.
 
-       const view = m4.v3(cam.projection_matrix, [ place.x/2, place.y/2, place.z/2 ])
-       // why divide by two? idk
+       const view = m4.v4(cam.projection_matrix, [ place.x, place.y, place.z, 1.0 ])
 
-       view[z] += 1e-4
-       if(view[z] < 0) continue // Discard places behind the camera
+       if(view[w] < 0) continue // Discard places behind the camera
        
-       view[x] /= view[z]
-       view[y] /= view[z]
+       view[x] /= view[w]
+       view[y] /= view[w]
        
        if(Math.abs(view[x]) > 1 || Math.abs(view[y]) > 1) continue // Behind places out of view
 
        place.vx = size[x]*(view[x]+1)/2
        place.vy = -size[y]*(view[y]-1)/2
-       place.vz = view[z]
+       place.vw = view[w]
        visible[key] = place
    }
 
-   visible = sort(visible, "vz", -1)
+   visible = sort(visible, "vw", -1)
 
    for(const key in visible) { 
        const place = visible[key]
@@ -407,16 +404,16 @@ async function drawOverlay(){
 
        if(key.startsWith("room_")) {
            overlay.globalAlpha = 1-smoothstep(depth, 0.3, 0.4)
-           overlay.font = `${28*proximity}px "Josefin Sans", sans-serif`
+           overlay.font = `${4*proximity}rem "Josefin Sans", sans-serif`
            overlay.lineJoin = "miter"
-           overlay.lineWidth = 3*proximity
+           overlay.lineWidth = 4*2*proximity
            overlay.strokeStyle = "#000"
            overlay.fillStyle = "#fff"
        } else if (key.startsWith("building_")) {
            overlay.globalAlpha = smoothstep(depth, 0.3, 0.4) * (1-smoothstep(depth, fog, fog+0.1))
-           overlay.font = `${4*28*proximity}px "Quicksand", sans-serif`
+           overlay.font = `${8*proximity}rem "Quicksand", sans-serif`
            overlay.lineJoin = "round"
-           overlay.lineWidth = 4*3*proximity
+           overlay.lineWidth = 8*2*proximity
            overlay.strokeStyle = "#fffc"
            overlay.fillStyle = "#000c"
        } else {
@@ -571,7 +568,7 @@ async function update_state(time, delta) {
         m4.xRotation(cam.rot[x]),
         m4.translation(0, 0, orbit_radius)
     )
-    cam.pos = m4.v3(cam.orbit_matrix, [0,0,0])
+    cam.pos = m4.v4(cam.orbit_matrix, [0,0,0,1]).slice(0,3)
 
     const fov = 30 // Field of view
     const aspect = size[x]/size[y]

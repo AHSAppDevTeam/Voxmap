@@ -62,18 +62,19 @@ const m4 = {
 
   multiply: (...m) => m.reduce(m4._multiply),
 
-  "v3": (m, v) => {
+  "v4": (m, v) => {
     const m11 = m[0], m12 = m[4], m13 = m[ 8], m14 = m[12],
          m21 = m[1], m22 = m[5], m23 = m[ 9], m24 = m[13],
          m31 = m[2], m32 = m[6], m33 = m[10], m34 = m[14],
          m41 = m[3], m42 = m[7], m43 = m[11], m44 = m[15]
 
-    const v1 = v[0], v2 = v[1], v3 = v[2]
+    const v1 = v[0], v2 = v[1], v3 = v[2], v4 = v[3]
 
        return [
-           m11*v1 + m12*v2 + m13*v3 + m14,
-           m21*v1 + m22*v2 + m23*v3 + m24,
-           m31*v1 + m32*v2 + m33*v3 + m34
+           m11*v1 + m12*v2 + m13*v3 + m14*v4,
+           m21*v1 + m22*v2 + m23*v3 + m24*v4,
+           m31*v1 + m32*v2 + m33*v3 + m34*v4,
+           m41*v1 + m42*v2 + m43*v3 + m44*v4
        ]
   },
 
