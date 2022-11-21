@@ -62,6 +62,15 @@ but I plan on focusing on a birds-eye view that navigates more like a regular ma
 
 * 3D model, processing pipeline, labels database, user interface and WebGL renderer: [Xing Liu](https://github.com/FlyOrBoom)
 * C++ assistance: [Shin Umeda](https://github.com/DolphinGUI)
-* Smooth controls: [Charles Pei](qwertyuioplkjhgfd)
-* Voxel traversal: [Xor](https://www.shadertoy.com/view/fstSRH)
-* Mesh simplification: [Mikola Lysenko](https://0fps.net/2012/06/30/meshing-in-a-minecraft-game) and [Vercidium](https://vercidium.com/blog/voxel-world-optimisations/)
+* Smooth controls: [Charles Pei](https://github.com/qwertyuioplkjhgfd)
+* [Voxel traversal](https://www.shadertoy.com/view/fstSRH): [Xor](https://www.shadertoy.com/user/xor)
+* [Mech simplification](https://github.com/Vercidium/voxel-mesh-generation): [Vercidium](https://vercidium.com)
+
+### Libraries
+
+* [MagicaVoxel File Writer](https://github.com/aiekick/MagicaVoxel_File_Writer): [Aiekick](https://aiekick.github.io/)
+* [OpenSimplexNoise](https://github.com/deerel/OpenSimplexNoise): [Rickard Lundberg](https://github.com/deerel)
+* [glad](https://glad.dav1d.de/): [David Herberth](https://dav1d.de/)
+* [Pako](http://nodeca.github.io/pako/): [Andrey Tupitsin](https://github.com/andr83) and [Vitaly Puzrin](https://github.com/puzrin)
+* [pnm](https://github.com/ToruNiina/pnm): [Toru Niina](https://toruniina.github.io/)
+
