@@ -161,6 +161,9 @@ void main() {
   const vec3 litCol = vec3(0.4, 0.35, 0.3);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
   vec3 reflectDir = reflect(rayDir, v_normal);
+  if(u_quality > 2) { // add roughness to reflection surface
+    reflectDir = reflect(rayDir, jitter(v_normal, 0.5));
+  }
 
   vec3 sunDir = u_sunDir; //jitter(u_sunDir, 0.5);
 
@@ -216,9 +219,6 @@ void main() {
     c_diffuse.rgb = skyCol;
 
   } else { // Determine color of block
-
-    if(u_quality > 2) // Jitter
-      reflectDir = jitter(reflectDir, 0.0);
 
     vec3 baseCol = v_color;
 
@@ -278,8 +278,7 @@ void main() {
 #endif
 
     if(u_quality > 2) { // Reflections
-      float reflectFactor = 0.4 * exp2(8.0 * dot(rayDir, v_normal)) - 0.05;
-      reflectFactor = 1.0;
+      float reflectFactor = 0.5 * exp2(8.0 * dot(rayDir, v_normal)) - 0.05;
       if(reflectFactor > 0.0) {
 	March reflection = march(v_cellPos, v_fractPos, reflectDir);
 	vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 1.0);

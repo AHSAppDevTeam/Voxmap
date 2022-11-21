@@ -252,7 +252,7 @@ async function render(now) {
     gl.bindTexture(gl.TEXTURE_2D, T.noise)
 
     // Set the matrix.
-    gl.uniform1i(U.quality, 3)
+    gl.uniform1i(U.quality, quality)
     gl.uniformMatrix4fv(U.matrix, false, cam.projection_matrix)
     gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
     gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
