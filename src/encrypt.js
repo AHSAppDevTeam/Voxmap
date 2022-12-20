@@ -2,7 +2,7 @@ const crypto = require("crypto").webcrypto
 const fs = require("fs")
 
 let keystring
-if("KEY" in process.env) {
+if ("KEY" in process.env) {
     keystring = process.env.KEY
 } else {
     console.log("Missing encryption key. Please set it as your environment variable.")
@@ -18,31 +18,30 @@ const initial = Uint8Array.from([
 
 function encrypt(input, output) {
     Promise.all([
-        crypto.subtle.importKey("jwk", {
-                "alg": "A256CBC",
-                "ext": true,
-                "k": keystring,
-                "key_ops": ["encrypt", "decrypt"],
-                "kty": "oct"
-            }, {
-                "name": "AES-CBC"
-            },
-            false,
-            ["encrypt", "decrypt"]
-        ),
-        fs.promises.readFile(input)
-    ])
-    .then(([key, data]) =>
-        crypto.subtle.encrypt({
-            'name': 'AES-CBC',
-            'iv': initial
-        }, key, data)
-    )
-    .then(buffer => new Uint8Array(buffer))
-    .then(array => fs.createWriteStream(output).write(array))
+            crypto.subtle.importKey("jwk", {
+                    "alg": "A256CBC",
+                    "ext": true,
+                    "k": keystring,
+                    "key_ops": ["encrypt", "decrypt"],
+                    "kty": "oct"
+                }, {
+                    "name": "AES-CBC"
+                },
+                false,
+                ["encrypt", "decrypt"]
+            ),
+            fs.promises.readFile(input)
+        ])
+        .then(([key, data]) =>
+            crypto.subtle.encrypt({
+                'name': 'AES-CBC',
+                'iv': initial
+            }, key, data)
+        )
+        .then(buffer => new Uint8Array(buffer))
+        .then(array => fs.createWriteStream(output).write(array))
 }
 
 encrypt("out/map.bin.gz", "src/map.blob")
 encrypt("out/vertex.bin.gz", "src/vertex.blob")
 encrypt("out/noise.bin.gz", "src/noise.blob")
-
