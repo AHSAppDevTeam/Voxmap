@@ -1,3 +1,4 @@
+import { Hammer } from '../libs/hammer.js'
 // Link up HTML elements
 const $debug = document.getElementById("debug")
 const $map3d = document.getElementById("map-3d")
@@ -8,6 +9,7 @@ const $joystick = document.getElementById("joystick")
 const gl = $map3d.getContext("webgl2", { alpha: false, antialias: false } )
 const map2d = $map2d.getContext("2d") 
 const overlay = $overlay.getContext("2d") 
+var touch = new Hammer($map3d)
 
 //-- Numerical constants
 
@@ -448,19 +450,17 @@ async function addListeners() {
         controls.rot[x] -= event.movementY / controls.size
         controls.rot[x] = clamps(controls.rot[x], 0, Math.PI)
     })
-    $joystick.addEventListener('touchstart', () => {
+    touch.on("panstart", function (ev) {
         controls.active = true
     })
-    $joystick.addEventListener('pointermove', (event) => {
+    touch.on("panmove", function (ev) {
         if (controls.active) {
-            controls.move[x] = +2*clamp(event.offsetX / controls.size - 1, 1)
-            controls.move[y] = -2*clamp(event.offsetY / controls.size - 1, 1)
+            controls.move[x] = +2 * clamp(ev.deltaX / 512 - 1, 1)
+            controls.move[y] = -2 * clamp(ev.deltaY / 512 - 1, 1)
         }
     })
-    $joystick.addEventListener('touchend', (event) => {
+    touch.on("panend", function (ev) {
         controls.active = false
-        controls.move[x] = 0
-        controls.move[y] = 0
     })
     window.addEventListener('keydown', (event) => {
         const power = event.shiftKey ? 1.2 : 0.8
