@@ -578,7 +578,7 @@ async function update_state(time, delta) {
     )
     cam.pos = m4.v4(cam.orbit_matrix, [0, 0, 0, 1]).slice(0, 3)
 
-    const fov = 30 // Field of view
+    const fov = 60 // Field of view
     const aspect = size[x] / size[y]
     const near = 1
     const far = X

@@ -27,6 +27,10 @@ const $map = document.getElementById("map")
 const $signin = document.getElementById("signin")
 const $search = document.getElementById("search")
 
+const $places = document.getElementById("places")
+const $placeLists = document.getElementById("placeLists")
+
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig)
 const database = getDatabase()
@@ -70,6 +74,17 @@ $signin.addEventListener("click", event => {
         }).then(display3D)
 })
 
+$search.addEventListener("input", event => {
+	let query = $search.value.toLowerCase()
+	console.log($search.value)
+	for(const $placeList of $placeLists.children){
+		$placeList.open = false
+		if(!query) continue
+
+		if($placeList.name.toLowerCase().startsWith(query)) $placeList.open = true
+	}
+})
+
 const sort = (obj, key) =>
     Object.fromEntries(
         Object.entries(obj)
@@ -78,53 +93,56 @@ const sort = (obj, key) =>
 
 async function display2D() {
 
-    const $places = document.getElementById("places")
-    const $placeLists = document.getElementById("placeLists")
-
     await get(placesRef).then((snapshot) => {
         places = sort(snapshot.val())
         //$map.contentWindow.postMessage({ places }, "*")
     })
 
     await get(placeListsRef).then((snapshot) => {
+
+		// Remove outdated placeLists
         while ($placeLists.firstChild)
             $placeLists.removeChild($placeLists.firstChild)
 
+		// Sort by database sort key
         placeLists = sort(snapshot.val(), "sort")
 
+		// Draw new placeLists
         for (const placeListKey in placeLists) {
             const placeList = placeLists[placeListKey]
-            const $placeList = document.createElement("li")
+            const $placeList = document.createElement("details")
 
+			if(!placeList.places || !placeList.name) continue
+
+			// Add the name & icon of the placeList collection
+			$placeList.name = placeList.name
+			const $placeListSummary = document.createElement("summary")
             const $icon = document.createElement("span")
             $icon.textContent = placeList.icon
             $icon.classList.add("material-symbols-outlined")
 
-            $placeList.append($icon, placeList.name)
-            $placeList.addEventListener("click", event => {
-                while ($places.firstChild)
-                    $places.removeChild($places.firstChild)
+            $placeListSummary.append($icon, placeList.name)
 
-                $placeList.after($places)
+			// Add the individual places
+			const $places = document.createElement("ul")
+			const placeKeys = Object.fromEntries(
+				Object.entries(placeList.places)
+				.sort((a, b) => (a[1] - b[1]))
+			)
+			for (const placeKey in placeKeys) {
+				const $place = document.createElement("li")
+				const place = places[placeKey]
+				if(!place) continue
+				$place.textContent = place.name
+				$place.addEventListener("click", event => {
+					$map.contentWindow.postMessage({
+						place
+					}, "*")
+				})
+				$places.append($place)
+			}
 
-                const placeKeys = Object.fromEntries(
-                    Object.entries(placeList.places)
-                    .sort((a, b) => (a[1] - b[1]))
-                )
-                console.log(placeKeys)
-                for (const placeKey in placeKeys) {
-                    const $place = document.createElement("li")
-                    const place = places[placeKey]
-                    $place.textContent = place.name
-                    $place.addEventListener("click", event => {
-                        $map.contentWindow.postMessage({
-                            place
-                        }, "*")
-                    })
-                    $places.append($place)
-                }
-            })
-
+			$placeList.append($placeListSummary, $places)
             $placeLists.append($placeList)
         }
     })
