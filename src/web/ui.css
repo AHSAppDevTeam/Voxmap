@@ -82,11 +82,16 @@ body * {
 }
 
 #form ul {
+	justify-content: start
+}
+
+#form ul ul {
 	display: flex;
 	justify-content: center;
 	padding: 0;
 	flex-wrap: wrap;
 	gap: 1rem;
+	list-style-type: none;
 }
 
 #form li {
@@ -111,10 +116,11 @@ body * {
 }
 
 #form ul ul li {
-	background: #ffa;
+	background: orchid;
 	border-radius: 1rem;
 	padding: 0.2rem;
 }
+
 
 .material-symbols-outlined {
 	font-variation-settings:
