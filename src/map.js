@@ -1,15 +1,12 @@
-import { Hammer } from '../libs/hammer.js'
 // Link up HTML elements
 const $debug = document.getElementById("debug")
 const $map3d = document.getElementById("map-3d")
 const $map2d = document.getElementById("map-2d")
 const $overlay = document.getElementById("map-overlay")
 const $toggle = document.getElementById("toggle")
-const $joystick = document.getElementById("joystick")
 const gl = $map3d.getContext("webgl2", { alpha: false, antialias: false } )
 const map2d = $map2d.getContext("2d") 
 const overlay = $overlay.getContext("2d") 
-var touch = new Hammer($map3d)
 
 //-- Numerical constants
 
@@ -109,7 +106,7 @@ const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
 }
 const cam = get_json_param(".cam") || {
-    sbj: [381.5, 128.1, H_ground + 16], // camera subject
+    sbj: [381.5, 128.1, H_ground + 50], // camera subject
     pos: [0, 0, 0],
     vel: [0, 0, 0],
     acc: [0, 0, 0],
@@ -137,6 +134,7 @@ const controls = {
     move: [0, 0, 0],
     rot: [0.01, 0, -0.2],
     size: 100,
+    prev: [0, 0]
 }
 
 //-- Pregenerated array fetching
@@ -430,6 +428,11 @@ async function drawOverlay(){
 
 const list = {}
 async function addListeners() {
+
+    let touch = new Hammer.Manager($overlay)
+    touch.add(new Hammer.Pan({ threshold: 0, pointers: 0 } ))
+    touch.add(new Hammer.Pinch({ threshold: 0 }).recognizeWith(touch.get("pan")))
+
     $overlay.addEventListener('click', (event) => {
         /*
         const name = prompt("name")
@@ -442,26 +445,36 @@ async function addListeners() {
         })
         */
         event.preventDefault()
-        $overlay.requestPointerLock()
+        //$overlay.requestPointerLock()
     })
+
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))
-    $overlay.addEventListener('pointermove', (event) => {
-        controls.rot[z] -= 2 * event.movementX / controls.size
-        controls.rot[x] -= event.movementY / controls.size
-        controls.rot[x] = clamps(controls.rot[x], 0, Math.PI)
-    })
-    touch.on("panstart", function (ev) {
-        controls.active = true
-    })
-    touch.on("panmove", function (ev) {
-        if (controls.active) {
-            controls.move[x] = +2 * clamp(ev.deltaX / 512 - 1, 1)
-            controls.move[y] = -2 * clamp(ev.deltaY / 512 - 1, 1)
+    touch.on("pinch pan", (event) => {
+        let dx = event.deltaX - controls.prev[x]
+        let dy = event.deltaY - controls.prev[y]
+        controls.prev[x] = event.isFinal ? 0 : event.deltaX
+        controls.prev[y] = event.isFinal ? 0 : event.deltaY
+
+        switch(event.pointers.length) {
+            case 1: // pan
+                let sin = Math.sin(controls.rot[z])
+                let cos = Math.cos(controls.rot[z])
+                controls.move[x] += -cos*dx-sin*dy
+                controls.move[y] += -sin*dx+cos*dy
+                break
+            case 2: // pinch
+                controls.rot[z] -= 2 * dx
+                controls.rot[x] -= dy
+                controls.rot[x] = clamps(controls.rot[x], 0, Math.PI)
+                break
         }
     })
-    touch.on("panend", function (ev) {
-        controls.active = false
+
+    $overlay.addEventListener("wheel", (event) => {
+        controls.move[z] += event.deltaX + event.deltaY + event.deltaZ
     })
+
+    // Move (keyboard)
     window.addEventListener('keydown', (event) => {
         const power = event.shiftKey ? 1.2 : 0.8
         switch (event.code) {
@@ -517,17 +530,6 @@ async function update_state(time, delta) {
     frame++
     if(mode == 0) cam.rot = [0, 0, 0]
 
-    let sin = Math.sin(cam.rot[z])
-    let cos = Math.cos(cam.rot[z])
-
-    let f = controls.move.map(f => f * 100)
-
-    cam.acc = [
-        f[x] * cos - f[y] * sin,
-        f[x] * sin + f[y] * cos,
-        f[z] * 2
-    ]
-
     /*
     for(let i = 0; i < magnitude(cam.vel)*delta, i++) {
 
@@ -544,22 +546,20 @@ async function update_state(time, delta) {
     if(below > 4) cam.acc[z] -= 20
     */
 
-    let drag = 1/4
+    let moveScale = 1 + cam.pos[z]/Z
+    moveScale /= 100
 
-    cam.acc = cam.acc.map((a, i) => a - cam.vel[i] * drag / delta)
-    cam.vel = cam.vel.map((v, i) => v + cam.acc[i] * delta)
-    cam.sbj = cam.sbj.map((p, i) => p + cam.vel[i] * delta)
+    cam.sbj = cam.sbj.map((p, i) => p + controls.move[i] * moveScale)
     cam.sbj = [
         clamps(cam.sbj[x], -X, 2*X),
         clamps(cam.sbj[y], -Y, 2*Y),
         clamps(cam.sbj[z], 0, X)
     ]
 
-    cam.rot = cam.rot.map( 
-        (a, i) => cam.rot[i] + 
-        clamp( pow(controls.rot[i] - cam.rot[i], 1.5), 10*delta)
-    )
-    cam.rot = controls.rot
+    cam.rot = cam.rot.map((a, i) => a + controls.rot[i]/100)
+
+    controls.move[x] = controls.move[y] = controls.move[z] = 0
+    controls.rot[x] = controls.rot[y] = controls.rot[z] = 0
 
     const orbit_radius = cam.sbj[z]
     cam.orbit_matrix = m4.multiply(
@@ -586,9 +586,6 @@ async function update_state(time, delta) {
     weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
     weather.sun[z] = Math.abs(Math.cos(hour))
 
-    $joystick.firstElementChild.style.transform =
-        `translate(${controls.move[x]*15}%, ${-controls.move[y]*15}%)`
-
     const num = x => x.toFixed(1)
 
     const fps = 1 / delta
@@ -613,6 +610,7 @@ async function update_state(time, delta) {
         url.searchParams.set("cam", encodeURIComponent(JSON.stringify(cam)))
         window.history.replaceState(null, "", url.toString())
     }
+
 }
 
 async function decrypt(buffer) {
