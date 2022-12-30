@@ -475,24 +475,31 @@ async function addListeners() {
             controls.rot[z] -= 2 * dx
             controls.rot[x] -= dy
     }
-    async function controlsMove(dx, dy) {
-            let sin = Math.sin(controls.rot[z])
-            let cos = Math.cos(controls.rot[z])
-            controls.move[x] += -cos*dx-sin*dy
-            controls.move[y] += -sin*dx+cos*dy
+    async function controlsMove(cx, cy, dx, dy) {
+        let old_projection = m4.v4(
+            cam.inv_projection_matrix,
+            [-(cx-dx)/size[x], (cy-dy)/size[y], 0, 0]
+        )
+        let new_projection = m4.v4(
+            cam.inv_projection_matrix,
+            [-(cx)/size[x], (cy)/size[y], 0, 0]
+        )
+        controls.move[x] += new_projection[x] - old_projection[x]
+        controls.move[y] += new_projection[y] - old_projection[y]
     }
     touch.on("pinch pan", (event) => {
+        let cx = event.center.x
+        let cy = event.center.y
         let dx = event.deltaX - controls.prev[x]
         let dy = event.deltaY - controls.prev[y]
         controls.prev[x] = event.isFinal ? 0 : event.deltaX
         controls.prev[y] = event.isFinal ? 0 : event.deltaY
 
-        console.log(controls.middleButton)
         if(event.pointers.length == 2 || controls.shiftKey) {
             // Two-finger or shift-key or right-click rotation
             controlsRotate(dx,dy)
         } else {
-            controlsMove(dx,dy)
+            controlsMove(cx, cy, dx,dy)
         }
     })
     $overlay.addEventListener("mousemove", (event) => {
@@ -511,26 +518,26 @@ async function addListeners() {
 
     // Move (keyboard)
     window.addEventListener('keydown', (event) => {
-        const power = event.shiftKey ? 1.2 : 0.8
+        const power = event.shiftKey ? 5 : 10
         switch (event.code) {
             case "KeyW":
             case "ArrowUp":
-                controls.move[y] = power
+                controls.move[y] += power
                 break;
             case "KeyS":
             case "ArrowDown":
-                controls.move[y] = -power
+                controls.move[y] -= power
                 break;
             case "KeyA":
             case "ArrowLeft":
-                controls.move[x] = -power
+                controls.move[x] -= power
                 break;
             case "KeyD":
             case "ArrowRight":
-                controls.move[x] = power
+                controls.move[x] += power
                 break;
             case "Space":
-                controls.move[z] = event.shiftKey ? -1 : 1
+                controls.move[z] += event.shiftKey ? -1 : 1
                 break;
         }
     })
@@ -581,14 +588,11 @@ async function update_state(time, delta) {
     if(below > 4) cam.acc[z] -= 20
     */
 
-    let moveScale = 1 + cam.pos[z]/Z
-    moveScale /= 10
-
-    cam.sbj = cam.sbj.map((p, i) => p + controls.move[i] * moveScale)
+    cam.sbj = cam.sbj.map((p, i) => p + controls.move[i]*100)
     cam.sbj = [
         clamps(cam.sbj[x], -X, 2 * X),
         clamps(cam.sbj[y], -Y, 2 * Y),
-        clamps(cam.sbj[z], 0, X)
+        clamps(cam.sbj[z], H_ground, X)
     ]
 
     cam.rot = cam.rot.map((a, i) => a + controls.rot[i]/100)
@@ -613,7 +617,13 @@ async function update_state(time, delta) {
         m4.projection(fstop(fov), aspect, near, far),
         m4.xRotation(-cam.rot[x]),
         m4.zRotation(-cam.rot[z]),
-        m4.translation(...cam.pos.map(a => -a)) // why divide by 2? idk
+        m4.translation(...cam.pos.map(a => -a))
+    )
+    cam.inv_projection_matrix = m4.multiply(
+        m4.translation(...cam.pos),
+        m4.zRotation(cam.rot[z]),
+        m4.xRotation(cam.rot[x]),
+        m4.inv_projection(fstop(fov), aspect, near, far)
     )
 
     let hour = time / 60 / 60 / 12 * Math.PI

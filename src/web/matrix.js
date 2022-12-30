@@ -1,10 +1,17 @@
 const m4 = {
 
     projection: (f, ratio, near, far) => ([
-        f / ratio, 0, 0, 0,
-        0, f, 0, 0,
+        f / Math.sqrt(ratio), 0, 0, 0,
+        0, f * Math.sqrt(ratio), 0, 0,
         0, 0, (near + far) / (near - far), -1,
         0, 0, 2 * near * far / (near - far), 0,
+    ]),
+
+    inv_projection: (f, ratio, near, far) => ([
+        Math.sqrt(ratio) / f, 0, 0, 0,
+        0, 1 / Math.sqrt(ratio) / f, 0, 0,
+        0, 0, 0, (near - far) / (2 * near * far),
+        0, 0, -1, (near + far) / (2 * near * far)
     ]),
 
     _multiply: (a, b) => {
