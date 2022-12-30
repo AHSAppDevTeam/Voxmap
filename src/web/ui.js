@@ -25,10 +25,11 @@ const firebaseConfig = {
 
 const $map = document.getElementById("map")
 const $signin = document.getElementById("signin")
-const $search = document.getElementById("search")
+const $searchInput = document.getElementById("search-input")
+const $searchReset = document.getElementById("search-reset")
 
 const $places = document.getElementById("places")
-const $placeLists = document.getElementById("placeLists")
+const $placeLists = document.getElementById("place-lists")
 
 
 // Initialize Firebase
@@ -74,16 +75,28 @@ $signin.addEventListener("click", event => {
         }).then(display3D)
 })
 
-$search.addEventListener("input", event => {
-	let query = $search.value.toLowerCase()
-	console.log($search.value)
+function filterPlaces() {
+	let query = simplify($searchInput.value)
+        $placeLists.classList.toggle("search", query)
 	for(const $placeList of $placeLists.children){
-		$placeList.open = false
-		if(!query) continue
-
-		if($placeList.name.toLowerCase().startsWith(query)) $placeList.open = true
+            const $placeListDetails = $placeList.firstChild
+            let contains = false
+            for(const $place of $placeListDetails.lastChild.children){
+                const match = simplify($place.name).startsWith(query)
+                $place.classList.toggle("match", match)
+                contains |= match
+            }
+	    $placeListDetails.open = Boolean(query && contains)
 	}
+}
+
+$searchInput.addEventListener("input", filterPlaces)
+$searchReset.addEventListener("click", () => {
+    $searchInput.value = ""
+    filterPlaces()
 })
+
+const simplify = query => query.replace(/[\s-]/g, "").toLowerCase()
 
 const sort = (obj, key) =>
     Object.fromEntries(
@@ -110,30 +123,36 @@ async function display2D() {
 		// Draw new placeLists
         for (const placeListKey in placeLists) {
             const placeList = placeLists[placeListKey]
-            const $placeList = document.createElement("details")
+	    if(!placeList.places || !placeList.name) continue
 
-			if(!placeList.places || !placeList.name) continue
+            const $placeList = document.createElement("li")
+            $placeList.classList.add("place-list")
 
-			// Add the name & icon of the placeList collection
-			$placeList.name = placeList.name
-			const $placeListSummary = document.createElement("summary")
-            const $icon = document.createElement("span")
-            $icon.textContent = placeList.icon
-            $icon.classList.add("material-symbols-outlined")
+            const $placeListDetails = document.createElement("details")
+            $placeListDetails.classList.add("place-list-details")
 
-            $placeListSummary.append($icon, placeList.name)
+	    // Add the name & icon of the placeList collection
+            $placeList.name = placeList.name
+            const $placeListIcon = document.createElement("summary")
+            $placeListIcon.title = placeList.name
+            $placeListIcon.textContent = placeList.icon
+            $placeListIcon.classList.add("place-list-icon")
+            $placeListIcon.classList.add("material-symbols-outlined")
 
 			// Add the individual places
 			const $places = document.createElement("ul")
+                        $places.classList.add("place-list-places")
 			const placeKeys = Object.fromEntries(
 				Object.entries(placeList.places)
 				.sort((a, b) => (a[1] - b[1]))
 			)
 			for (const placeKey in placeKeys) {
-				const $place = document.createElement("li")
 				const place = places[placeKey]
 				if(!place) continue
-				$place.textContent = place.name
+
+				const $place = document.createElement("li")
+                                $place.classList.add("place")
+				$place.textContent = $place.name = place.name
 				$place.addEventListener("click", event => {
 					$map.contentWindow.postMessage({
 						place
@@ -142,7 +161,8 @@ async function display2D() {
 				$places.append($place)
 			}
 
-			$placeList.append($placeListSummary, $places)
+			$placeListDetails.append($placeListIcon, $places)
+                        $placeList.append($placeListDetails)
             $placeLists.append($placeList)
         }
     })
