@@ -142,7 +142,8 @@ const controls = {
     move: [0, 0, 0],
     rot: [0.01, 0, -0.2],
     size: 100,
-    prev: [0, 0]
+    prev: [0, 0],
+    shiftKey: false,
 }
 
 //-- Pregenerated array fetching
@@ -462,25 +463,46 @@ async function addListeners() {
     })
 
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))
+
+    window.addEventListener("keydown", event => {
+        controls.shiftKey = event.shiftKey
+    })
+    window.addEventListener("keyup", event => {
+        controls.shiftKey = event.shiftKey
+    })
+
+    async function controlsRotate(dx, dy) {
+            controls.rot[z] -= 2 * dx
+            controls.rot[x] -= dy
+    }
+    async function controlsMove(dx, dy) {
+            let sin = Math.sin(controls.rot[z])
+            let cos = Math.cos(controls.rot[z])
+            controls.move[x] += -cos*dx-sin*dy
+            controls.move[y] += -sin*dx+cos*dy
+    }
     touch.on("pinch pan", (event) => {
         let dx = event.deltaX - controls.prev[x]
         let dy = event.deltaY - controls.prev[y]
         controls.prev[x] = event.isFinal ? 0 : event.deltaX
         controls.prev[y] = event.isFinal ? 0 : event.deltaY
 
-        switch(event.pointers.length) {
-            case 1: // pan
-                let sin = Math.sin(controls.rot[z])
-                let cos = Math.cos(controls.rot[z])
-                controls.move[x] += -cos*dx-sin*dy
-                controls.move[y] += -sin*dx+cos*dy
-                break
-            case 2: // pinch
-                controls.rot[z] -= 2 * dx
-                controls.rot[x] -= dy
-                controls.rot[x] = clamps(controls.rot[x], 0, Math.PI)
-                break
+        console.log(controls.middleButton)
+        if(event.pointers.length == 2 || controls.shiftKey) {
+            // Two-finger or shift-key or right-click rotation
+            controlsRotate(dx,dy)
+        } else {
+            controlsMove(dx,dy)
         }
+    })
+    $overlay.addEventListener("mousemove", (event) => {
+        if(event.buttons == 2 /*right click*/ || event.buttons == 4 /*middle click*/) {
+            controlsRotate(event.movementX, event.movementY)
+            event.preventDefault()
+        }
+    })
+    $overlay.addEventListener("contextmenu", (event) => {
+        event.preventDefault()
     })
 
     $overlay.addEventListener("wheel", (event) => {
@@ -560,7 +582,7 @@ async function update_state(time, delta) {
     */
 
     let moveScale = 1 + cam.pos[z]/Z
-    moveScale /= 100
+    moveScale /= 10
 
     cam.sbj = cam.sbj.map((p, i) => p + controls.move[i] * moveScale)
     cam.sbj = [
