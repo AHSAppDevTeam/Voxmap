@@ -2,7 +2,7 @@
 
 all: out/noise.bin.gz out/vertex.bin.gz out/map.bin.gz
 
-encrypted: src/noise.blob src/vertex.blob src/map.blob
+encrypted: res/noise.blob res/vertex.blob res/map.blob
 
 ### Maps
 maps:
@@ -13,7 +13,7 @@ maps/map.csv:
 
 maps/map.svg: maps/map.csv
 	### rough location maps to SVG
-	python3 src/csv-pass.py
+	python3 src/gen/csv-pass.py
 
 maps/old.map.ora: maps/map.svg
 	### SVG to rastered Krita file containing depth and edges
@@ -69,11 +69,11 @@ out/map.bin.gz: out/map.bin
 
 ### Encrypted
 
-src/noise.blob src/vertex.blob src/map.blob: src/encrypt.js \
+res/noise.blob res/vertex.blob res/map.blob: src/gen/encrypt.js \
 	out/noise.bin.gz out/vertex.bin.gz out/map.bin.gz
 	### Encrypt
 	nvm use latest
-	node src/encrypt.js
+	node src/gen/encrypt.js
 
 ### C++ compilation
 
@@ -88,17 +88,17 @@ bin/OpenSimplexNoise.o: | bin
 bin/VoxWriter.o: | bin
 	clang++ $(cppflags) -o $@ -c libs/MagicaVoxel_File_Writer/VoxWriter.cpp
 
-bin/moxel: src/moxel.cpp bin/VoxWriter.o | bin
+bin/moxel: src/gen/moxel.cpp bin/VoxWriter.o | bin
 	clang++ $(cppflags) $^ -o $@
 
-bin/reverse-moxel: src/reverse-moxel.cpp bin/VoxWriter.o | bin
+bin/reverse-moxel: src/gen/reverse-moxel.cpp bin/VoxWriter.o | bin
 	clang++ $(cppflags) $^ -o $@
 
-bin/noise: src/noise.cpp bin/OpenSimplexNoise.o | bin
+bin/noise: src/gen/noise.cpp bin/OpenSimplexNoise.o | bin
 	clang++ $(cppflags) $^ -o $@
 
-bin/sdf: src/sdf.cpp | bin
+bin/sdf: src/gen/sdf.cpp | bin
 	clang++ $(cppflags) $^ -ltbb -o $@
 
-bin/viewer: src/viewer.cpp libs/glad.c | bin
+bin/viewer: src/gen/viewer.cpp libs/glad.c | bin
 	clang++ $^ -ldl -lglfw $(cppflags) -o $@
