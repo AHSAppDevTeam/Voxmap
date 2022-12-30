@@ -23,7 +23,10 @@ const N_stride = 6 * N_int16 + 4 * N_int8
 const N_time_samples = 120
 
 // This is so I can do vector[x]
-const x = 0, y = 1, z = 2, w = 3
+const x = 0,
+    y = 1,
+    z = 2,
+    w = 3
 
 // World parameters
 const Z = 32 // height
@@ -34,12 +37,12 @@ const C = 4 // 4 channels (RGBA)
 // if not over HTTPS, probably means we're in debug mode
 const encrypted = url.protocol === "https:"
 
-const fstop = (fov) => 1/Math.tan(fov*Math.PI/360)
+const fstop = (fov) => 1 / Math.tan(fov * Math.PI / 360)
 
-const sort = (obj, key, order) => 
+const sort = (obj, key, order) =>
     Object.fromEntries(
-      Object.entries(obj)
-      .sort((a, b) => order * (key ? a[1][key]-b[1][key] : a[1]-b[1]) )
+        Object.entries(obj)
+        .sort((a, b) => order * (key ? a[1][key] - b[1][key] : a[1] - b[1]))
     )
 
 //-- Single-letter "folders" for organizing WebGL objects
@@ -64,9 +67,9 @@ const A = {}
 const T = {
     colorUpdate: t => {
         gl.bindTexture(gl.TEXTURE_2D, t)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 
-                      ...size, 0,
-                      gl.RGBA, gl.UNSIGNED_BYTE, null)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
+            ...size, 0,
+            gl.RGBA, gl.UNSIGNED_BYTE, null)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -77,15 +80,15 @@ const T = {
 const RB = {
     colorUpdate: rb => {
         gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
-        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
-                                          gl.getParameter(gl.MAX_SAMPLES), 
-                                          gl.RGBA8, ...size)
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER,
+            gl.getParameter(gl.MAX_SAMPLES),
+            gl.RGBA8, ...size)
     },
     depthUpdate: rb => {
         gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
-        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 
-                                          gl.getParameter(gl.MAX_SAMPLES), 
-                                          gl.DEPTH_COMPONENT24, ...size)
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER,
+            gl.getParameter(gl.MAX_SAMPLES),
+            gl.DEPTH_COMPONENT24, ...size)
     }
 }
 // Objects
@@ -110,23 +113,28 @@ const cam = get_json_param(".cam") || {
     pos: [0, 0, 0],
     vel: [0, 0, 0],
     acc: [0, 0, 0],
-    rot: [Math.PI/2, 0, 0],
+    rot: [Math.PI / 2, 0, 0],
     orbit_matrix: Array(16),
     projection_matrix: Array(16),
 }
 
 
-let place, places
-window.addEventListener("message", ({ data }) => {
-    if( "mode" in data) {
+let place, places, focusPlaces = []
+window.addEventListener("message", ({
+    data
+}) => {
+    if ("mode" in data) {
         mode = data.mode
     }
-    if( "places" in data) {
+    if ("places" in data) {
         places = data.places
     }
-    if( "place" in data) {
+    if ("place" in data) {
         place = data.place
-        cam.sbj = [ place.x, place.y, place.z ]
+        cam.sbj = [place.x, place.y, place.z]
+    }
+    if ("focusPlaces" in data) {
+        focusPlaces = data.focusPlaces
     }
 })
 
@@ -139,23 +147,23 @@ const controls = {
 
 //-- Pregenerated array fetching
 
-const fetch_array = (regular_url, encrypted_url) => 
+const fetch_array = (regular_url, encrypted_url) =>
     fetch(encrypted ? encrypted_url : regular_url)
     .then(response => response.arrayBuffer())
     .then(buffer => encrypted ? decrypt(buffer) : buffer)
     .then(buffer => new Uint8Array(buffer))
     .then(array => pako.ungzip(array))
 
-const map_array = fetch_array("out/map.bin.gz", "src/map.blob")
-const vertex_array = fetch_array("out/vertex.bin.gz", "src/vertex.blob")
-const noise_array = fetch_array("out/noise.bin.gz", "src/noise.blob")
+const map_array = fetch_array("out/map.bin.gz", "res/map.blob")
+const vertex_array = fetch_array("out/vertex.bin.gz", "res/vertex.blob")
+const noise_array = fetch_array("out/noise.bin.gz", "res/noise.blob")
 const composit_array = new Float32Array([
     -1, -1,
-     1, -1,
-    -1,  1,
-    -1,  1,
-     1, -1,
-     1,  1,
+    1, -1,
+    -1, 1,
+    -1, 1,
+    1, -1,
+    1, 1,
 ])
 
 //-- Helper functions
@@ -164,14 +172,14 @@ const floor = x => Math.floor(x)
 const fract = x => x - floor(x)
 const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
 const clamps = (x, a, b) => Math.min(Math.max(x, a), b)
-const smoothstep_polynomial = x => x*x*(3-2*x)
-const smoothstep = (x, a, b) => x < a ? 0 : x >= b ? 1 : smoothstep_polynomial((x-a)/(b-a))
+const smoothstep_polynomial = x => x * x * (3 - 2 * x)
+const smoothstep = (x, a, b) => x < a ? 0 : x >= b ? 1 : smoothstep_polynomial((x - a) / (b - a))
 const clamp = (x, a) => clamps(x, -a, a)
 
-const clamp_xyzc = (xyzc) => [X,Y,Z,C].map((max, i) => clamps(xyzc[i], 0, max - 1))
-const project_xyzc = ([_x, _y, _z, _c]) => C*(X*(Y*(_z)+_y)+_x)+_c
+const clamp_xyzc = (xyzc) => [X, Y, Z, C].map((max, i) => clamps(xyzc[i], 0, max - 1))
+const project_xyzc = ([_x, _y, _z, _c]) => C * (X * (Y * (_z) + _y) + _x) + _c
 const tex = (xyz) => Promise.all(
-    [0,1,2].map( _c => map_array.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
+    [0, 1, 2].map(_c => map_array.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
 )
 
 // Do the thing
@@ -208,7 +216,7 @@ async function main() {
     // reflections to the final rendering.
 
     // Load shaders
-    await Promise.all(Object.keys(S).map(file => 
+    await Promise.all(Object.keys(S).map(file =>
         fetch("src/shaders/" + file)
         .then(res => res.text())
         .then(text => S[file] = text)
@@ -260,11 +268,11 @@ async function render(now) {
     gl.uniform1i(U.map, 0)
 
     gl.drawBuffers([
-       gl.COLOR_ATTACHMENT0,
-       gl.COLOR_ATTACHMENT1
+        gl.COLOR_ATTACHMENT0,
+        gl.COLOR_ATTACHMENT1
     ])
     gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_stride)
-    
+
     // Then downsample (blit) the raster framebuffer's renderbuffers into the
     // sampler framebuffer's 1x-sampling textures.
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, B.raster)
@@ -274,11 +282,11 @@ async function render(now) {
     gl.readBuffer(gl.COLOR_ATTACHMENT0)
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, null])
     gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
-                     gl.COLOR_BUFFER_BIT, gl.LINEAR)
+        gl.COLOR_BUFFER_BIT, gl.LINEAR)
     gl.readBuffer(gl.COLOR_ATTACHMENT1)
     gl.drawBuffers([null, gl.COLOR_ATTACHMENT1])
     gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
-                     gl.COLOR_BUFFER_BIT, gl.LINEAR)
+        gl.COLOR_BUFFER_BIT, gl.LINEAR)
 
     // Finally send these textures to the default framebuffer to composit into
     // the final image.
@@ -307,7 +315,7 @@ async function render(now) {
 
 
 const img2d = new Image()
-img2d.src = "/res/2d.png" 
+img2d.src = "/res/2d.png"
 
 overlay.lineWidth = 3
 overlay.lineJoin = "round"
@@ -315,115 +323,120 @@ overlay.textAlign = "center"
 overlay.shadowColor = '#000'
 
 let mode = 0
-$toggle.addEventListener("click", event=>{
-    mode = 1-mode
-    if(mode == 0) {
+$toggle.addEventListener("click", event => {
+    mode = 1 - mode
+    if (mode == 0) {
         $toggle.style.backgroundImage = 'url("/res/render.png")'
     } else {
         $toggle.style.backgroundImage = 'url("/res/2d.png")'
     }
 })
 
-async function drawOverlay(){
+async function drawOverlay() {
 
     overlay.clearRect(0, 0, size[x], size[y])
     map2d.clearRect(0, 0, size[x], size[y])
 
     const s = 3 // scale
     const center = [
-        size[x]/2 - cam.sbj[x]*s,
-        size[y]/2 + cam.sbj[y]*s
+        size[x] / 2 - cam.sbj[x] * s,
+        size[y] / 2 + cam.sbj[y] * s
     ]
     //return map2d.drawImage(img2d, 0, 0, X, Y)
-    if(mode == 0) {
-       map2d.drawImage(img2d, center[x], center[y]-Y*s, X*s, Y*s)
-       for(const key in places) { 
-           if(!key.startsWith("building_")) continue
-           const place = places[key]
+    if (mode == 0) {
+        map2d.drawImage(img2d, center[x], center[y] - Y * s, X * s, Y * s)
+        for (const key in places) {
+            if (!key.startsWith("building_")) continue
+            const place = places[key]
             overlay.font = "20px Roboto"
             overlay.strokeStyle = "#fff"
             overlay.fillStyle = "#000"
-            overlay.strokeText(place.name, center[0]+place.x*s, center[1]-place.y*s)
-            overlay.fillText(place.name, center[0]+place.x*s, center[1]-place.y*s)
-       }
-       return
+            overlay.strokeText(place.name, center[0] + place.x * s, center[1] - place.y * s)
+            overlay.fillText(place.name, center[0] + place.x * s, center[1] - place.y * s)
+        }
+        return
     }
-    
+
     let visible = {}
-    
+
     // Project labels onto scene
-   for(const key in places) {
-       const place = places[key]
+    for (const key in places) {
+        const place = places[key]
 
-       // Multiply by the camera matrix to go from vertex space
-       // to view frustum space, then divide by z to get
-       // perspective. Remove all with negative z.
-       //
-       // Basically the same thing as render.vert except WebGL
-       // does the z-divide and culling automatically.
+        // Multiply by the camera matrix to go from vertex space
+        // to view frustum space, then divide by z to get
+        // perspective. Remove all with negative z.
+        //
+        // Basically the same thing as render.vert except WebGL
+        // does the z-divide and culling automatically.
 
-       const view = m4.v4(cam.projection_matrix, [ place.x, place.y, place.z, 1.0 ])
+        const view = m4.v4(cam.projection_matrix, [place.x, place.y, place.z, 1.0])
 
-       if(view[w] < 0) continue // Discard places behind the camera
-       
-       view[x] /= view[w]
-       view[y] /= view[w]
-       
-       if(Math.abs(view[x]) > 1 || Math.abs(view[y]) > 1) continue // Behind places out of view
+        if (view[w] < 0) continue // Discard places behind the camera
 
-       place.vx = size[x]*(view[x]+1)/2
-       place.vy = -size[y]*(view[y]-1)/2
-       place.vw = view[w]
-       visible[key] = place
-   }
+        view[x] /= view[w]
+        view[y] /= view[w]
 
-   visible = sort(visible, "vw", -1)
+        if (Math.abs(view[x]) > 1 || Math.abs(view[y]) > 1) continue // Behind places out of view
 
-   for(const key in visible) { 
-       const place = visible[key]
+        place.vx = size[x] * (view[x] + 1) / 2
+        place.vy = -size[y] * (view[y] - 1) / 2
+        place.vw = view[w]
+        visible[key] = place
+    }
 
-       /*
-       let flag = false
-       for(kb in places) {
-           if(key == kb) continue
-           const pb = places[kb]
-           if( place.vz > pb.vz && Math.abs(place.vx-pb.vx) < 20 && Math.abs(place.vy-pb.vy) < 10 ) 
-               flag = true
-       }
-       if(flag) continue
-       */
+    visible = sort(visible, "vw", -1)
 
-        const dx = place.x-cam.pos[x]
-        const dy = place.y-cam.pos[y]
-        const dz = place.z-cam.pos[z]
+    for (const key in visible) {
+        const place = visible[key]
 
-       const distance = Math.sqrt(dx*dx + dy*dy + dz*dz)
-       const depth = clamps(distance/150, 0, 1)
-       const proximity = clamps(15/distance, 0.2, 2)
-       const fog = clamps(cam.pos[z]/Z, 0.6, 1)
+        /*
+        let flag = false
+        for(kb in places) {
+            if(key == kb) continue
+            const pb = places[kb]
+            if( place.vz > pb.vz && Math.abs(place.vx-pb.vx) < 20 && Math.abs(place.vy-pb.vy) < 10 ) 
+                flag = true
+        }
+        if(flag) continue
+        */
 
-       if(key.startsWith("room_")) {
-           overlay.globalAlpha = 1-smoothstep(depth, 0.3, 0.4)
-           overlay.font = `${4*proximity}rem "Josefin Sans", sans-serif`
-           overlay.lineJoin = "miter"
-           overlay.lineWidth = 4*2*proximity
-           overlay.strokeStyle = "#000"
-           overlay.fillStyle = "#fff"
-       } else if (key.startsWith("building_")) {
-           overlay.globalAlpha = smoothstep(depth, 0.3, 0.4) * (1-smoothstep(depth, fog, fog+0.1))
-           overlay.font = `${8*proximity}rem "Quicksand", sans-serif`
-           overlay.lineJoin = "round"
-           overlay.lineWidth = 8*2*proximity
-           overlay.strokeStyle = "#fffc"
-           overlay.fillStyle = "#000c"
-       } else {
-           overlay.globalAlpha = 0.5;
-           overlay.font = `${14}px sans-serif`
-       }
+        const dx = place.x - cam.pos[x]
+        const dy = place.y - cam.pos[y]
+        const dz = place.z - cam.pos[z]
 
-       overlay.strokeText(place.name, place.vx, place.vy)
-       overlay.fillText(place.name, place.vx, place.vy)
-   }
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        const depth = clamps(distance / 150, 0, 1)
+        const proximity = clamps(15 / distance, 0.2, 2)
+        const fog = clamps(cam.pos[z] / Z, 0.6, 1)
+
+        if (key.startsWith("room_")) {
+            overlay.globalAlpha = 1 - smoothstep(depth, 0.3, 0.4)
+            overlay.font = `${4*proximity}rem "Josefin Sans", sans-serif`
+            overlay.lineJoin = "miter"
+            overlay.lineWidth = 4 * 2 * proximity
+            overlay.strokeStyle = "#000"
+            overlay.fillStyle = "#fff"
+        } else if (key.startsWith("building_")) {
+            overlay.globalAlpha = smoothstep(depth, 0.3, 0.4) * (1 - smoothstep(depth, fog, fog + 0.1))
+            overlay.font = `${8*proximity}rem "Quicksand", sans-serif`
+            overlay.lineJoin = "round"
+            overlay.lineWidth = 8 * 2 * proximity
+            overlay.strokeStyle = "#fffc"
+            overlay.fillStyle = "#000c"
+        } else {
+            overlay.globalAlpha = 0.5;
+            overlay.font = `${14}px sans-serif`
+        }
+
+        if (focusPlaces.includes(key)) {
+            overlay.strokeStyle = "orchid"
+            overlay.globalAlpha = 1
+        }
+
+        overlay.strokeText(place.name, place.vx, place.vy)
+        overlay.fillText(place.name, place.vx, place.vy)
+    }
 }
 
 const list = {}
@@ -523,12 +536,12 @@ async function addListeners() {
 }
 
 
-const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b*b))
+const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b * b))
 
 async function update_state(time, delta) {
 
     frame++
-    if(mode == 0) cam.rot = [0, 0, 0]
+    if (mode == 0) cam.rot = [0, 0, 0]
 
     /*
     for(let i = 0; i < magnitude(cam.vel)*delta, i++) {
@@ -551,8 +564,8 @@ async function update_state(time, delta) {
 
     cam.sbj = cam.sbj.map((p, i) => p + controls.move[i] * moveScale)
     cam.sbj = [
-        clamps(cam.sbj[x], -X, 2*X),
-        clamps(cam.sbj[y], -Y, 2*Y),
+        clamps(cam.sbj[x], -X, 2 * X),
+        clamps(cam.sbj[y], -Y, 2 * Y),
         clamps(cam.sbj[z], 0, X)
     ]
 
@@ -568,17 +581,17 @@ async function update_state(time, delta) {
         m4.xRotation(cam.rot[x]),
         m4.translation(0, 0, orbit_radius)
     )
-    cam.pos = m4.v4(cam.orbit_matrix, [0,0,0,1]).slice(0,3)
+    cam.pos = m4.v4(cam.orbit_matrix, [0, 0, 0, 1]).slice(0, 3)
 
-    const fov = 30 // Field of view
-    const aspect = size[x]/size[y]
+    const fov = 60 // Field of view
+    const aspect = size[x] / size[y]
     const near = 1
     const far = X
     cam.projection_matrix = m4.multiply(
         m4.projection(fstop(fov), aspect, near, far),
         m4.xRotation(-cam.rot[x]),
         m4.zRotation(-cam.rot[z]),
-        m4.translation(...cam.pos.map(a=>-a)) // why divide by 2? idk
+        m4.translation(...cam.pos.map(a => -a)) // why divide by 2? idk
     )
 
     let hour = time / 60 / 60 / 12 * Math.PI
@@ -591,15 +604,15 @@ async function update_state(time, delta) {
     const fps = 1 / delta
     const avg_fps = (N_time_samples - 1) / (time - times[N_time_samples - 1])
 
-    if(frame % 100 == 0) {
-        if(avg_fps > 30 && quality < 3) {
+    if (frame % 100 == 0) {
+        if (avg_fps > 30 && quality < 3) {
             quality++
-        } else if(avg_fps < 20 && quality > 1) {
+        } else if (avg_fps < 20 && quality > 1) {
             quality--
         }
     }
 
-    if (!get_param("clean")) debug.innerText = 
+    if (!get_param("clean")) debug.innerText =
         `${size.map(num).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
         position: ${cam.pos.map(num).join(", ")}
         velocity: ${cam.vel.map(num).join(", ")}
@@ -635,9 +648,9 @@ async function decrypt(buffer) {
     )
 
     return crypto.subtle.decrypt({
-            'name': 'AES-CBC',
-            'iv': crypto_initial
-        }, crypto_key, buffer)
+        'name': 'AES-CBC',
+        'iv': crypto_initial
+    }, crypto_key, buffer)
 }
 async function resize() {
     size[0] = window.innerWidth * window.devicePixelRatio
@@ -652,13 +665,13 @@ async function initPrograms() {
     // Each has a vertex and fragment shader,
     // along with shared header inserted at the top of both shaders.
     P.renderer = gl.createProgram()
-    await addShader(P.renderer, S["render.h"]+S["render.vert"], gl.VERTEX_SHADER)
-    await addShader(P.renderer, S["render.h"]+S["render.frag"], gl.FRAGMENT_SHADER)
+    await addShader(P.renderer, S["render.h"] + S["render.vert"], gl.VERTEX_SHADER)
+    await addShader(P.renderer, S["render.h"] + S["render.frag"], gl.FRAGMENT_SHADER)
     gl.linkProgram(P.renderer)
 
     P.compositor = gl.createProgram()
-    await addShader(P.compositor, S["composit.h"]+S["composit.vert"], gl.VERTEX_SHADER)
-    await addShader(P.compositor, S["composit.h"]+S["composit.frag"], gl.FRAGMENT_SHADER)
+    await addShader(P.compositor, S["composit.h"] + S["composit.vert"], gl.VERTEX_SHADER)
+    await addShader(P.compositor, S["composit.h"] + S["composit.frag"], gl.FRAGMENT_SHADER)
     gl.linkProgram(P.compositor)
 
     gl.useProgram(P.renderer)
@@ -707,11 +720,11 @@ async function initPrograms() {
     B.raster = gl.createFramebuffer()
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                               gl.RENDERBUFFER, RB.diffuse)
+        gl.RENDERBUFFER, RB.diffuse)
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
-                               gl.RENDERBUFFER, RB.reflection)
+        gl.RENDERBUFFER, RB.reflection)
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
-                               gl.RENDERBUFFER, RB.depth)
+        gl.RENDERBUFFER, RB.depth)
 
     // Load in the pregenerated textures
     T.map = gl.createTexture()
@@ -793,7 +806,7 @@ async function initPrograms() {
         A.id, 1, gl.BYTE,
         N_stride, 6 * N_int16 + 2 * N_int8
     )
-    
+
     // Create textures for the sampler to output to from downsampling (aka
     // blitting) the render bufers.
     T.diffuse = gl.createTexture()
@@ -805,9 +818,9 @@ async function initPrograms() {
     B.sampler = gl.createFramebuffer()
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                               gl.TEXTURE_2D, T.diffuse, 0)
+        gl.TEXTURE_2D, T.diffuse, 0)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
-                               gl.TEXTURE_2D, T.reflection, 0)
+        gl.TEXTURE_2D, T.reflection, 0)
 
     // Set up the parameters for the compositor, which uses the 1x-sampled
     // default framebuffer.

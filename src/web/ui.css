@@ -53,6 +53,7 @@ body {
 
 body * {
 	box-sizing: border-box;
+	transition: background-color 200ms, border-radius 200ms;
 }
 
 #form {
@@ -66,54 +67,82 @@ body * {
 	overflow-y: scroll;
 }
 
-#form #search {
-	background-color: none;
-	border: 3pt solid #afc;
-	font: inherit;
-	padding: 1rem;
+#search {
 	margin-bottom: 1rem;
+	border: 3pt solid #afc;
+	border-radius: 4rem;
+	position: relative;
+}
+#search input {
+	font: inherit;
+	background: none;
+	border: none;
+	border-radius: 4rem;
+}
+#search #search-input {
 	width: 100%;
-	border-radius: 100vmin;
+	padding: 1rem;
+}
+#search #search-reset {
+	position: absolute;
+	font-size: 2rem;
+	opacity: 0.7;
+	height: 3rem;
+	right: 0.5rem;
 }
 
 #form label {
-	text-align: center;
 	width: 100%;
 }
 
-#form ul {
+#place-lists {
 	display: flex;
 	justify-content: center;
-	padding: 0;
 	flex-wrap: wrap;
-	gap: 1rem;
+	padding: 0;
+	list-style: none;
 }
 
-#form li {
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
-	gap: 0.5rem;
-	cursor: pointer;
-	user-select: none;
+.place-list,
+.place-list-details,
+.place-list-places {
+	display: contents;
+	list-style: none;
 }
 
-#form li span {
-	display: flex;
+#form #place-lists.search .place-list-details {
+	display: none;
+}
+#form #place-lists.search .place-list-details[open] {
+	display: contents;
+}
+
+#form .place-list-icon,
+#form .place {
 	flex: 4rem 0 0;
 	width: 4rem;
 	height: 4rem;
+	margin: 3pt;
+	display: flex;
+	flex-direction: column;
 	justify-content: center;
-	align-items: center;
+	text-align: center;
 	background: #acf;
 	border-radius: 100%;
+	cursor: pointer;
+	user-select: none;
+}
+#form .place-list-details[open] .place-list-icon, 
+#form .place-list-details[open] .place.match {
+	background: #28f;
+	border-radius: 20%;
 }
 
-#form ul ul li {
-	background: #ffa;
-	border-radius: 1rem;
-	padding: 0.2rem;
+#form .place {
+	background: pink;
+}
+#form .place-list-details[open] .place.match {
+	background: orchid;
 }
 
 .material-symbols-outlined {
