@@ -5,8 +5,8 @@ const $map2d = document.getElementById("map-2d")
 const $overlay = document.getElementById("map-overlay")
 const $toggle = document.getElementById("toggle")
 const gl = $map3d.getContext("webgl2", { alpha: false, antialias: false } )
-const map2d = $map2d.getContext("2d") 
-const overlay = $overlay.getContext("2d") 
+const map2d = $map2d.getContext("2d")
+const overlay = $overlay.getContext("2d")
 
 //-- Numerical constants
 
@@ -40,10 +40,10 @@ const encrypted = url.protocol === "https:"
 const fstop = (fov) => 1 / Math.tan(fov * Math.PI / 360)
 
 const sort = (obj, key, order) =>
-    Object.fromEntries(
-        Object.entries(obj)
-        .sort((a, b) => order * (key ? a[1][key] - b[1][key] : a[1] - b[1]))
-    )
+Object.fromEntries(
+    Object.entries(obj)
+    .sort((a, b) => order * (key ? a[1][key] - b[1][key] : a[1] - b[1]))
+)
 
 //-- Single-letter "folders" for organizing WebGL objects
 // Also has some helper functions
@@ -67,9 +67,7 @@ const A = {}
 const T = {
     colorUpdate: t => {
         gl.bindTexture(gl.TEXTURE_2D, t)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
-            ...size, 0,
-            gl.RGBA, gl.UNSIGNED_BYTE, null)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ...size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -80,15 +78,11 @@ const T = {
 const RB = {
     colorUpdate: rb => {
         gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
-        gl.renderbufferStorageMultisample(gl.RENDERBUFFER,
-            gl.getParameter(gl.MAX_SAMPLES),
-            gl.RGBA8, ...size)
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, gl.getParameter(gl.MAX_SAMPLES), gl.RGBA8, ...size)
     },
     depthUpdate: rb => {
         gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
-        gl.renderbufferStorageMultisample(gl.RENDERBUFFER,
-            gl.getParameter(gl.MAX_SAMPLES),
-            gl.DEPTH_COMPONENT24, ...size)
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, gl.getParameter(gl.MAX_SAMPLES), gl.DEPTH_COMPONENT24, ...size)
     }
 }
 // Objects
@@ -109,7 +103,7 @@ const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
 }
 const cam = get_json_param(".cam") || {
-    sbj: [381.5, 128.1, H_ground + 50], // camera subject
+    sbj: [381.5, 128.1, Y/2], // camera subject
     pos: [0, 0, 0],
     vel: [0, 0, 0],
     acc: [0, 0, 0],
@@ -149,11 +143,11 @@ const controls = {
 //-- Pregenerated array fetching
 
 const fetch_array = (regular_url, encrypted_url) =>
-    fetch(encrypted ? encrypted_url : regular_url)
-    .then(response => response.arrayBuffer())
-    .then(buffer => encrypted ? decrypt(buffer) : buffer)
-    .then(buffer => new Uint8Array(buffer))
-    .then(array => pako.ungzip(array))
+fetch(encrypted ? encrypted_url : regular_url)
+.then(response => response.arrayBuffer())
+.then(buffer => encrypted ? decrypt(buffer) : buffer)
+.then(buffer => new Uint8Array(buffer))
+.then(array => pako.ungzip(array))
 
 const map_array = fetch_array("out/map.bin.gz", "res/map.blob")
 const vertex_array = fetch_array("out/vertex.bin.gz", "res/vertex.blob")
@@ -217,10 +211,8 @@ async function main() {
     // reflections to the final rendering.
 
     // Load shaders
-    await Promise.all(Object.keys(S).map(file =>
-        fetch("src/shaders/" + file)
-        .then(res => res.text())
-        .then(text => S[file] = text)
+    await Promise.all(Object.keys(S).map(
+        file => fetch("src/shaders/" + file).then(res => res.text()).then(text => S[file] = text)
     ))
 
     await initPrograms()
@@ -245,7 +237,7 @@ async function render(now) {
 
     //-- Begin drawing stuff
     // First draw to the multisampling raster framebuffer, which rasterizes the
-    // mesh and outputs a diffuse and a reflection pass into its renderbuffers. 
+    // mesh and outputs a diffuse and a reflection pass into its renderbuffers.
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
@@ -282,12 +274,10 @@ async function render(now) {
 
     gl.readBuffer(gl.COLOR_ATTACHMENT0)
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, null])
-    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
-        gl.COLOR_BUFFER_BIT, gl.LINEAR)
+    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size, gl.COLOR_BUFFER_BIT, gl.LINEAR)
     gl.readBuffer(gl.COLOR_ATTACHMENT1)
     gl.drawBuffers([null, gl.COLOR_ATTACHMENT1])
-    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size,
-        gl.COLOR_BUFFER_BIT, gl.LINEAR)
+    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size, gl.COLOR_BUFFER_BIT, gl.LINEAR)
 
     // Finally send these textures to the default framebuffer to composit into
     // the final image.
@@ -348,7 +338,7 @@ async function drawOverlay() {
         map2d.drawImage(img2d, center[x], center[y] - Y * s, X * s, Y * s)
         for (const key in places) {
             if (!key.startsWith("building_")) continue
-            const place = places[key]
+                const place = places[key]
             overlay.font = "20px Roboto"
             overlay.strokeStyle = "#fff"
             overlay.fillStyle = "#000"
@@ -375,15 +365,15 @@ async function drawOverlay() {
 
         if (view[w] < 0) continue // Discard places behind the camera
 
-        view[x] /= view[w]
-        view[y] /= view[w]
+            view[x] /= view[w]
+            view[y] /= view[w]
 
-        if (Math.abs(view[x]) > 1 || Math.abs(view[y]) > 1) continue // Behind places out of view
+            if (Math.abs(view[x]) > 1 || Math.abs(view[y]) > 1) continue // Behind places out of view
 
-        place.vx = size[x] * (view[x] + 1) / 2
-        place.vy = -size[y] * (view[y] - 1) / 2
-        place.vw = view[w]
-        visible[key] = place
+                place.vx = size[x] * (view[x] + 1) / 2
+                place.vy = -size[y] * (view[y] - 1) / 2
+                place.vw = view[w]
+                visible[key] = place
     }
 
     visible = sort(visible, "vw", -1)
@@ -392,15 +382,15 @@ async function drawOverlay() {
         const place = visible[key]
 
         /*
-        let flag = false
-        for(kb in places) {
-            if(key == kb) continue
-            const pb = places[kb]
-            if( place.vz > pb.vz && Math.abs(place.vx-pb.vx) < 20 && Math.abs(place.vy-pb.vy) < 10 ) 
-                flag = true
-        }
-        if(flag) continue
-        */
+           let flag = false
+           for(kb in places) {
+           if(key == kb) continue
+           const pb = places[kb]
+           if( place.vz > pb.vz && Math.abs(place.vx-pb.vx) < 20 && Math.abs(place.vy-pb.vy) < 10 )
+           flag = true
+           }
+           if(flag) continue
+           */
 
         const dx = place.x - cam.pos[x]
         const dy = place.y - cam.pos[y]
@@ -449,15 +439,15 @@ async function addListeners() {
 
     $overlay.addEventListener('click', (event) => {
         /*
-        const name = prompt("name")
-        //list["room_"+name.replace("-","_")] = {
-        console.log({
-            name: name+" row",
-            x: event.offsetX, 
-            y: Y-event.offsetY,
-            z: 12
-        })
-        */
+           const name = prompt("name")
+            //list["room_"+name.replace("-","_")] = {
+            console.log({
+name: name+" row",
+x: event.offsetX,
+y: Y-event.offsetY,
+z: 12
+})
+*/
         event.preventDefault()
         //$overlay.requestPointerLock()
     })
@@ -472,8 +462,8 @@ async function addListeners() {
     })
 
     async function controlsRotate(dx, dy) {
-            controls.rot[z] -= 2 * dx
-            controls.rot[x] -= dy
+        controls.rot[z] -= 2 * dx
+        controls.rot[x] -= dy
     }
     async function controlsMove(cx, cy, dx, dy) {
         let old_projection = m4.v4(
@@ -484,8 +474,8 @@ async function addListeners() {
             cam.inv_projection_matrix,
             [-(cx)/size[x], (cy)/size[y], 0, 0]
         )
-        controls.move[x] += new_projection[x] - old_projection[x]
-        controls.move[y] += new_projection[y] - old_projection[y]
+        controls.move[x] += 200*(new_projection[x] - old_projection[x])
+        controls.move[y] += 200*(new_projection[y] - old_projection[y])
     }
     touch.on("pinch pan", (event) => {
         let cx = event.center.x
@@ -521,43 +511,43 @@ async function addListeners() {
         const power = event.shiftKey ? 5 : 10
         switch (event.code) {
             case "KeyW":
-            case "ArrowUp":
+                case "ArrowUp":
                 controls.move[y] += power
-                break;
+            break;
             case "KeyS":
-            case "ArrowDown":
+                case "ArrowDown":
                 controls.move[y] -= power
-                break;
+            break;
             case "KeyA":
-            case "ArrowLeft":
+                case "ArrowLeft":
                 controls.move[x] -= power
-                break;
+            break;
             case "KeyD":
-            case "ArrowRight":
+                case "ArrowRight":
                 controls.move[x] += power
-                break;
+            break;
             case "Space":
                 controls.move[z] += event.shiftKey ? -1 : 1
-                break;
+            break;
         }
     })
     window.addEventListener('keyup', (event) => {
         switch (event.code) {
             case "KeyW":
-            case "KeyS":
-            case "ArrowUp":
-            case "ArrowDown":
+                case "KeyS":
+                case "ArrowUp":
+                case "ArrowDown":
                 controls.move[y] = 0
-                break;
+            break;
             case "KeyA":
-            case "KeyD":
-            case "ArrowLeft":
-            case "ArrowRight":
+                case "KeyD":
+                case "ArrowLeft":
+                case "ArrowRight":
                 controls.move[x] = 0
-                break;
+            break;
             case "Space":
                 controls.move[z] = 0
-                break;
+            break;
         }
     })
     window.addEventListener('resize', resize)
@@ -570,29 +560,29 @@ const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b * b))
 async function update_state(time, delta) {
 
     frame++
-    if (mode == 0) cam.rot = [0, 0, 0]
+        if (mode == 0) cam.rot = [0, 0, 0]
 
     /*
-    for(let i = 0; i < magnitude(cam.vel)*delta, i++) {
+       for(let i = 0; i < magnitude(cam.vel)*delta, i++) {
 
-    }*/
+       }*/
 
     const feet_pos = [...cam.sbj]
     feet_pos[z] -= H_human
 
     let [above, below, color] = await tex(feet_pos.map(floor))
     /*
-    if(below < 1) cam.acc[z] += 20
-    if(below < 0.5) cam.vel[z] = 0
-    if(below > 1) cam.acc[z] -= 20
-    if(below > 4) cam.acc[z] -= 20
-    */
+       if(below < 1) cam.acc[z] += 20
+       if(below < 0.5) cam.vel[z] = 0
+       if(below > 1) cam.acc[z] -= 20
+       if(below > 4) cam.acc[z] -= 20
+       */
 
-    cam.sbj = cam.sbj.map((p, i) => p + controls.move[i]*100)
+    cam.sbj = cam.sbj.map((p, i) => p + controls.move[i])
     cam.sbj = [
         clamps(cam.sbj[x], -X, 2 * X),
         clamps(cam.sbj[y], -Y, 2 * Y),
-        clamps(cam.sbj[z], H_ground, X)
+        clamps(cam.sbj[z], H_ground, Y)
     ]
 
     cam.rot = cam.rot.map((a, i) => a + controls.rot[i]/100)
@@ -640,16 +630,16 @@ async function update_state(time, delta) {
         if (avg_fps > 30 && quality < 3) {
             quality++
         } else if (avg_fps < 20 && quality > 1) {
-            quality--
-        }
+                quality--
+            }
     }
 
     if (!get_param("clean")) debug.innerText =
-        `${size.map(num).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
+            `${size.map(num).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
         position: ${cam.pos.map(num).join(", ")}
-        velocity: ${cam.vel.map(num).join(", ")}
-        quality: ${quality} / 3
-        `
+    velocity: ${cam.vel.map(num).join(", ")}
+    quality: ${quality} / 3
+    `
 
     if (frame % 60 == 0) {
         url.searchParams.set("cam", encodeURIComponent(JSON.stringify(cam)))
@@ -667,22 +657,22 @@ async function decrypt(buffer) {
     ])
 
     const crypto_key = await crypto.subtle.importKey("jwk", {
-            "alg": "A256CBC",
-            "ext": true,
-            "k": url.searchParams.get("password") || prompt("password"),
-            "key_ops": ["encrypt", "decrypt"],
-            "kty": "oct"
-        }, {
-            "name": "AES-CBC"
-        },
-        false,
-        ["encrypt", "decrypt"]
-    )
+        "alg": "A256CBC",
+        "ext": true,
+        "k": url.searchParams.get("password") || prompt("password"),
+        "key_ops": ["encrypt", "decrypt"],
+        "kty": "oct"
+    }, {
+        "name": "AES-CBC"
+    },
+    false,
+    ["encrypt", "decrypt"]
+                                                    )
 
-    return crypto.subtle.decrypt({
-        'name': 'AES-CBC',
-        'iv': crypto_initial
-    }, crypto_key, buffer)
+                                                    return crypto.subtle.decrypt({
+                                                        'name': 'AES-CBC',
+                                                        'iv': crypto_initial
+                                                    }, crypto_key, buffer)
 }
 async function resize() {
     size[0] = window.innerWidth * window.devicePixelRatio
@@ -752,121 +742,121 @@ async function initPrograms() {
     B.raster = gl.createFramebuffer()
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-        gl.RENDERBUFFER, RB.diffuse)
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
-        gl.RENDERBUFFER, RB.reflection)
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
-        gl.RENDERBUFFER, RB.depth)
+                               gl.RENDERBUFFER, RB.diffuse)
+                               gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
+                                                          gl.RENDERBUFFER, RB.reflection)
+                                                          gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
+                                                                                     gl.RENDERBUFFER, RB.depth)
 
-    // Load in the pregenerated textures
-    T.map = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_3D, T.map)
-    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
-        X, Y, Z, 0,
-        gl.RGBA, gl.UNSIGNED_BYTE, await map_array)
-    gl.generateMipmap(gl.TEXTURE_3D)
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_3D, T.map)
-    gl.uniform1i(U.map, 0)
+                                                                                     // Load in the pregenerated textures
+                                                                                     T.map = gl.createTexture()
+                                                                                     gl.bindTexture(gl.TEXTURE_3D, T.map)
+                                                                                     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
+                                                                                                   X, Y, Z, 0,
+                                                                                                   gl.RGBA, gl.UNSIGNED_BYTE, await map_array)
+                                                                                                   gl.generateMipmap(gl.TEXTURE_3D)
+                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                                                                                                   gl.activeTexture(gl.TEXTURE0)
+                                                                                                   gl.bindTexture(gl.TEXTURE_3D, T.map)
+                                                                                                   gl.uniform1i(U.map, 0)
 
-    T.noise = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_2D, T.noise)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
-        X, X, 0,
-        gl.RGBA, gl.UNSIGNED_BYTE, await noise_array)
-    gl.generateMipmap(gl.TEXTURE_2D)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    gl.activeTexture(gl.TEXTURE1)
-    gl.bindTexture(gl.TEXTURE_2D, T.noise)
-    gl.uniform1i(U.noise, 1)
+                                                                                                   T.noise = gl.createTexture()
+                                                                                                   gl.bindTexture(gl.TEXTURE_2D, T.noise)
+                                                                                                   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
+                                                                                                                 X, X, 0,
+                                                                                                                 gl.RGBA, gl.UNSIGNED_BYTE, await noise_array)
+                                                                                                                 gl.generateMipmap(gl.TEXTURE_2D)
+                                                                                                                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+                                                                                                                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                                                                                                                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+                                                                                                                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+                                                                                                                 gl.activeTexture(gl.TEXTURE1)
+                                                                                                                 gl.bindTexture(gl.TEXTURE_2D, T.noise)
+                                                                                                                 gl.uniform1i(U.noise, 1)
 
-    // Load in the vertex data, which contains the quad positions (cellPos),
-    // vertex positions relative to their respective quads (fractPos), along
-    // with quad color, normal, and id attributes.
-    O.vertex_array = gl.createVertexArray()
-    gl.bindVertexArray(O.vertex_array)
+                                                                                                                 // Load in the vertex data, which contains the quad positions (cellPos),
+                                                                                                                 // vertex positions relative to their respective quads (fractPos), along
+                                                                                                                 // with quad color, normal, and id attributes.
+                                                                                                                 O.vertex_array = gl.createVertexArray()
+                                                                                                                 gl.bindVertexArray(O.vertex_array)
 
-    B.cellPos = gl.createBuffer()
-    gl.enableVertexAttribArray(A.cellPos)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.cellPos, 3, gl.SHORT,
-        N_stride, 0
-    )
+                                                                                                                 B.cellPos = gl.createBuffer()
+                                                                                                                 gl.enableVertexAttribArray(A.cellPos)
+                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
+                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+                                                                                                                 gl.vertexAttribIPointer(
+                                                                                                                     A.cellPos, 3, gl.SHORT,
+                                                                                                                     N_stride, 0
+                                                                                                                 )
 
-    B.fractPos = gl.createBuffer()
-    gl.enableVertexAttribArray(A.fractPos)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.fractPos, 3, gl.SHORT,
-        N_stride, 3 * N_int16
-    )
+                                                                                                                 B.fractPos = gl.createBuffer()
+                                                                                                                 gl.enableVertexAttribArray(A.fractPos)
+                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
+                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+                                                                                                                 gl.vertexAttribIPointer(
+                                                                                                                     A.fractPos, 3, gl.SHORT,
+                                                                                                                     N_stride, 3 * N_int16
+                                                                                                                 )
 
-    B.color = gl.createBuffer()
-    gl.enableVertexAttribArray(A.color)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.color, 1, gl.BYTE,
-        N_stride, 6 * N_int16
-    )
+                                                                                                                 B.color = gl.createBuffer()
+                                                                                                                 gl.enableVertexAttribArray(A.color)
+                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
+                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+                                                                                                                 gl.vertexAttribIPointer(
+                                                                                                                     A.color, 1, gl.BYTE,
+                                                                                                                     N_stride, 6 * N_int16
+                                                                                                                 )
 
-    B.normal = gl.createBuffer()
-    gl.enableVertexAttribArray(A.normal)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.normal, 1, gl.BYTE,
-        N_stride, 6 * N_int16 + 1 * N_int8
-    )
+                                                                                                                 B.normal = gl.createBuffer()
+                                                                                                                 gl.enableVertexAttribArray(A.normal)
+                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
+                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+                                                                                                                 gl.vertexAttribIPointer(
+                                                                                                                     A.normal, 1, gl.BYTE,
+                                                                                                                     N_stride, 6 * N_int16 + 1 * N_int8
+                                                                                                                 )
 
-    B.id = gl.createBuffer()
-    gl.enableVertexAttribArray(A.id)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
-    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-    gl.vertexAttribIPointer(
-        A.id, 1, gl.BYTE,
-        N_stride, 6 * N_int16 + 2 * N_int8
-    )
+                                                                                                                 B.id = gl.createBuffer()
+                                                                                                                 gl.enableVertexAttribArray(A.id)
+                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
+                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+                                                                                                                 gl.vertexAttribIPointer(
+                                                                                                                     A.id, 1, gl.BYTE,
+                                                                                                                     N_stride, 6 * N_int16 + 2 * N_int8
+                                                                                                                 )
 
-    // Create textures for the sampler to output to from downsampling (aka
-    // blitting) the render bufers.
-    T.diffuse = gl.createTexture()
-    T.reflection = gl.createTexture()
+                                                                                                                 // Create textures for the sampler to output to from downsampling (aka
+                                                                                                                 // blitting) the render bufers.
+                                                                                                                 T.diffuse = gl.createTexture()
+                                                                                                                 T.reflection = gl.createTexture()
 
-    T.colorUpdate(T.diffuse)
-    T.colorUpdate(T.reflection)
+                                                                                                                 T.colorUpdate(T.diffuse)
+                                                                                                                 T.colorUpdate(T.reflection)
 
-    B.sampler = gl.createFramebuffer()
-    gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-        gl.TEXTURE_2D, T.diffuse, 0)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
-        gl.TEXTURE_2D, T.reflection, 0)
+                                                                                                                 B.sampler = gl.createFramebuffer()
+                                                                                                                 gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
+                                                                                                                 gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                                                                                                                                         gl.TEXTURE_2D, T.diffuse, 0)
+                                                                                                                                         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
+                                                                                                                                                                 gl.TEXTURE_2D, T.reflection, 0)
 
-    // Set up the parameters for the compositor, which uses the 1x-sampled
-    // default framebuffer.
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-    gl.useProgram(P.compositor)
+                                                                                                                                                                 // Set up the parameters for the compositor, which uses the 1x-sampled
+                                                                                                                                                                 // default framebuffer.
+                                                                                                                                                                 gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+                                                                                                                                                                 gl.useProgram(P.compositor)
 
-    O.composit_array = gl.createVertexArray()
-    gl.bindVertexArray(O.composit_array)
+                                                                                                                                                                 O.composit_array = gl.createVertexArray()
+                                                                                                                                                                 gl.bindVertexArray(O.composit_array)
 
-    B.texCoord = gl.createBuffer()
-    gl.enableVertexAttribArray(A.texCoord)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.texCoord)
-    gl.bufferData(gl.ARRAY_BUFFER, composit_array, gl.STATIC_DRAW)
-    gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
+                                                                                                                                                                 B.texCoord = gl.createBuffer()
+                                                                                                                                                                 gl.enableVertexAttribArray(A.texCoord)
+                                                                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.texCoord)
+                                                                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, composit_array, gl.STATIC_DRAW)
+                                                                                                                                                                 gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
 }
 
 async function updateTextures() {
@@ -887,7 +877,7 @@ async function addShader(program, source, type) {
         // Something went wrong during compilation; get the error
         const lastError = gl.getShaderInfoLog(shader)
         console.error(
-            `Error compiling shader '${shader}': ${lastError} 
+            `Error compiling shader '${shader}': ${lastError}
             ${source.split('\n').map((l, i) => (i+1) + ':' + l).join('\n')}`
         )
         gl.deleteShader(shader)

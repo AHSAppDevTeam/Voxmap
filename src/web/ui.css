@@ -132,7 +132,7 @@ body * {
 	cursor: pointer;
 	user-select: none;
 }
-#form .place-list-details[open] .place-list-icon, 
+#form .place-list-details[open] .place-list-icon,
 #form .place-list-details[open] .place.match {
 	background: #28f;
 	border-radius: 20%;
@@ -147,8 +147,8 @@ body * {
 
 .material-symbols-outlined {
 	font-variation-settings:
-		'FILL' 0,
-		'wght' 400,
-		'GRAD' 0,
-		'opsz' 48
+	'FILL' 0,
+	'wght' 400,
+	'GRAD' 0,
+	'opsz' 48
 }

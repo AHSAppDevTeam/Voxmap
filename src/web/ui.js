@@ -55,42 +55,42 @@ display3D()
 $signin.addEventListener("click", event => {
     event.preventDefault()
     signInWithPopup(auth, provider)
-        .then((result) => {
-            // This gives you a Google Access Token. You can use it to access the Google API.
-            const credential = GoogleAuthProvider.credentialFromResult(result)
-            const token = credential.accessToken
-            // The signed-in user info.
-            const user = result.user
-            console.log(result)
-            // ...
-        }).catch((error) => {
-            // Handle Errors here.
-            const errorCode = error.code
-            const errorMessage = error.message
-            // The email of the user's account used.
-            const email = error.customData.email
-            // The AuthCredential type that was used.
-            const credential = GoogleAuthProvider.credentialFromError(error)
-            // ...
-        }).then(display3D)
+    .then((result) => {
+        // This gives you a Google Access Token. You can use it to access the Google API.
+        const credential = GoogleAuthProvider.credentialFromResult(result)
+        const token = credential.accessToken
+        // The signed-in user info.
+        const user = result.user
+        console.log(result)
+        // ...
+    }).catch((error) => {
+        // Handle Errors here.
+        const errorCode = error.code
+        const errorMessage = error.message
+        // The email of the user's account used.
+        const email = error.customData.email
+        // The AuthCredential type that was used.
+        const credential = GoogleAuthProvider.credentialFromError(error)
+        // ...
+    }).then(display3D)
 })
 
 function filterPlaces() {
-	let query = simplify($searchInput.value)
-        $placeLists.classList.toggle("search", query)
-        const placeIDs = []
-	for(const $placeList of $placeLists.children){
-            const $placeListDetails = $placeList.firstChild
-            let contains = false
-            for(const $place of $placeListDetails.lastChild.children){
-                const match = query && simplify($place.name).startsWith(query)
-                $place.classList.toggle("match", match)
-                if(match) placeIDs.push($place.id)
+    let query = simplify($searchInput.value)
+    $placeLists.classList.toggle("search", query)
+    const placeIDs = []
+    for(const $placeList of $placeLists.children){
+        const $placeListDetails = $placeList.firstChild
+        let contains = false
+        for(const $place of $placeListDetails.lastChild.children){
+            const match = query && simplify($place.name).startsWith(query)
+            $place.classList.toggle("match", match)
+            if(match) placeIDs.push($place.id)
                 contains |= match
-            }
-	    $placeListDetails.open = contains
-	}
-        focusPlaces(placeIDs)
+        }
+        $placeListDetails.open = contains
+    }
+    focusPlaces(placeIDs)
 }
 
 $searchInput.addEventListener("input", filterPlaces)
@@ -102,10 +102,10 @@ $searchReset.addEventListener("click", () => {
 const simplify = query => query.replace(/[\s-]/g, "").toLowerCase()
 
 const sort = (obj, key) =>
-    Object.fromEntries(
-        Object.entries(obj)
-        .sort((a, b) => key ? a[1][key] - b[1][key] : a[1] - b[1])
-    )
+Object.fromEntries(
+    Object.entries(obj)
+    .sort((a, b) => key ? a[1][key] - b[1][key] : a[1] - b[1])
+)
 
 async function display2D() {
 
@@ -116,56 +116,56 @@ async function display2D() {
 
     await get(placeListsRef).then((snapshot) => {
 
-		// Remove outdated placeLists
+        // Remove outdated placeLists
         while ($placeLists.firstChild)
             $placeLists.removeChild($placeLists.firstChild)
 
-		// Sort by database sort key
+        // Sort by database sort key
         placeLists = sort(snapshot.val(), "sort")
 
-		// Draw new placeLists
+        // Draw new placeLists
         for (const placeListKey in placeLists) {
             const placeList = placeLists[placeListKey]
-	    if(!placeList.places || !placeList.name) continue
+            if(!placeList.places || !placeList.name) continue
 
-            const $placeList = document.createElement("li")
-            $placeList.classList.add("place-list")
+                const $placeList = document.createElement("li")
+                $placeList.classList.add("place-list")
 
-            const $placeListDetails = document.createElement("details")
-            $placeListDetails.classList.add("place-list-details")
+                const $placeListDetails = document.createElement("details")
+                $placeListDetails.classList.add("place-list-details")
 
-	    // Add the name & icon of the placeList collection
-            $placeList.name = placeList.name
-            const $placeListIcon = document.createElement("summary")
-            $placeListIcon.title = placeList.name
-            $placeListIcon.textContent = placeList.icon
-            $placeListIcon.classList.add("place-list-icon")
-            $placeListIcon.classList.add("material-symbols-outlined")
+                // Add the name & icon of the placeList collection
+                $placeList.name = placeList.name
+                const $placeListIcon = document.createElement("summary")
+                $placeListIcon.title = placeList.name
+                $placeListIcon.textContent = placeList.icon
+                $placeListIcon.classList.add("place-list-icon")
+                $placeListIcon.classList.add("material-symbols-outlined")
 
-			// Add the individual places
-			const $places = document.createElement("ul")
-                        $places.classList.add("place-list-places")
-			const placeKeys = Object.fromEntries(
-				Object.entries(placeList.places)
-				.sort((a, b) => (a[1] - b[1]))
-			)
-			for (const placeKey in placeKeys) {
-				const place = places[placeKey]
-				if(!place) continue
+                // Add the individual places
+                const $places = document.createElement("ul")
+                $places.classList.add("place-list-places")
+                const placeKeys = Object.fromEntries(
+                    Object.entries(placeList.places)
+                    .sort((a, b) => (a[1] - b[1]))
+                )
+                for (const placeKey in placeKeys) {
+                    const place = places[placeKey]
+                    if(!place) continue
 
-				const $place = document.createElement("li")
-                                $place.classList.add("place")
-                                $place.id = placeKey
-				$place.textContent = $place.name = place.name
-				$place.addEventListener("click", event => {
-                                    focusPlaces([placeKey])
-				})
-				$places.append($place)
-			}
+                        const $place = document.createElement("li")
+                        $place.classList.add("place")
+                        $place.id = placeKey
+                        $place.textContent = $place.name = place.name
+                        $place.addEventListener("click", event => {
+                            focusPlaces([placeKey])
+                        })
+                        $places.append($place)
+                }
 
-			$placeListDetails.append($placeListIcon, $places)
-                        $placeList.append($placeListDetails)
-            $placeLists.append($placeList)
+                $placeListDetails.append($placeListIcon, $places)
+                $placeList.append($placeListDetails)
+                $placeLists.append($placeList)
         }
     })
 }

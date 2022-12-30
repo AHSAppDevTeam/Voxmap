@@ -51,8 +51,8 @@ canvas,
    width: 50vmin;
    height: 50vmin;
    background: radial-gradient(closest-side at center,
-         #0004,
-         #0000);
+   #0004,
+   #0000);
 }
 
 #joystick>:first-child {
@@ -60,9 +60,9 @@ canvas,
    height: 100%;
    border-radius: 100%;
    background: radial-gradient(closest-side at center,
-         #ffff,
-         #ffff,
-         #fffc,
-         #ffff 49%,
-         #fff0 50%);
+   #ffff,
+   #ffff,
+   #fffc,
+   #ffff 49%,
+   #fff0 50%);
 }
