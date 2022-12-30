@@ -78,16 +78,19 @@ $signin.addEventListener("click", event => {
 function filterPlaces() {
 	let query = simplify($searchInput.value)
         $placeLists.classList.toggle("search", query)
+        const placeIDs = []
 	for(const $placeList of $placeLists.children){
             const $placeListDetails = $placeList.firstChild
             let contains = false
             for(const $place of $placeListDetails.lastChild.children){
-                const match = simplify($place.name).startsWith(query)
+                const match = query && simplify($place.name).startsWith(query)
                 $place.classList.toggle("match", match)
+                if(match) placeIDs.push($place.id)
                 contains |= match
             }
-	    $placeListDetails.open = Boolean(query && contains)
+	    $placeListDetails.open = contains
 	}
+        focusPlaces(placeIDs)
 }
 
 $searchInput.addEventListener("input", filterPlaces)
@@ -152,11 +155,10 @@ async function display2D() {
 
 				const $place = document.createElement("li")
                                 $place.classList.add("place")
+                                $place.id = placeKey
 				$place.textContent = $place.name = place.name
 				$place.addEventListener("click", event => {
-					$map.contentWindow.postMessage({
-						place
-					}, "*")
+                                    focusPlaces([placeKey])
 				})
 				$places.append($place)
 			}
@@ -168,9 +170,13 @@ async function display2D() {
     })
 }
 
+async function focusPlaces(placeIDs) {
+    $map.contentWindow.postMessage({ focusPlaces: placeIDs })
+}
+
 async function display3D() {
-    $signin.style.display = "none"
     get(passwordRef).then((snapshot) => {
+        $signin.style.display = "none"
         password = snapshot.val()
         $map.src = "map.html?quality=2&password=" + password
         $map.focus()
