@@ -44,4 +44,3 @@ function encrypt(input, output) {
 
 encrypt("out/map.bin.gz", "src/map.blob")
 encrypt("out/vertex.bin.gz", "src/vertex.blob")
-encrypt("out/noise.bin.gz", "src/noise.blob")

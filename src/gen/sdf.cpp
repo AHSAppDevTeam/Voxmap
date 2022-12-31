@@ -6,6 +6,11 @@
 #include <algorithm>
 #include <set>
 
+#define MAP_BIN
+#define VERTEX_BIN
+#define VERTEX2D_BIN
+#define NOISE_BIN
+
 const int MAX = 255;
 const int O = 2; // Two octants, down(0) and up(1)
 
@@ -19,9 +24,13 @@ int bin[X][Y][Z]; // 1 if block, else 0
 int sum[X][Y][Z]; // summed volume table
 int sdf[X][Y][Z][O]; // radius of largest fittng cube centered at block
 
+int c2d[X][Y]; // 2d color
+int z2d[X][Y]; // 2d z
+
 std::ifstream in("maps/map.txt");
 std::ofstream o_vertex("out/vertex.bin", std::ios::binary);
 std::ofstream o_map("out/map.bin", std::ios::binary);
+std::ofstream o_vertex2d("out/vertex2d.bin", std::ios::binary);
 
 // clamped sum access
 auto csum = [](int x, int y, int z)
@@ -131,6 +140,38 @@ auto quad = [](
 		);
 };
 
+
+// 2D versions of the above
+auto o_vertex2d_8 = [](int x)
+{
+	o_vertex2d.put((char)(x & 0xFF));
+};
+auto o_vertex2d_16 = [](int x) // Split 2-byte ints
+{
+	o_vertex2d_8(x);
+	o_vertex2d_8(x >> 8);
+};
+auto vert2d = [](int x, int y, int dx, int dy, int color, int id)
+{
+	o_vertex2d_16(x); o_vertex2d_16(y); o_vertex2d_16(0);
+	o_vertex2d_16(dx); o_vertex2d_16(dy); o_vertex2d_16(0);
+	o_vertex2d_8(color);
+	o_vertex2d_8(0);
+	o_vertex2d_8(id);
+	o_vertex2d_8(0);
+};
+auto tri2d = [](int x, int y, int dx0, int dy0, int dx1, int dy1, int dx2, int dy2, int color, int id)
+{
+	vert2d(x, y, dx0, dy0, color, id);
+	vert2d(x, y, dx1, dy1, color, id);
+	vert2d(x, y, dx2, dy2, color, id);
+};
+auto quad2d = [](int x, int y, int dx0, int dy0, int dx1, int dy1, int color, int id) 
+{
+	tri2d(x, y, 0, 0, dx0, dy0, dx1, dy1, color, id);
+	tri2d(x, y, dx1, dy1, dx0, dy0, dx0+dx1, dy0+dy1, color, id);
+};
+
 int main()
 {
 	// so nothing fails silently
@@ -149,11 +190,18 @@ int main()
 			int x, y, z, color;
 			in >> std::dec >> x >> y >> z >> std::hex >> color;
 		 ) {
+
 		x += 512; y += 5; z += 0;
 		if(color == GLASS) color += 0x1000000;
 		pal_set.insert(color);
+
 		col[x][y][z] = color;
 		bin[x][y][z] = 1;
+
+		if(z > z2d[x][y]) {
+			c2d[x][y] = color;
+			z2d[x][y] = z;
+		}
 	}
 
 	in.close();
@@ -184,9 +232,17 @@ int main()
 		col[x][y][z] = i;
 	});
 
+	parXY([](int x, int y){
+		int i = 1;
+		for (; i < MAX && pal[i] != c2d[x][y]; i++) continue;
+		c2d[x][y] = i;
+	});
+
 	std::cout << "Done." << std::endl;
 
-	std::cout << "Writing to vertex file..." << std::flush;
+#ifdef VERTEX_BIN
+
+	std::cout << "Writing to 3D vertex file..." << std::flush;
 
 	// Draw skybox
 	{
@@ -223,6 +279,7 @@ int main()
 	}
 
 	// https://gist.github.com/Vercidium/a3002bd083cce2bc854c9ff8f0118d33
+	// 3d vertex mesh
 	
 	for(int color = 0; color < pal_size; color++)
 	forChunkXYZ([&](int cx, int cy, int cz) {
@@ -300,6 +357,51 @@ int main()
 
 	std::cout << "Done." << std::endl;
 
+#endif
+
+#ifdef VERTEX2D_BIN
+
+	std::cout << "Writing to 2D vertex file..." << std::flush;
+
+	// 2d vertex mesh
+	for(int color = 0; color < pal_size; color++) {
+		
+		bool mask[X][Y];
+		forXY([&](int x, int y){
+			mask[x][y] = c2d[x][y] == color;
+		});
+		
+		forXY([&](int x, int y) {
+			int k = 0, l = 0, w = 0, h = 0;
+
+			if(!mask[x][y]) return;
+			for(w = 1; x+w < X && mask[x+w][y]; w++) continue;
+
+			for(h = 1; y+h < Y; h++)
+			for(k = 0; k < w; k++)
+			{
+				if(!mask[x+k][y+h]) goto break2;
+			}
+			break2:
+
+			// glass material has id=2
+			int id = color == pal_size-1 ? 2 : 0;
+			quad2d(x, y, w, 0, 0, h, color, id);
+
+			for (l = 0; l < h; l++)
+			for (k = 0; k < w; k++)
+			{
+				mask[x+k][y+l] = false;
+			}
+		});
+	}
+
+	std::cout << "Done." << std::endl;
+
+#endif
+
+#ifdef MAP_BIN
+
 	std::cout << "Generating summed volume table..." << std::flush;
 
 	forXYZ([](int x, int y, int z) {
@@ -372,6 +474,7 @@ int main()
 	std::cout << "Done." << std::endl;
 	std::cout << "^_^" << std::endl;
 
-	return 0;
+#endif
 
+	return 0;
 }

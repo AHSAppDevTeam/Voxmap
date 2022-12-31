@@ -12,9 +12,18 @@ const int LEN[3] = {X, Y, Z};
 const int AREA[3] = {Y * Z, X *Z, X *Y};
 
 const int N_dots = 32;
+const int N_pixels = X*Y;
 const int N_voxels = X*Y*Z;
 const int N_chunks = X*Y*Z/CHUNK/CHUNK/CHUNK;
 
+void parXY(auto function) {
+  auto sec_order = [&](int i){
+    auto x = i % X;
+    auto y = i / X;
+    function(x, y);
+  };
+  tbb::parallel_for(0, N_pixels, sec_order);
+}
 void parXYZ(auto function) {
   auto sec_order = [&](int i){
     auto x = i % X;
@@ -32,6 +41,11 @@ void parChunkXYZ(auto function) {
     function(x, y, z);
   };
   tbb::parallel_for(0, N_chunks , sec_order);
+}
+void forXY(auto function) {
+  for (int x = 0; x < X; x++)
+  for (int y = 0; y < Y; y++)
+    function(x, y);
 }
 void forXYZ(auto function) {
   for (int x = 0; x < X; x++)

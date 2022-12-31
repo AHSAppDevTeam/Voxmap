@@ -49,8 +49,8 @@ let places, placeLists, password
 let mode = 0
 let authed = false
 
-display2D()
-display3D()
+loadPlaces()
+load3D()
 
 $signin.addEventListener("click", event => {
     event.preventDefault()
@@ -72,7 +72,7 @@ $signin.addEventListener("click", event => {
         // The AuthCredential type that was used.
         const credential = GoogleAuthProvider.credentialFromError(error)
         // ...
-    }).then(display3D)
+    }).then(load3D)
 })
 
 function filterPlaces() {
@@ -107,11 +107,11 @@ Object.fromEntries(
     .sort((a, b) => key ? a[1][key] - b[1][key] : a[1] - b[1])
 )
 
-async function display2D() {
+async function loadPlaces() {
 
     await get(placesRef).then((snapshot) => {
         places = sort(snapshot.val())
-        //$map.contentWindow.postMessage({ places }, "*")
+        $map.contentWindow.postMessage({places}, "*")
     })
 
     await get(placeListsRef).then((snapshot) => {
@@ -174,16 +174,11 @@ async function focusPlaces(placeIDs) {
     $map.contentWindow.postMessage({ focusPlaces: placeIDs })
 }
 
-async function display3D() {
+async function load3D() {
     get(passwordRef).then((snapshot) => {
         $signin.style.display = "none"
         password = snapshot.val()
-        $map.src = "map.html?quality=2&password=" + password
         $map.focus()
-        $map.addEventListener("load", () => {
-            $map.contentWindow.postMessage({
-                places
-            }, "*")
-        })
+        $map.contentWindow.postMessage({password}, "*")
     })
 }

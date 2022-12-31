@@ -1,8 +1,8 @@
 .PHONY: all encrypted clean
 
-all: out/noise.bin.gz out/vertex.bin.gz out/map.bin.gz
+all: res/noise.bin.gz res/vertex2d.bin.gz out/vertex.bin.gz out/map.bin.gz
 
-encrypted: res/noise.blob res/vertex.blob res/map.blob
+encrypted: res/vertex.blob res/map.blob
 
 ### Maps
 maps:
@@ -53,12 +53,15 @@ out:
 out/noise.bin: bin/noise | out
 	bin/noise
 
-out/vertex.bin out/map.bin: bin/sdf maps/map.txt | out
+out/vertex.bin out/vertex2d.bin out/map.bin: bin/sdf maps/map.txt | out
 	### PBM to SDF and vertices
 	# results in a combined SDF + voxel color texture
 	bin/sdf
 
 out/noise.bin.gz: out/noise.bin
+	gzip < $^ > $@
+
+out/vertex2d.bin.gz: out/vertex2d.bin
 	gzip < $^ > $@
 
 out/vertex.bin.gz: out/vertex.bin
@@ -67,10 +70,17 @@ out/vertex.bin.gz: out/vertex.bin
 out/map.bin.gz: out/map.bin
 	gzip < $^ > $@
 
+# copy unencrypted files directly to res/
+res/noise.bin.gz: out/noise.bin.gz
+	cp $^ $@
+
+res/vertex2d.bin.gz: out/vertex2d.bin.gz
+	cp $^ $@
+
 ### Encrypted
 
-res/noise.blob res/vertex.blob res/map.blob: src/gen/encrypt.js \
-	out/noise.bin.gz out/vertex.bin.gz out/map.bin.gz
+res/vertex.blob res/map.blob: src/gen/encrypt.js \
+	out/vertex.bin.gz out/map.bin.gz
 	### Encrypt
 	nvm use latest
 	node src/gen/encrypt.js

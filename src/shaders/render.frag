@@ -292,7 +292,10 @@ void main() {
     }
 
     // Multiply everything together
-    c_diffuse.rgb = baseCol * normalCol * lightCol * ambCol;
+    c_diffuse.rgb = baseCol;
+    if(u_quality > 0) {
+      c_diffuse.rgb *= normalCol * lightCol * ambCol;
+    }
 
     if(isGlass) {
       c_diffuse.a = 0.8 * exp2(dot(rayDir, v_normal));

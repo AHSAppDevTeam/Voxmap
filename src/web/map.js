@@ -35,7 +35,7 @@ const X = 1024 // E-W width
 const C = 4 // 4 channels (RGBA)
 
 // if not over HTTPS, probably means we're in debug mode
-const encrypted = url.protocol === "https:"
+const encrypted = url.protocol === "https:" || true
 
 const fstop = (fov) => 1 / Math.tan(fov * Math.PI / 360)
 
@@ -113,10 +113,12 @@ const cam = get_json_param(".cam") || {
 }
 
 
-let place, places, focusPlaces = []
-window.addEventListener("message", ({
-    data
-}) => {
+let password, place, places, focusPlaces = []
+window.addEventListener("message", ({ data }) => {
+    if ("password" in data) {
+        password = data.password
+        loadEncryptedTextures()
+    }
     if ("mode" in data) {
         mode = data.mode
     }
@@ -142,24 +144,12 @@ const controls = {
 
 //-- Pregenerated array fetching
 
-const fetch_array = (regular_url, encrypted_url) =>
-fetch(encrypted ? encrypted_url : regular_url)
+let map_array, vertex_array, vertex2d_array, noise_array, composit_array
+const fetch_array = (url) => fetch(url)
 .then(response => response.arrayBuffer())
-.then(buffer => encrypted ? decrypt(buffer) : buffer)
+.then(buffer => url.endsWith(".blob") ? decrypt(buffer) : buffer)
 .then(buffer => new Uint8Array(buffer))
 .then(array => pako.ungzip(array))
-
-const map_array = fetch_array("out/map.bin.gz", "res/map.blob")
-const vertex_array = fetch_array("out/vertex.bin.gz", "res/vertex.blob")
-const noise_array = fetch_array("out/noise.bin.gz", "res/noise.blob")
-const composit_array = new Float32Array([
-    -1, -1,
-    1, -1,
-    -1, 1,
-    -1, 1,
-    1, -1,
-    1, 1,
-])
 
 //-- Helper functions
 
@@ -216,6 +206,8 @@ async function main() {
     ))
 
     await initPrograms()
+    await loadTextures()
+    if(!encrypted) await loadEncryptedTextures()
 
     // Add event listeners to keyboard and touchscreen inputs
     addListeners()
@@ -242,7 +234,7 @@ async function render(now) {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
     gl.useProgram(P.renderer)
-    gl.bindVertexArray(O.vertex_array)
+    gl.bindVertexArray(mode == MODE_2D ? O.vertex2d_array : O.vertex_array)
 
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_3D, T.map)
@@ -251,7 +243,7 @@ async function render(now) {
     gl.bindTexture(gl.TEXTURE_2D, T.noise)
 
     // Set the matrix.
-    gl.uniform1i(U.quality, quality)
+    gl.uniform1i(U.quality, mode == MODE_2D ? 0 : quality)
     gl.uniformMatrix4fv(U.matrix, false, cam.projection_matrix)
     gl.uniform3i(U.cellPos, ...cam.pos.map(floor))
     gl.uniform3f(U.fractPos, ...cam.pos.map(fract))
@@ -264,7 +256,7 @@ async function render(now) {
         gl.COLOR_ATTACHMENT0,
         gl.COLOR_ATTACHMENT1
     ])
-    gl.drawArrays(gl.TRIANGLES, 0, (await vertex_array).length / N_stride)
+    gl.drawArrays(gl.TRIANGLES, 0, (await (mode == MODE_2D ? vertex2d_array : vertex_array)).length / N_stride)
 
     // Then downsample (blit) the raster framebuffer's renderbuffers into the
     // sampler framebuffer's 1x-sampling textures.
@@ -313,13 +305,20 @@ overlay.lineJoin = "round"
 overlay.textAlign = "center"
 overlay.shadowColor = '#000'
 
-let mode = 0
+const MODE_2D = 0
+const MODE_3D = 1
+let mode = MODE_2D
+
 $toggle.addEventListener("click", event => {
-    mode = 1 - mode
-    if (mode == 0) {
-        $toggle.style.backgroundImage = 'url("/res/render.png")'
-    } else {
-        $toggle.style.backgroundImage = 'url("/res/2d.png")'
+    switch(mode) {
+        case MODE_2D:
+            mode = MODE_3D
+            $toggle.style.backgroundImage = 'url("/res/2d.png")'
+            break
+        case MODE_3D:
+            mode = MODE_2D
+            $toggle.style.backgroundImage = 'url("/res/render.png")'
+            break
     }
 })
 
@@ -333,20 +332,6 @@ async function drawOverlay() {
         size[x] / 2 - cam.sbj[x] * s,
         size[y] / 2 + cam.sbj[y] * s
     ]
-    //return map2d.drawImage(img2d, 0, 0, X, Y)
-    if (mode == 0) {
-        map2d.drawImage(img2d, center[x], center[y] - Y * s, X * s, Y * s)
-        for (const key in places) {
-            if (!key.startsWith("building_")) continue
-                const place = places[key]
-            overlay.font = "20px Roboto"
-            overlay.strokeStyle = "#fff"
-            overlay.fillStyle = "#000"
-            overlay.strokeText(place.name, center[0] + place.x * s, center[1] - place.y * s)
-            overlay.fillText(place.name, center[0] + place.x * s, center[1] - place.y * s)
-        }
-        return
-    }
 
     let visible = {}
 
@@ -560,23 +545,6 @@ const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b * b))
 async function update_state(time, delta) {
 
     frame++
-        if (mode == 0) cam.rot = [0, 0, 0]
-
-    /*
-       for(let i = 0; i < magnitude(cam.vel)*delta, i++) {
-
-       }*/
-
-    const feet_pos = [...cam.sbj]
-    feet_pos[z] -= H_human
-
-    let [above, below, color] = await tex(feet_pos.map(floor))
-    /*
-       if(below < 1) cam.acc[z] += 20
-       if(below < 0.5) cam.vel[z] = 0
-       if(below > 1) cam.acc[z] -= 20
-       if(below > 4) cam.acc[z] -= 20
-       */
 
     cam.sbj = cam.sbj.map((p, i) => p + controls.move[i])
     cam.sbj = [
@@ -630,8 +598,8 @@ async function update_state(time, delta) {
         if (avg_fps > 30 && quality < 3) {
             quality++
         } else if (avg_fps < 20 && quality > 1) {
-                quality--
-            }
+            quality--
+        }
     }
 
     if (!get_param("clean")) debug.innerText =
@@ -659,20 +627,15 @@ async function decrypt(buffer) {
     const crypto_key = await crypto.subtle.importKey("jwk", {
         "alg": "A256CBC",
         "ext": true,
-        "k": url.searchParams.get("password") || prompt("password"),
+        "k": password,
         "key_ops": ["encrypt", "decrypt"],
         "kty": "oct"
-    }, {
-        "name": "AES-CBC"
-    },
-    false,
-    ["encrypt", "decrypt"]
-                                                    )
+    }, { "name": "AES-CBC" }, false, ["encrypt", "decrypt"])
 
-                                                    return crypto.subtle.decrypt({
-                                                        'name': 'AES-CBC',
-                                                        'iv': crypto_initial
-                                                    }, crypto_key, buffer)
+    return crypto.subtle.decrypt({
+        'name': 'AES-CBC',
+        'iv': crypto_initial
+    }, crypto_key, buffer)
 }
 async function resize() {
     size[0] = window.innerWidth * window.devicePixelRatio
@@ -741,122 +704,164 @@ async function initPrograms() {
 
     B.raster = gl.createFramebuffer()
     gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                               gl.RENDERBUFFER, RB.diffuse)
-                               gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
-                                                          gl.RENDERBUFFER, RB.reflection)
-                                                          gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
-                                                                                     gl.RENDERBUFFER, RB.depth)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, RB.diffuse)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.RENDERBUFFER, RB.reflection)
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, RB.depth)
+}
 
-                                                                                     // Load in the pregenerated textures
-                                                                                     T.map = gl.createTexture()
-                                                                                     gl.bindTexture(gl.TEXTURE_3D, T.map)
-                                                                                     gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA,
-                                                                                                   X, Y, Z, 0,
-                                                                                                   gl.RGBA, gl.UNSIGNED_BYTE, await map_array)
-                                                                                                   gl.generateMipmap(gl.TEXTURE_3D)
-                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                                                                                                   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                                                                                                   gl.activeTexture(gl.TEXTURE0)
-                                                                                                   gl.bindTexture(gl.TEXTURE_3D, T.map)
-                                                                                                   gl.uniform1i(U.map, 0)
+async function loadTextures() {
+    gl.useProgram(P.renderer)
 
-                                                                                                   T.noise = gl.createTexture()
-                                                                                                   gl.bindTexture(gl.TEXTURE_2D, T.noise)
-                                                                                                   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
-                                                                                                                 X, X, 0,
-                                                                                                                 gl.RGBA, gl.UNSIGNED_BYTE, await noise_array)
-                                                                                                                 gl.generateMipmap(gl.TEXTURE_2D)
-                                                                                                                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-                                                                                                                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-                                                                                                                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-                                                                                                                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-                                                                                                                 gl.activeTexture(gl.TEXTURE1)
-                                                                                                                 gl.bindTexture(gl.TEXTURE_2D, T.noise)
-                                                                                                                 gl.uniform1i(U.noise, 1)
+    // Load in noise
 
-                                                                                                                 // Load in the vertex data, which contains the quad positions (cellPos),
-                                                                                                                 // vertex positions relative to their respective quads (fractPos), along
-                                                                                                                 // with quad color, normal, and id attributes.
-                                                                                                                 O.vertex_array = gl.createVertexArray()
-                                                                                                                 gl.bindVertexArray(O.vertex_array)
+    noise_array = await fetch_array("res/noise.bin.gz")
 
-                                                                                                                 B.cellPos = gl.createBuffer()
-                                                                                                                 gl.enableVertexAttribArray(A.cellPos)
-                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
-                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-                                                                                                                 gl.vertexAttribIPointer(
-                                                                                                                     A.cellPos, 3, gl.SHORT,
-                                                                                                                     N_stride, 0
-                                                                                                                 )
+    T.noise = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, T.noise)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, X, X, 0, gl.RGBA, gl.UNSIGNED_BYTE, await noise_array)
+    gl.generateMipmap(gl.TEXTURE_2D)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, T.noise)
+    gl.uniform1i(U.noise, 1)
 
-                                                                                                                 B.fractPos = gl.createBuffer()
-                                                                                                                 gl.enableVertexAttribArray(A.fractPos)
-                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
-                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-                                                                                                                 gl.vertexAttribIPointer(
-                                                                                                                     A.fractPos, 3, gl.SHORT,
-                                                                                                                     N_stride, 3 * N_int16
-                                                                                                                 )
+    // Load in the 2d vertex data, which contains the quad positions (cellPos),
+    // vertex positions relative to their respective quads (fractPos), along
+    // with quad color, normal, and id attributes.
 
-                                                                                                                 B.color = gl.createBuffer()
-                                                                                                                 gl.enableVertexAttribArray(A.color)
-                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
-                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-                                                                                                                 gl.vertexAttribIPointer(
-                                                                                                                     A.color, 1, gl.BYTE,
-                                                                                                                     N_stride, 6 * N_int16
-                                                                                                                 )
+    vertex2d_array = await fetch_array("res/vertex2d.bin.gz")
 
-                                                                                                                 B.normal = gl.createBuffer()
-                                                                                                                 gl.enableVertexAttribArray(A.normal)
-                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
-                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-                                                                                                                 gl.vertexAttribIPointer(
-                                                                                                                     A.normal, 1, gl.BYTE,
-                                                                                                                     N_stride, 6 * N_int16 + 1 * N_int8
-                                                                                                                 )
+    O.vertex2d_array = gl.createVertexArray()
+    gl.bindVertexArray(O.vertex2d_array)
 
-                                                                                                                 B.id = gl.createBuffer()
-                                                                                                                 gl.enableVertexAttribArray(A.id)
-                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
-                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
-                                                                                                                 gl.vertexAttribIPointer(
-                                                                                                                     A.id, 1, gl.BYTE,
-                                                                                                                     N_stride, 6 * N_int16 + 2 * N_int8
-                                                                                                                 )
+    B.cellPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.cellPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex2d_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.cellPos, 3, gl.SHORT, N_stride, 0)
 
-                                                                                                                 // Create textures for the sampler to output to from downsampling (aka
-                                                                                                                 // blitting) the render bufers.
-                                                                                                                 T.diffuse = gl.createTexture()
-                                                                                                                 T.reflection = gl.createTexture()
+    B.fractPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.fractPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex2d_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.fractPos, 3, gl.SHORT, N_stride, 3 * N_int16)
 
-                                                                                                                 T.colorUpdate(T.diffuse)
-                                                                                                                 T.colorUpdate(T.reflection)
+    B.color = gl.createBuffer()
+    gl.enableVertexAttribArray(A.color)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex2d_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.color, 1, gl.BYTE, N_stride, 6 * N_int16)
 
-                                                                                                                 B.sampler = gl.createFramebuffer()
-                                                                                                                 gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
-                                                                                                                 gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                                                                                                                                         gl.TEXTURE_2D, T.diffuse, 0)
-                                                                                                                                         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1,
-                                                                                                                                                                 gl.TEXTURE_2D, T.reflection, 0)
+    B.normal = gl.createBuffer()
+    gl.enableVertexAttribArray(A.normal)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex2d_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.normal, 1, gl.BYTE, N_stride, 6 * N_int16 + 1 * N_int8)
 
-                                                                                                                                                                 // Set up the parameters for the compositor, which uses the 1x-sampled
-                                                                                                                                                                 // default framebuffer.
-                                                                                                                                                                 gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-                                                                                                                                                                 gl.useProgram(P.compositor)
+    B.id = gl.createBuffer()
+    gl.enableVertexAttribArray(A.id)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex2d_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.id, 1, gl.BYTE, N_stride, 6 * N_int16 + 2 * N_int8)
 
-                                                                                                                                                                 O.composit_array = gl.createVertexArray()
-                                                                                                                                                                 gl.bindVertexArray(O.composit_array)
+    // Create textures for the sampler to output to from downsampling (aka
+    // blitting) the render bufers.
+    T.diffuse = gl.createTexture()
+    T.reflection = gl.createTexture()
 
-                                                                                                                                                                 B.texCoord = gl.createBuffer()
-                                                                                                                                                                 gl.enableVertexAttribArray(A.texCoord)
-                                                                                                                                                                 gl.bindBuffer(gl.ARRAY_BUFFER, B.texCoord)
-                                                                                                                                                                 gl.bufferData(gl.ARRAY_BUFFER, composit_array, gl.STATIC_DRAW)
-                                                                                                                                                                 gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
+    T.colorUpdate(T.diffuse)
+    T.colorUpdate(T.reflection)
+
+    B.sampler = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, T.diffuse, 0)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, T.reflection, 0) 
+
+    // Set up the parameters for the compositor, which uses the 1x-sampled
+    // default framebuffer.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.useProgram(P.compositor)
+
+    composit_array = new Float32Array([
+        -1, -1,
+        1, -1,
+        -1, 1,
+        -1, 1,
+        1, -1,
+        1, 1,
+    ])
+
+    O.composit_array = gl.createVertexArray()
+    gl.bindVertexArray(O.composit_array)
+
+    B.texCoord = gl.createBuffer()
+    gl.enableVertexAttribArray(A.texCoord)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.texCoord)
+    gl.bufferData(gl.ARRAY_BUFFER, composit_array, gl.STATIC_DRAW)
+    gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
+}
+
+async function loadEncryptedTextures() {
+    gl.useProgram(P.renderer)
+
+    // Load in the SDF 3D texture
+
+    map_array = await fetch_array(encrypted ? "res/map.blob" : "out/map.bin.gz" )
+
+    T.map = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA, X, Y, Z, 0, gl.RGBA, gl.UNSIGNED_BYTE, await map_array)
+    gl.generateMipmap(gl.TEXTURE_3D)
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_3D, T.map)
+    gl.uniform1i(U.map, 0)
+
+    // Load in the vertex data, which contains the quad positions (cellPos),
+    // vertex positions relative to their respective quads (fractPos), along
+    // with quad color, normal, and id attributes.
+
+    vertex_array = await fetch_array(encrypted ? "res/vertex.blob" : "out/vertex.bin.gz")
+
+    O.vertex_array = gl.createVertexArray()
+    gl.bindVertexArray(O.vertex_array)
+
+    B.cellPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.cellPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.cellPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.cellPos, 3, gl.SHORT, N_stride, 0)
+
+    B.fractPos = gl.createBuffer()
+    gl.enableVertexAttribArray(A.fractPos)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.fractPos)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.fractPos, 3, gl.SHORT, N_stride, 3 * N_int16)
+
+    B.color = gl.createBuffer()
+    gl.enableVertexAttribArray(A.color)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.color)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.color, 1, gl.BYTE, N_stride, 6 * N_int16)
+
+    B.normal = gl.createBuffer()
+    gl.enableVertexAttribArray(A.normal)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.normal)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.normal, 1, gl.BYTE, N_stride, 6 * N_int16 + 1 * N_int8)
+
+    B.id = gl.createBuffer()
+    gl.enableVertexAttribArray(A.id)
+    gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
+    gl.bufferData(gl.ARRAY_BUFFER, await vertex_array, gl.STATIC_DRAW)
+    gl.vertexAttribIPointer( A.id, 1, gl.BYTE, N_stride, 6 * N_int16 + 2 * N_int8)
 }
 
 async function updateTextures() {
