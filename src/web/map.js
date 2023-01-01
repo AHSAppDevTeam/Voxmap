@@ -31,6 +31,7 @@ const controls = {
     size: 100,
     prev: [0, 0],
     shiftKey: false,
+    first: false
 }
 
 
@@ -98,11 +99,6 @@ async function initOverlay() {
 }
 async function drawOverlay() {
 
-    const s = 3 // scale
-    const center = [
-        size[x] / 2 - cam.sbj[x] * s,
-        size[y] / 2 + cam.sbj[y] * s
-    ]
     const fog = clamps(cam.pos[z] / Z, 0.6, 1)
 
     const visible = await Promise.all(Object.keys(places).filter(async (key) => {
@@ -195,17 +191,17 @@ z: 12
     })
 
     async function controlsRotate(dx, dy) {
-        controls.rot[z] -= 2 * dx
-        controls.rot[x] -= dy
+        controls.rot[z] -= 400 * dx
+        controls.rot[x] -= 200 * dy
     }
     async function controlsMove(cx, cy, dx, dy) {
         let old_projection = m4.v4(
             cam.inv_projection_matrix,
-            [-(cx-dx)/size[x], (cy-dy)/size[y], 0, 0]
+            [-(cx-dx), (cy-dy), 0, 0]
         )
         let new_projection = m4.v4(
             cam.inv_projection_matrix,
-            [-(cx)/size[x], (cy)/size[y], 0, 0]
+            [-(cx), (cy), 0, 0]
         )
         controls.move[x] += 200*(new_projection[x] - old_projection[x])
         controls.move[y] += 200*(new_projection[y] - old_projection[y])
@@ -213,17 +209,21 @@ z: 12
     async function controlsZoom(dz) {
         controls.move[z] += dz
     }
-    touch.on("pinch pan", (event) => {
-        let cx = event.center.x
-        let cy = event.center.y
-        let dx = event.deltaX - controls.prev[x]
-        let dy = event.deltaY - controls.prev[y]
-        controls.prev[x] = event.isFinal ? 0 : event.deltaX
-        controls.prev[y] = event.isFinal ? 0 : event.deltaY
+    touch.on("pinch pinchstart pan panstart", (event) => {
+        const isFirst = ["pinchstart", "panstart"].includes(event.type)
+
+        let cx = ( event.center.x / size[x] * 2 - 1 )
+        let cy = ( event.center.y / size[y] * 2 + 1 )
+
+        let dx = isFirst ? 0 : cx - controls.prev[x]
+        let dy = isFirst ? 0 : cy - controls.prev[y]
+
+        controls.prev[x] = cx
+        controls.prev[y] = cy
 
         if(event.pointers.length == 2 || controls.shiftKey) {
             // Two-finger or shift-key or right-click rotation
-            controlsRotate(dx,dy)
+            controlsRotate(dx, dy)
             controlsZoom(-Math.log(event.scale))
         } else {
             controlsMove(cx, cy, dx,dy)
@@ -245,28 +245,26 @@ z: 12
 
     // Move (keyboard)
     window.addEventListener('keydown', (event) => {
-        const power = event.shiftKey ? 10 : 20
-        const cx = size[x]/2
-        const cy = size[y]/2
+        const power = event.shiftKey ? 0.08 : 0.04
         switch (event.code) {
             case "KeyW":
                 case "ArrowUp":
-                controlsMove(cx, cy, 0, +power)
+                controlsMove(0, 0, 0, +power)
             break;
             case "KeyS":
                 case "ArrowDown":
-                controlsMove(cx, cy, 0, -power)
+                controlsMove(0, 0, 0, -power)
             break;
             case "KeyA":
                 case "ArrowLeft":
-                controlsMove(cx, cy, +power, 0)
+                controlsMove(0, 0, +power, 0)
             break;
             case "KeyD":
                 case "ArrowRight":
             break;
-                controlsMove(cx, cy, -power, 0)
+                controlsMove(0, 0, -power, 0)
             case "Space":
-                controlsZoom(event.shiftKey ? 5 : -5)
+                controlsZoom(event.shiftKey ? +5 : -5)
             break;
         }
     })
