@@ -75,8 +75,10 @@ $signin.addEventListener("click", event => {
     }).then(load3D)
 })
 
-function filterPlaces() {
-    let query = simplify($searchInput.value)
+function filterPlaces(input) {
+    $searchInput.value = input
+
+    let query = simplify(input)
     $placeLists.classList.toggle("search", query)
     const placeIDs = []
     for(const $placeList of $placeLists.children){
@@ -90,14 +92,11 @@ function filterPlaces() {
         }
         $placeListDetails.open = contains
     }
-    focusPlaces(placeIDs)
+    $map.contentWindow.postMessage({ matches: placeIDs })
 }
 
-$searchInput.addEventListener("input", filterPlaces)
-$searchReset.addEventListener("click", () => {
-    $searchInput.value = ""
-    filterPlaces()
-})
+$searchInput.addEventListener("input", () => filterPlaces($searchInput.value))
+$searchReset.addEventListener("click", () => filterPlaces(""))
 
 
 async function loadPlaces() {
@@ -134,26 +133,24 @@ async function loadPlaces() {
                 $placeListIcon.textContent = placeList.icon
                 $placeListIcon.classList.add("place-list-icon")
                 $placeListIcon.classList.add("material-symbols-outlined")
+                $placeListIcon.addEventListener("click", () => {
+                    $placeLists.classList.remove("search")
+                })
 
                 // Add the individual places
                 const $places = document.createElement("ul")
                 $places.classList.add("place-list-places")
-                const placeKeys = Object.fromEntries(
-                    Object.entries(placeList.places)
-                    .sort((a, b) => (a[1] - b[1]))
-                )
+                const placeKeys = sort(placeList.places)
                 for (const placeKey in placeKeys) {
                     const place = places[placeKey]
-                    if(!place) continue
+                    if(!place) continue;
 
-                        const $place = document.createElement("li")
-                        $place.classList.add("place")
-                        $place.id = placeKey
-                        $place.textContent = $place.name = place.name
-                        $place.addEventListener("click", event => {
-                            focusPlaces([placeKey])
-                        })
-                        $places.append($place)
+                    const $place = document.createElement("li")
+                    $place.classList.add("place")
+                    $place.id = placeKey
+                    $place.textContent = $place.name = place.name
+                    $place.addEventListener("click", () => filterPlaces(place.name))
+                    $places.append($place)
                 }
 
                 $placeListDetails.append($placeListIcon, $places)
@@ -161,10 +158,6 @@ async function loadPlaces() {
                 $placeLists.append($placeList)
         }
     })
-}
-
-async function focusPlaces(placeIDs) {
-    $map.contentWindow.postMessage({ focusPlaces: placeIDs })
 }
 
 async function load3D() {

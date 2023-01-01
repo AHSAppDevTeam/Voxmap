@@ -9,7 +9,7 @@ flat in vec3 v_color;
 flat in vec3 v_normal;
 flat in int v_id;
 
-const int MAX_STEPS = X;
+const int MAX_STEPS = Z;
 
 // Utility functions
 //-------------------

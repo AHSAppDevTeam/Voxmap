@@ -64,6 +64,17 @@ const tex = (xyz) => Promise.all( // texture read
     [0, 1, 2].map(_c => D.map.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
 )
 
+//-- other updateable stuff
+
+const MODE_2D = 0
+const MODE_3D = 1
+
+let mode = MODE_2D
+let password = ""
+let place = {}
+let places = {}
+let matches = []
+
 async function initGl(){
     //-- Enable some features
 
@@ -261,6 +272,7 @@ async function drawScene(projection_matrix, position, sun, frame, time){
     // mesh and outputs a diffuse and a reflection pass into its renderbuffers.
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+    gl.clearColor(0.9, 0.9, 0.9, 1)
 
     gl.useProgram(P.renderer)
     gl.bindVertexArray(mode == MODE_2D ? O.vertex2d : O.vertex)

@@ -1,12 +1,9 @@
 // Link up HTML elements
 const $debug = document.getElementById("debug")
-const $map3d = document.getElementById("map-3d")
-const $map2d = document.getElementById("map-2d")
-const $overlay = document.getElementById("map-overlay")
+const $map = document.getElementById("map")
+const $overlay = document.getElementById("overlay")
 const $toggle = document.getElementById("toggle")
-gl = $map3d.getContext("webgl2", { alpha: false, antialias: true } )
-const map2d = $map2d.getContext("2d")
-const overlay = $overlay.getContext("2d")
+gl = $map.getContext("webgl2", { alpha: false, antialias: true } )
 
 //-- Dynamic parameters
 
@@ -61,7 +58,7 @@ async function main() {
 async function render(now) {
 
     // Update camera position, orientation, and world parameters
-    await update_state(now)
+    await updateState(now)
     await drawScene(cam.projection_matrix, cam.pos, weather.sun, frame, times[0]/1000)
     await drawOverlay()
 
@@ -72,11 +69,6 @@ async function render(now) {
 
 const img2d = new Image()
 img2d.src = "/res/2d.png"
-
-overlay.lineWidth = 3
-overlay.lineJoin = "round"
-overlay.textAlign = "center"
-overlay.shadowColor = '#000'
 
 $toggle.addEventListener("click", event => {
     switch(mode) {
@@ -91,22 +83,31 @@ $toggle.addEventListener("click", event => {
     }
 })
 
+async function initOverlay() {
+    for(const key in places) {
+        place = places[key]
+        place.class = key.split("_")[0]
+        place.element = document.createElementNS("http://www.w3.org/2000/svg", "text")
+        place.element.id = key
+        place.element.classList.add("place", place.class)
+        place.element.append(place.name)
+        place.element.setAttribute("x", 0)
+        place.element.setAttribute("y", 0)
+        $overlay.append(place.element)
+    }
+}
 async function drawOverlay() {
-
-    overlay.clearRect(0, 0, size[x], size[y])
-    map2d.clearRect(0, 0, size[x], size[y])
 
     const s = 3 // scale
     const center = [
         size[x] / 2 - cam.sbj[x] * s,
         size[y] / 2 + cam.sbj[y] * s
     ]
+    const fog = clamps(cam.pos[z] / Z, 0.6, 1)
 
-    let visible = {}
-
-    // Project labels onto scene
-    for (const key in places) {
+    const visible = await Promise.all(Object.keys(places).filter(async (key) => {
         const place = places[key]
+        place.element.setAttribute("opacity", 0)
 
         // Multiply by the camera matrix to go from vertex space
         // to view frustum space, then divide by z to get
@@ -117,71 +118,49 @@ async function drawOverlay() {
 
         const view = m4.v4(cam.projection_matrix, [place.x, place.y, place.z, 1.0])
 
-        if (view[w] < 0) continue // Discard places behind the camera
+        if(view[w] < 0) return false
 
-            view[x] /= view[w]
-            view[y] /= view[w]
+        view[x] /= view[w]
+        view[y] /= view[w]
 
-            if (Math.abs(view[x]) > 1.1 || Math.abs(view[y]) > 1.1) continue // Behind places out of view
+        // Discard places out of view
+        if (Math.abs(view[x]) > 1.1 || Math.abs(view[y]) > 1.1) return false
 
-                place.vx = size[x] * (view[x] + 1) / 2
-                place.vy = -size[y] * (view[y] - 1) / 2
-                place.vw = view[w]
-                visible[key] = place
-    }
+        const match = matches.includes(key)
+        place.element.classList.toggle("match", match)
 
-    visible = sort(visible, "vw", -1)
+        const vx = size[x] * (view[x] + 1) / 2
+        const vy = -size[y] * (view[y] - 1) / 2
+        const vw = view[w]
 
-    for (const key in visible) {
-        const place = visible[key]
-
-        /*
-           let flag = false
-           for(kb in places) {
-           if(key == kb) continue
-           const pb = places[kb]
-           if( place.vz > pb.vz && Math.abs(place.vx-pb.vx) < 20 && Math.abs(place.vy-pb.vy) < 10 )
-           flag = true
-           }
-           if(flag) continue
-           */
-
-        const dx = place.x - cam.pos[x]
-        const dy = place.y - cam.pos[y]
-        const dz = place.z - cam.pos[z]
-
-        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        const distance = magnitude([place.x - cam.pos[x], place.y - cam.pos[y], place.z - cam.pos[z]])
         const depth = clamps(distance / 150, 0, 1)
-        const proximity = clamps(15 / distance, 0.1, 2)
-        const fog = clamps(cam.pos[z] / Z, 0.6, 1)
+        const proximity = (match ? 2 : 1) * clamps(15 / distance, 0.1, 2)
 
-        if (key.startsWith("room_")) {
-            overlay.globalAlpha = 1 - smoothstep(depth, 0.4, 0.5)
-            overlay.font = `${4*proximity}rem "Josefin Sans", sans-serif`
-            overlay.lineJoin = "miter"
-            overlay.lineWidth = 4 * 2 * proximity
-            overlay.strokeStyle = "#000"
-            overlay.fillStyle = "#fff"
-        } else if (key.startsWith("building_")) {
-            overlay.globalAlpha = smoothstep(depth, 0.3, 0.4) * (1 - smoothstep(depth, fog, fog + 0.1))
-            overlay.font = `${12*proximity}rem "Quicksand", sans-serif`
-            overlay.lineJoin = "round"
-            overlay.lineWidth = 8 * 2 * proximity
-            overlay.strokeStyle = "#fffc"
-            overlay.fillStyle = "#000"
-        } else {
-            overlay.globalAlpha = 0.5;
-            overlay.font = `${14}px sans-serif`
-        }
+        place.element.setAttribute("opacity", (
+            (match) ? (1) :
+            (place.class == "room") ? (1 - smoothstep(depth, 0.4, 0.5)) :
+            (smoothstep(depth, 0.3, 0.4) * (1 - smoothstep(depth, fog, fog + 0.1)))
+        ))
+        place.element.setAttribute("transform", "translate("+vx+" "+vy+")"+"scale("+proximity+")" )
 
-        if (focusPlaces.includes(key)) {
-            overlay.strokeStyle = "orchid"
-            overlay.globalAlpha = 1
-        }
+        place.sort = vw
 
-        overlay.strokeText(place.name, place.vx, place.vy)
-        overlay.fillText(place.name, place.vx, place.vy)
+        return true
+    }))
+    
+    $overlay.append(...visible
+                    .sort((a,b) => places[b].sort - places[a].sort)
+                    .map(key => places[key].element)
+    )
+
+    // Project labels onto scene
+    for (const key in places) {
     }
+
+    const b = performance.now()
+
+    //console.log(b-a)
 }
 
 const list = {}
@@ -261,7 +240,7 @@ z: 12
     })
 
     $overlay.addEventListener("wheel", (event) => {
-        controlsZoom((event.deltaX + event.deltaY + event.deltaZ)/3)
+        controlsZoom((event.deltaX + event.deltaY + event.deltaZ)/10)
     })
 
     // Move (keyboard)
@@ -311,10 +290,33 @@ z: 12
         }
     })
     window.addEventListener('resize', resize)
+
+    window.addEventListener("message", ({ data }) => {
+        if ("password" in data) {
+            password = data.password
+            $toggle.removeAttribute("disabled")
+            $toggle.textContent = "3D"
+            loadEncryptedTextures()
+        }
+        if ("mode" in data) {
+            mode = data.mode
+        }
+        if ("places" in data) {
+            places = data.places
+            initOverlay()
+        }
+        if ("place" in data) {
+            place = data.place
+            cam.sbj = [place.x, place.y, place.z]
+        }
+        if ("matches" in data) {
+            matches = data.matches
+        }
+    })
 }
 
 
-async function update_state(now) {
+async function updateState(now) {
 
     // Update array of times for calculating average framerate
     times.pop()
@@ -363,7 +365,7 @@ async function update_state(now) {
         m4.inv_projection(fstop(fov), aspect, near, far)
     )
 
-    let hour = time / 1000 / 60 / 60 / 12 * Math.PI
+    let hour = 4 * time / 1000 / 60 / 60 / 12 * Math.PI
     weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)
     weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
     weather.sun[z] = Math.abs(Math.cos(hour))
@@ -387,9 +389,10 @@ async function update_state(now) {
 }
 
 async function resize() {
-    size[0] = window.innerWidth * window.devicePixelRatio
-    size[1] = window.innerHeight * window.devicePixelRatio
-    $map3d.width = $map2d.width = $overlay.width = size[0]
-    $map3d.height = $map2d.height = $overlay.height = size[1]
+    size[x] = window.innerWidth * window.devicePixelRatio
+    size[y] = window.innerHeight * window.devicePixelRatio
+    $map.width = $overlay.width = size[x]
+    $map.height = $overlay.height = size[y]
+    $overlay.setAttribute("viewBox", [0,0,...size].join(" "))
 }
 

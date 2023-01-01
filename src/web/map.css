@@ -10,7 +10,7 @@ canvas {
 
 @font-face {
    font-family: "Quicksand";
-   src: url("/res/fonts/Quicksand-Medium.ttf") format("truetype");
+   src: url("/res/fonts/Quicksand-Bold.ttf") format("truetype");
 }
 @font-face {
    font-family: "Josefin Sans";
@@ -27,13 +27,9 @@ canvas {
    left: 0.5rem;
 }
 
-canvas {
+#map, #overlay {
    position: fixed;
    touch-action: none;
-}
-
-#map-2d {
-   image-rendering: pixelated;
 }
 
 #toggle {
@@ -58,4 +54,32 @@ canvas {
 }
 #toggle[disabled]:hover {
    background: red;
+}
+
+.place {
+   transform-box: fill-box;
+   transform-origin: center;
+   text-anchor: middle;
+   dominant-baseline: middle;
+   paint-order: stroke fill;
+}
+.place.building {
+   font-size: 10rem;
+   fill: black;
+   stroke: white;
+   stroke-width: 1rem;
+   font-family: Quicksand, Roboto, sans-serif;
+}
+.place.building.match {
+   fill: orchid;
+}
+.place.room {
+   font-size: 3rem;
+   fill: white;
+   stroke: black;
+   stroke-width: 0.5rem;
+   font-family: "Josefin Sans", Roboto, sans-serif;
+}
+.place.room.match {
+   stroke: orchid;
 }

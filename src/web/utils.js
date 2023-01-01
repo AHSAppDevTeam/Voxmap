@@ -1,5 +1,5 @@
 // if not over HTTPS, probably means we're in debug mode
-const sort = (obj, key, order) =>
+const sort = (obj, key, order = 1) =>
 Object.fromEntries(
     Object.entries(obj)
     .sort((a, b) => order * (key ? a[1][key] - b[1][key] : a[1] - b[1]))
