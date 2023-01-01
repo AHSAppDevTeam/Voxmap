@@ -14,7 +14,7 @@ const clamp = (x, a) => clamps(x, -a, a) // symmetrical clamp
 const fstop = (fov) => 1 / Math.tan(fov * Math.PI / 360)
 
 // vector magnitude (sqrt of sum of squares)
-const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b * b))
+const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b * b, 0))
 
 // 4x4 matrix operations
 
