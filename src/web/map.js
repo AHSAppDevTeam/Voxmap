@@ -311,6 +311,31 @@ z: 12
         }
         if ("matches" in data) {
             matches = data.matches
+            if(matches.length) {
+
+                // Find most extreme points using amazing functional programming
+                const minMax = matches // [ "room_A_101", "room_A_102", ... ]
+                .map(match => places[match]) // [ { x:1, y:1, z:1 }, { x:2, y:2, z:2 }, ... ]
+                .filter(place => ("x" in place) && ("y" in place) && ("z" in place))
+                .map(place => [place.x, place.y, place.z]) // [ [1,1,1], [2,2,2], ... ]
+                .reduce(
+                    (extremes, currentPlace) => ( [x,y,z].map( 
+                        (i) => ( [Math.min, Math.max].map(
+                            (func, j) => func(extremes[i][j], currentPlace[i])
+                        ) )
+                    ) ), 
+                    [[X,0],[Y,0],[Z,0]]
+                ) // [ [1, 999], [1, 999], [1, 999] ]
+
+                // Move camera subject to average of the most extreme points
+                cam.sbj = minMax.map(([min, max]) => (min+max)/2) // [ 500, 500, 500 ]
+
+                // Move camera subject up based on distance between the most extreme points
+                cam.sbj[z] += Z + magnitude(minMax.map(([min, max]) => max - min))/3
+
+                // Rotate camera straight down
+                cam.rot = [0,0,0]
+            }
         }
     })
 }

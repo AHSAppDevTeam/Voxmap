@@ -1,6 +1,8 @@
 const floor = x => Math.floor(x)
 const fract = x => x - floor(x)
 const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
+const min = (...x) => x.reduce((a,b) => Math.min(a,b))
+const max = (...x) => x.reduce((a,b) => Math.max(a,b))
 
 // smoothstep
 const smoothstep_polynomial = x => x * x * (3 - 2 * x)
