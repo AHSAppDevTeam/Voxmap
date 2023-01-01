@@ -64,7 +64,7 @@ async function render(now) {
 
     // Update camera position, orientation, and world parameters
     await update_state(now)
-    await drawScene(cam.projection_matrix, cam.pos, weather.sun, frame, times[0])
+    await drawScene(cam.projection_matrix, cam.pos, weather.sun, frame, times[0]/1000)
     await drawOverlay()
 
     //-- Then do it all again
@@ -259,7 +259,7 @@ z: 12
     })
 
     $overlay.addEventListener("wheel", (event) => {
-        controls.move[z] += event.deltaX + event.deltaY + event.deltaZ
+        controls.move[z] += (event.deltaX + event.deltaY + event.deltaZ)/3
     })
 
     // Move (keyboard)
@@ -315,7 +315,7 @@ async function update_state(now) {
 
     // Update array of times for calculating average framerate
     times.pop()
-    times.unshift((start_time + now) / 1000)
+    times.unshift(start_time + now)
 
     const time = times[0]
     const delta = times[0] - times[1]
@@ -360,7 +360,7 @@ async function update_state(now) {
         m4.inv_projection(fstop(fov), aspect, near, far)
     )
 
-    let hour = time / 60 / 60 / 12 * Math.PI
+    let hour = time / 1000 / 60 / 60 / 12 * Math.PI
     weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)
     weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
     weather.sun[z] = Math.abs(Math.cos(hour))

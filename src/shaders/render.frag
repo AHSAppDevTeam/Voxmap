@@ -191,7 +191,7 @@ void main() {
     vec3 cloudCol = vec3(1);
     float cloudFactor = 0.0;
     if(u_quality > 1) { // Clouds
-      float cloudTime = u_time * 4e-4;
+      float cloudTime = u_time * 4e-3;
       vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
       skyPos *= 0.1;
       skyPos *= sqrt(length(skyPos));
@@ -208,13 +208,13 @@ void main() {
     float mountainHeight = 1.0 - fbm(vec2(0.3 * mountainPos));
     float mountainFactor = 2.0 - fbm(2.0*(mountainPos + rayDir.yz));
     mountainHeight /= exp(0.3 * mountainPos * mountainPos) * 6.0;
-    if(mountainHeight > rayDir.z && rayDir.y > 0.0) {
+    if(mountainHeight > rayDir.z && rayDir.y > 0.0 && rayDir.z > 0.0) {
       skyCol = mix(skyCol, skyCol*vec3(0.7, 0.8, 0.7), mountainFactor * rayDir.z);
     } else {
       skyCol = mix(skyCol, cloudCol, cloudFactor);
     }
 
-    if(rayDir.z < 0.) skyCol = vec3(0.8);
+    if(rayDir.z < 0.) skyCol *= 0.5;
 
     c_diffuse.rgb = skyCol;
 
