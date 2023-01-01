@@ -86,6 +86,7 @@ $toggle.addEventListener("click", event => {
 })
 
 async function initOverlay() {
+    $overlay.innerHTML = ""
     for(const key in places) {
         place = places[key]
         place.class = key.split("_")[0]
@@ -100,7 +101,7 @@ async function initOverlay() {
 }
 async function drawOverlay() {
 
-    const fog = clamps(cam.pos[z] / Z, 0.6, 1)
+    const fog = clamps(1.5 * cam.pos[z] / Z, 0.6, 1)
 
     const visible = await Promise.all(Object.keys(places).filter(async (key) => {
         const place = places[key]
@@ -112,8 +113,10 @@ async function drawOverlay() {
         //
         // Basically the same thing as render.vert except WebGL
         // does the z-divide and culling automatically.
+        
+        const pos = [place.x, place.y, mode == MODE_2D ? 0 : place.z, 1]
 
-        const view = m4.v4(cam.projection_matrix, [place.x, place.y, mode == MODE_2D ? 0 : place.z, 1.0])
+        const view = m4.v4(cam.projection_matrix, pos)
 
         if(view[w] < 0) return false
 
@@ -130,18 +133,18 @@ async function drawOverlay() {
         const vy = -size[y] * (view[y] - 1) / 2
         const vw = view[w]
 
-        const distance = magnitude([place.x - cam.pos[x], place.y - cam.pos[y], place.z - cam.pos[z]])
+        const distance = vec.magnitude(vec.subtract(pos.slice(0,3), cam.pos))
         const depth = clamps(distance / 150, 0, 1)
-        const proximity = (match ? 2 : 1) * clamps(15 / distance, 0.1, 2)
+        const proximity = clamps((match ? 30 : 20) / distance, 0.1, 2)
 
         place.element.setAttribute("opacity", (
             (match) ? (1) :
-            (place.class == "room") ? (1 - smoothstep(depth, 0.4, 0.5)) :
-            (smoothstep(depth, 0.3, 0.4) * (1 - smoothstep(depth, fog, fog + 0.1)))
+            (place.class == "room") ? (1 - smoothstep(depth, 0.65, 0.75)) :
+            (smoothstep(depth, 0.6, 0.7) * (1 - smoothstep(depth, fog, fog + 0.1)))
         ))
         place.element.setAttribute("transform", "translate("+vx+" "+vy+")"+"scale("+proximity+")" )
 
-        place.sort = vw
+        place.sort = vw - match // matches go on top
 
         return true
     }))
@@ -194,21 +197,21 @@ async function addListeners() {
         controls.shiftKey = event.shiftKey
     })
 
+    function projectToGround(vx, vy) {
+        // screen to frustum
+        const a = m4.v4(cam.inv_projection_matrix, [vx, vy, 1, 1])
+        // frustum to ground
+        return [a[x]/a[w], a[y]/a[w], a[z]/a[w], 1]
+    }
     async function controlsRotate(dx, dy) {
-        controls.rot[z] -= 400 * dx
-        controls.rot[x] -= 200 * dy
+        controls.rot[z] -= clamp(400 * dx, 8)
+        controls.rot[x] -= clamp(200 * dy, 4)
     }
     async function controlsMove(cx, cy, dx, dy) {
-        const old_pos = m4.v4(
-            cam.inv_projection_matrix,
-            [-(cx-dx), (cy-dy), 1, 1]
-        )
-        const new_pos = m4.v4(
-            cam.inv_projection_matrix,
-            [-(cx), (cy), 1, 1]
-        )
-        for(i of [x,y])
-            controls.move[i] += (new_pos[i]/new_pos[w] - old_pos[i]/old_pos[w])/(8-4*cam.pos[z]/Y)
+        const old_pos = projectToGround(dx-cx, cy-dy)
+        const new_pos = projectToGround(-cx, cy)
+        for(const i of [x,y])
+            controls.move[i] += (new_pos[i] - old_pos[i])/(12 - 8*cam.pos[z]/Y)
     }
     async function controlsZoom(dz) {
         controls.move[z] += dz
@@ -249,7 +252,7 @@ async function addListeners() {
 
     // Move (keyboard)
     window.addEventListener('keydown', (event) => {
-        const power = event.shiftKey ? 0.08 : 0.04
+        const power = event.shiftKey ? 0.2 : 0.1
         switch (event.code) {
             case "KeyW":
                 case "ArrowUp":
@@ -333,7 +336,7 @@ async function addListeners() {
                 cam.sbj = minMax.map(([min, max]) => (min+max)/2) // [ 500, 500, 500 ]
 
                 // Move camera subject up based on distance between the most extreme points
-                cam.sbj[z] += Z + magnitude(minMax.map(([min, max]) => max - min))/3
+                cam.sbj[z] += Z + vec.magnitude(minMax.map(([min, max]) => max - min))/3
 
                 // Rotate camera straight down
                 cam.rot = [0,0,0]
@@ -374,7 +377,7 @@ async function updateState(now) {
         m4.xRotation(cam.rot[x]),
         m4.translation(0, 0, orbit_radius)
     )
-    cam.pos = m4.v4(cam.orbit_matrix, [0, 0, 0, 1]).slice(0, 3)
+    cam.pos = m4.v4(cam.orbit_matrix, [0, 0, 0, 1]).slice(0,3)
 
     const fov = 60 // Field of view
     const aspect = size[x] / size[y]

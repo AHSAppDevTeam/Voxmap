@@ -77,10 +77,10 @@ body > * {
    fill: orchid;
 }
 .place.room {
-   font-size: 3rem;
+   font-size: 4rem;
    fill: white;
    stroke: black;
-   stroke-width: 0.5rem;
+   stroke-width: 1rem;
    font-family: "Josefin Sans", Roboto, sans-serif;
 }
 .place.room.match {

@@ -50,7 +50,6 @@ let mode = 0
 let authed = false
 
 loadPlaces()
-load3D()
 
 $signin.addEventListener("click", event => {
     event.preventDefault()
@@ -63,6 +62,9 @@ $signin.addEventListener("click", event => {
         const user = result.user
         console.log(result)
         // ...
+        authed = true
+        load3D()
+        // ...
     }).catch((error) => {
         // Handle Errors here.
         const errorCode = error.code
@@ -72,7 +74,7 @@ $signin.addEventListener("click", event => {
         // The AuthCredential type that was used.
         const credential = GoogleAuthProvider.credentialFromError(error)
         // ...
-    }).then(load3D)
+    })
 })
 
 function filterPlaces(input) {
@@ -105,7 +107,6 @@ async function loadPlaces() {
 
     await get(placesRef).then((snapshot) => {
         places = sort(snapshot.val())
-        $map.contentWindow.postMessage({places}, "*")
     })
 
     await get(placeListsRef).then((snapshot) => {
@@ -166,10 +167,16 @@ async function loadPlaces() {
 }
 
 async function load3D() {
-    get(passwordRef).then((snapshot) => {
+    get(placesRef).then((snapshot) => {
+        places = sort(snapshot.val())
+        $map.contentWindow.postMessage({places}, "*")
+    })
+    get(passwordRef).then(async (snapshot) => {
         $signin.style.display = "none"
         password = snapshot.val()
         $map.focus()
         $map.contentWindow.postMessage({password}, "*")
     })
 }
+
+window.addEventListener("load", load3D)

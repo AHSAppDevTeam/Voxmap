@@ -15,8 +15,20 @@ const clamp = (x, a) => clamps(x, -a, a) // symmetrical clamp
 // field-of-view
 const fstop = (fov) => 1 / Math.tan(fov * Math.PI / 360)
 
-// vector magnitude (sqrt of sum of squares)
-const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b * b, 0))
+// vector operations
+
+const vec = {
+   add: (a, b) => a.map((_,i) => a[i] + b[i]),
+   subtract: (a, b) => a.map((_,i) => a[i] - b[i]),
+   multiply: (a, b) => a.map((_,i) => a[i] * b[i]),
+   divide: (a, b) => a.map((_,i) => a[i] / b[i]),
+   scalarAdd: (a, b) => a.map((_,i) => a[i] + b),
+   scalarSubtract: (a, b) => a.map((_,i) => a[i] - b),
+   scalarMultiply: (a, b) => a.map((_,i) => a[i] * b),
+   scalarDivide: (a, b) => a.map((_,i) => a[i] / b),
+   magnitude: v => Math.sqrt(v.reduce((a, b) => a + b*b, 0)),
+}
+vec.ground = (rayPos, rayDir) => vec.add(rayPos, vec.scalarMultiply(rayDir, rayPos[z]/rayDir[z]))
 
 // 4x4 matrix operations
 
