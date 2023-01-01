@@ -4,7 +4,7 @@ const $map3d = document.getElementById("map-3d")
 const $map2d = document.getElementById("map-2d")
 const $overlay = document.getElementById("map-overlay")
 const $toggle = document.getElementById("toggle")
-gl = $map3d.getContext("webgl2", { alpha: false, antialias: false } )
+gl = $map3d.getContext("webgl2", { alpha: false, antialias: true } )
 const map2d = $map2d.getContext("2d")
 const overlay = $overlay.getContext("2d")
 
@@ -13,8 +13,6 @@ const overlay = $overlay.getContext("2d")
 const start_time = Date.now() - new Date().getTimezoneOffset() * 60 * 1000
 const times = Array(N_time_samples).fill(0)
 let frame = 0
-
-let quality = get_param("quality") || "2" // render quality
 
 const weather = get_json_param("weather") || {
     sun: [0.0, 0.0, 1.0]
@@ -233,6 +231,9 @@ z: 12
         controls.move[x] += 200*(new_projection[x] - old_projection[x])
         controls.move[y] += 200*(new_projection[y] - old_projection[y])
     }
+    async function controlsZoom(dz) {
+        controls.move[z] += dz
+    }
     touch.on("pinch pan", (event) => {
         let cx = event.center.x
         let cy = event.center.y
@@ -244,6 +245,7 @@ z: 12
         if(event.pointers.length == 2 || controls.shiftKey) {
             // Two-finger or shift-key or right-click rotation
             controlsRotate(dx,dy)
+            controlsZoom(event.scale)
         } else {
             controlsMove(cx, cy, dx,dy)
         }
@@ -259,7 +261,7 @@ z: 12
     })
 
     $overlay.addEventListener("wheel", (event) => {
-        controls.move[z] += (event.deltaX + event.deltaY + event.deltaZ)/3
+        controlsZoom((event.deltaX + event.deltaY + event.deltaZ)/3)
     })
 
     // Move (keyboard)
@@ -307,7 +309,6 @@ z: 12
         }
     })
     window.addEventListener('resize', resize)
-    window.addEventListener('resize', updateTextures)
 }
 
 
@@ -367,22 +368,13 @@ async function update_state(now) {
 
     const num = x => x.toFixed(1)
 
-    const fps = 1 / delta
+    const fps = 1000 / delta
     const avg_fps = (N_time_samples - 1) / (time - times[N_time_samples - 1])
-
-    if (frame % 100 == 0) {
-        if (avg_fps > 30 && quality < 3) {
-            quality++
-        } else if (avg_fps < 20 && quality > 1) {
-            quality--
-        }
-    }
 
     if (!get_param("clean")) debug.innerText =
             `${size.map(num).join(" x ")} @ ${num(fps)} ~ ${num(avg_fps)} fps
         position: ${cam.pos.map(num).join(", ")}
-    velocity: ${cam.vel.map(num).join(", ")}
-    quality: ${quality} / 3
+        velocity: ${cam.vel.map(num).join(", ")}
     `
 
     if (frame % 60 == 0) {

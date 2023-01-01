@@ -1,14 +1,13 @@
 uniform highp sampler2D u_noise;
 uniform highp sampler3D u_map;
 
+out vec4 o_color;
+
 flat in ivec3 v_cellPos;
 smooth in vec3 v_fractPos;
 flat in vec3 v_color;
 flat in vec3 v_normal;
 flat in int v_id;
-
-layout(location=0) out vec4 c_diffuse;
-layout(location=1) out vec4 c_reflection;
 
 const int MAX_STEPS = X;
 
@@ -31,12 +30,6 @@ vec2 rotate2d(vec2 v, float a) {
   float sinA = sin(a);
   float cosA = cos(a);
   return vec2(v.x * cosA - v.y * sinA, v.y * cosA + v.x * sinA);
-}
-
-vec3 jitter(vec3 v, float f) {
-  vec3 w = f*white(0.1*(v_fractPos.xy + v_fractPos.z));
-  vec3 mask = 1.0 - abs(v_normal);
-  return normalize((v + w)*mask + v_normal);
 }
 
 // Read data from texture
@@ -152,8 +145,7 @@ March march( ivec3 rayCellPos, vec3 rayFractPos, vec3 rayDir ) {
 //-----------
 
 void main() {
-  c_diffuse = vec4(0,0,0,1);
-  c_reflection = vec4(0,0,0,1);
+  o_color = vec4(0,0,0,1);
 
   bool isSky = v_id == 1;
   bool isGlass = v_id == 2;
@@ -161,11 +153,8 @@ void main() {
   const vec3 litCol = vec3(0.4, 0.35, 0.3);
   vec3 rayDir = normalize(vec3(v_cellPos-u_cellPos) + (v_fractPos-u_fractPos));
   vec3 reflectDir = reflect(rayDir, v_normal);
-  if(u_quality > 2) { // add roughness to reflection surface
-    reflectDir = reflect(rayDir, jitter(v_normal, 0.5));
-  }
 
-  vec3 sunDir = u_sunDir; //jitter(u_sunDir, 0.5);
+  vec3 sunDir = u_sunDir;
 
   // Fancy sky!
 
@@ -190,19 +179,17 @@ void main() {
 
     vec3 cloudCol = vec3(1);
     float cloudFactor = 0.0;
-    if(u_quality > 1) { // Clouds
-      float cloudTime = u_time * 4e-3;
-      vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
-      skyPos *= 0.1;
-      skyPos *= sqrt(length(skyPos));
-      skyPos *= 3.0 + vec2(
-	  fbm(2.0*skyPos + cloudTime),
-	  fbm(2.0*skyPos - cloudTime)
-	);
-      skyPos += 1e-4 * (vec2(u_cellPos.xy) + u_fractPos.xy); 
-      cloudFactor = exp2(6.0 * (fbm(skyPos + vec2(2, -9)*cloudTime) - 1.0));
-      cloudCol = mix(sunCol, vec3(0.8), sqrt(cloudFactor));
-    }
+    float cloudTime = u_time * 4e-3;
+    vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
+    skyPos *= 0.1;
+    skyPos *= sqrt(length(skyPos));
+    skyPos *= 3.0 + vec2(
+	fbm(2.0*skyPos + cloudTime),
+	fbm(2.0*skyPos - cloudTime)
+      );
+    skyPos += 1e-4 * (vec2(u_cellPos.xy) + u_fractPos.xy); 
+    cloudFactor = exp2(6.0 * (fbm(skyPos + vec2(2, -9)*cloudTime) - 1.0));
+    cloudCol = mix(sunCol, vec3(0.8), sqrt(cloudFactor));
 
     float mountainPos = rayDir.x / rayDir.y;
     float mountainHeight = 1.0 - fbm(vec2(0.3 * mountainPos));
@@ -216,7 +203,7 @@ void main() {
 
     if(rayDir.z < 0.) skyCol *= 0.5;
 
-    c_diffuse.rgb = skyCol;
+    o_color.rgb = skyCol;
 
   } else { // Determine color of block
 
@@ -244,62 +231,22 @@ void main() {
 
     // March to the Sun unless we hit something along the way
     if( shadeFactor > 0.){
-#ifdef SOFT
-      float md = Zf;
-      float i = 0.1;
-      float dd = 0.1;
-      while(i < Zf) {
-	float d = sdf_dir(v_cellPos, v_fractPos + i*sunDir, 1.0) - 0.5;
-	md = min(d, md);
-	i += max(dd, d);
-      }
-      shadeFactor *= smoothstep(0.0, 1.0, md*Zf*4.0/(i-0.1));
-#else
       March sun = march(v_cellPos, v_fractPos, sunDir);
-      /*
-      c_diffuse.rgb = vec3(sun.minDist);
-      return;
-      */
       shadeFactor *= float(sun.step == MAX_STEPS);
-#endif
     }
-    /*
-      c_diffuse.rgb = vec3(sdf(v_cellPos, v_fractPos - 0.5*v_normal - rayDir));
-      return;
-      */
 
     // Mix sunlight and shade
     vec3 lightCol = shadeCol + litCol*shadeFactor;
 
-#ifdef REFRACTIONS
-    if(v_color == 7) {
-      March refraction = march(v_cellPos, v_fractPos, refract(rayDir, v_normal, 0.8));
-    }
-#endif
-
-    if(u_quality > 2) { // Reflections
-      float reflectFactor = 0.5 * exp2(8.0 * dot(rayDir, v_normal)) - 0.05;
-      if(reflectFactor > 0.0) {
-	March reflection = march(v_cellPos, v_fractPos, reflectDir);
-	vec4 p = u_matrix * vec4(vec3(reflection.cellPos) + reflection.fractPos, 1.0);
-	p.xy /= p.w;
-	float bounds = max(p.x*p.x, p.y*p.y);
-	if(bounds < 1.0) {
-	  c_reflection.rg = 0.5 + 0.5*p.xy;
-	  c_reflection.b = reflectFactor * (1.0 - bounds);
-	}
-      }
-    }
-
     // Multiply everything together
-    c_diffuse.rgb = baseCol;
+    o_color.rgb = baseCol;
     if(u_quality > 0) {
-      c_diffuse.rgb *= normalCol * lightCol * ambCol;
+      o_color.rgb *= normalCol * lightCol * ambCol;
     }
 
     if(isGlass) {
-      c_diffuse.a = 0.8 * exp2(dot(rayDir, v_normal));
-      c_diffuse.rgb *= 0.2 * atmCol;
+      o_color.a = 0.8 * exp2(dot(rayDir, v_normal));
+      o_color.rgb *= 0.2 * atmCol;
     }
 
   }
