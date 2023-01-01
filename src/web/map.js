@@ -92,7 +92,7 @@ async function initOverlay() {
         place.element = document.createElementNS("http://www.w3.org/2000/svg", "text")
         place.element.id = key
         place.element.classList.add("place", place.class)
-        place.element.append(place.name)
+        place.element.append("short" in place ? place.short : place.name)
         place.element.setAttribute("x", 0)
         place.element.setAttribute("y", 0)
         $overlay.append(place.element)
@@ -113,7 +113,7 @@ async function drawOverlay() {
         // Basically the same thing as render.vert except WebGL
         // does the z-divide and culling automatically.
 
-        const view = m4.v4(cam.projection_matrix, [place.x, place.y, place.z, 1.0])
+        const view = m4.v4(cam.projection_matrix, [place.x, place.y, mode == MODE_2D ? 0 : place.z, 1.0])
 
         if(view[w] < 0) return false
 
@@ -168,24 +168,21 @@ async function addListeners() {
     touch.add(new Hammer.Pinch({ threshold: 0 }).recognizeWith(touch.get("pan")))
 
     $overlay.addEventListener("dblclick", async (event) => {
-        await drawScene(cam.projection_matrix, cam.pos, weather.sun, frame, times[0]/1000)
-        $download.href = $map.toDataURL("image/png")
-        $download.download = "map.ahs.app - " + simplify(new Date().toJSON().replace(/\D/g,""))
-        $download.click()
-    })
-    $overlay.addEventListener('click', (event) => {
-        /*
+        if(false) {
            const name = prompt("name")
-            //list["room_"+name.replace("-","_")] = {
-            console.log({
-name: name+" row",
-x: event.offsetX,
-y: Y-event.offsetY,
-z: 12
-})
-*/
-        event.preventDefault()
-        //$overlay.requestPointerLock()
+            list["room_"+name.replace(" ","_")] = {
+                name: name.replace(" ","-"),
+                x: cam.pos[x],
+                y: cam.pos[y],
+                z: 12
+            }
+            console.log(list)
+        } else {
+            await drawScene(cam.projection_matrix, cam.pos, weather.sun, frame, times[0]/1000)
+            $download.href = $map.toDataURL("image/png")
+            $download.download = "map.ahs.app - " + simplify(new Date().toJSON().replace(/\D/g,""))
+            $download.click()
+        }
     })
 
     cam.rot = cam.rot.map(a => a % (2 * Math.PI))

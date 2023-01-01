@@ -85,7 +85,9 @@ function filterPlaces(input) {
         const $placeListDetails = $placeList.firstChild
         let contains = false
         for(const $place of $placeListDetails.lastChild.children){
-            const match = query && simplify($place.name).startsWith(query)
+            const match = query && $place.name.split(",")
+            .some(word=>simplify(word).startsWith(query))
+
             $place.classList.toggle("match", match)
             if(match) placeIDs.push($place.id)
                 contains |= match
@@ -148,7 +150,10 @@ async function loadPlaces() {
                     const $place = document.createElement("li")
                     $place.classList.add("place")
                     $place.id = placeKey
-                    $place.textContent = $place.name = place.name
+                    $place.textContent = place.name
+                    $place.name = (("short" in place) ? [place.short, ...place.short.split(" ")] : [])
+                        .concat([place.name, ...place.name.split(" ")]).join(",")
+
                     $place.addEventListener("click", () => filterPlaces(place.name))
                     $places.append($place)
                 }

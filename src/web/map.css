@@ -55,6 +55,10 @@ body > * {
    background: red;
 }
 
+#overlay {
+   /*background: radial-gradient(#000, #0000 1%);*/
+}
+
 .place {
    transform-box: fill-box;
    transform-origin: center;
