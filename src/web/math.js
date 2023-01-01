@@ -1,3 +1,23 @@
+const floor = x => Math.floor(x)
+const fract = x => x - floor(x)
+const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
+
+// smoothstep
+const smoothstep_polynomial = x => x * x * (3 - 2 * x)
+const smoothstep = (x, a, b) => x < a ? 0 : x >= b ? 1 : smoothstep_polynomial((x - a) / (b - a))
+
+// clamp
+const clamps = (x, a, b) => Math.min(Math.max(x, a), b)
+const clamp = (x, a) => clamps(x, -a, a) // symmetrical clamp
+
+// field-of-view
+const fstop = (fov) => 1 / Math.tan(fov * Math.PI / 360)
+
+// vector magnitude (sqrt of sum of squares)
+const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b * b))
+
+// 4x4 matrix operations
+
 const m4 = {
 
     projection: (f, ratio, near, far) => ([

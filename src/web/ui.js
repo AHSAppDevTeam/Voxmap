@@ -99,13 +99,6 @@ $searchReset.addEventListener("click", () => {
     filterPlaces()
 })
 
-const simplify = query => query.replace(/[\s-]/g, "").toLowerCase()
-
-const sort = (obj, key) =>
-Object.fromEntries(
-    Object.entries(obj)
-    .sort((a, b) => key ? a[1][key] - b[1][key] : a[1] - b[1])
-)
 
 async function loadPlaces() {
 

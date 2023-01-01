@@ -1,5 +1,5 @@
-uniform highp sampler3D u_map;
 uniform highp sampler2D u_noise;
+uniform highp sampler3D u_map;
 
 flat in ivec3 v_cellPos;
 smooth in vec3 v_fractPos;
