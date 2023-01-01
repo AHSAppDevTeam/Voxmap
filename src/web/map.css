@@ -37,14 +37,25 @@ canvas {
 }
 
 #toggle {
+   all: unset;
+   display: block;
    position: fixed;
-   bottom: 2vmin;
-   right: 2vmin;
-   border-radius: 4vmin;
-   background-image: url("/res/render.png");
-   background-size: cover;
-   background-position: center;
-   width: 36vmin;
-   height: 24vmin;
-   border: white;
+   bottom: 3pt;
+   right: 3pt;
+   padding: 1rem;
+   font-family: Quicksand, Roboto, sans-serif;
+   font-size: 1rem;
+   border-radius: 3pt;
+   cursor: pointer;
+   background: powderblue;
+}
+#toggle:hover {
+   background: cornflowerblue;
+}
+#toggle[disabled] {
+   cursor: not-allowed;
+   background: tomato;
+}
+#toggle[disabled]:hover {
+   background: red;
 }

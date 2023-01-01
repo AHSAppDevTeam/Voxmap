@@ -82,11 +82,11 @@ $toggle.addEventListener("click", event => {
     switch(mode) {
         case MODE_2D:
             mode = MODE_3D
-            $toggle.style.backgroundImage = 'url("/res/2d.png")'
+            $toggle.textContent = "2D"
             break
         case MODE_3D:
             mode = MODE_2D
-            $toggle.style.backgroundImage = 'url("/res/render.png")'
+            $toggle.textContent = "3D"
             break
     }
 })
@@ -245,7 +245,7 @@ z: 12
         if(event.pointers.length == 2 || controls.shiftKey) {
             // Two-finger or shift-key or right-click rotation
             controlsRotate(dx,dy)
-            controlsZoom(Math.log(event.scale))
+            controlsZoom(-Math.log(event.scale))
         } else {
             controlsMove(cx, cy, dx,dy)
         }
@@ -267,23 +267,25 @@ z: 12
     // Move (keyboard)
     window.addEventListener('keydown', (event) => {
         const power = event.shiftKey ? 10 : 20
+        const cx = size[x]/2
+        const cy = size[y]/2
         switch (event.code) {
             case "KeyW":
                 case "ArrowUp":
-                controlsMove(0, 0, 0, +power)
+                controlsMove(cx, cy, 0, +power)
             break;
             case "KeyS":
                 case "ArrowDown":
-                controlsMove(0, 0, 0, -power)
+                controlsMove(cx, cy, 0, -power)
             break;
             case "KeyA":
                 case "ArrowLeft":
-                controlsMove(0, 0, -power, 0)
+                controlsMove(cx, cy, +power, 0)
             break;
             case "KeyD":
                 case "ArrowRight":
-                controlsMove(0, 0, +power, 0)
             break;
+                controlsMove(cx, cy, -power, 0)
             case "Space":
                 controlsZoom(event.shiftKey ? 5 : -5)
             break;

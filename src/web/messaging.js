@@ -9,6 +9,8 @@ let focusPlaces = []
 window.addEventListener("message", ({ data }) => {
     if ("password" in data) {
         password = data.password
+        document.getElementById("toggle").removeAttribute("disabled")
+        document.getElementById("toggle").textContent = "3D"
         loadEncryptedTextures()
     }
     if ("mode" in data) {

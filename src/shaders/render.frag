@@ -160,7 +160,7 @@ void main() {
 
   // Color of the sky where the Sun is
   const vec3 sunCol = vec3(1.4, 1.0, 0.5);
-  float sunFactor = max(0.0, dot(u_sunDir, reflectDir)) - 1.0;
+  float sunFactor = max(0.0, dot(u_sunDir, rayDir)) - 1.0;
   float glow = exp2(8.0 * sunFactor);
   sunFactor = exp2(4000.0 * sunFactor) + 0.3 * glow;
 
