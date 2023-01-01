@@ -156,7 +156,7 @@ async function drawOverlay() {
         const fog = clamps(cam.pos[z] / Z, 0.6, 1)
 
         if (key.startsWith("room_")) {
-            overlay.globalAlpha = 1 - smoothstep(depth, 0.3, 0.4)
+            overlay.globalAlpha = 1 - smoothstep(depth, 0.4, 0.5)
             overlay.font = `${4*proximity}rem "Josefin Sans", sans-serif`
             overlay.lineJoin = "miter"
             overlay.lineWidth = 4 * 2 * proximity
@@ -168,7 +168,7 @@ async function drawOverlay() {
             overlay.lineJoin = "round"
             overlay.lineWidth = 8 * 2 * proximity
             overlay.strokeStyle = "#fffc"
-            overlay.fillStyle = "#000c"
+            overlay.fillStyle = "#000"
         } else {
             overlay.globalAlpha = 0.5;
             overlay.font = `${14}px sans-serif`
@@ -245,7 +245,7 @@ z: 12
         if(event.pointers.length == 2 || controls.shiftKey) {
             // Two-finger or shift-key or right-click rotation
             controlsRotate(dx,dy)
-            controlsZoom(event.scale)
+            controlsZoom(Math.log(event.scale))
         } else {
             controlsMove(cx, cy, dx,dy)
         }
@@ -266,26 +266,26 @@ z: 12
 
     // Move (keyboard)
     window.addEventListener('keydown', (event) => {
-        const power = event.shiftKey ? 5 : 10
+        const power = event.shiftKey ? 10 : 20
         switch (event.code) {
             case "KeyW":
                 case "ArrowUp":
-                controls.move[y] += power
+                controlsMove(0, 0, 0, +power)
             break;
             case "KeyS":
                 case "ArrowDown":
-                controls.move[y] -= power
+                controlsMove(0, 0, 0, -power)
             break;
             case "KeyA":
                 case "ArrowLeft":
-                controls.move[x] -= power
+                controlsMove(0, 0, -power, 0)
             break;
             case "KeyD":
                 case "ArrowRight":
-                controls.move[x] += power
+                controlsMove(0, 0, +power, 0)
             break;
             case "Space":
-                controls.move[z] += event.shiftKey ? -1 : 1
+                controlsZoom(event.shiftKey ? 5 : -5)
             break;
         }
     })
