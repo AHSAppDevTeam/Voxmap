@@ -195,16 +195,16 @@ z: 12
         controls.rot[x] -= 200 * dy
     }
     async function controlsMove(cx, cy, dx, dy) {
-        let old_projection = m4.v4(
+        const old_pos = m4.v4(
             cam.inv_projection_matrix,
-            [-(cx-dx), (cy-dy), 0, 0]
+            [-(cx-dx), (cy-dy), 1, 1]
         )
-        let new_projection = m4.v4(
+        const new_pos = m4.v4(
             cam.inv_projection_matrix,
-            [-(cx), (cy), 0, 0]
+            [-(cx), (cy), 1, 1]
         )
-        controls.move[x] += 200*(new_projection[x] - old_projection[x])
-        controls.move[y] += 200*(new_projection[y] - old_projection[y])
+        for(i of [x,y])
+            controls.move[i] += (new_pos[i]/new_pos[w] - old_pos[i]/old_pos[w])/(8-4*cam.pos[z]/Y)
     }
     async function controlsZoom(dz) {
         controls.move[z] += dz
@@ -358,6 +358,7 @@ async function updateState(now) {
     ]
 
     cam.rot = cam.rot.map((a, i) => a + controls.rot[i]/100)
+    cam.rot[x] = clamps(cam.rot[x], 0, Math.PI)
 
     controls.move[x] = controls.move[y] = controls.move[z] = 0
     controls.rot[x] = controls.rot[y] = controls.rot[z] = 0
