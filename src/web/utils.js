@@ -5,7 +5,7 @@ Object.fromEntries(
     .sort((a, b) => order * (key ? a[1][key] - b[1][key] : a[1] - b[1]))
 )
 
-const simplify = query => query.replace(/[\s-]/g, "").toLowerCase()
+const simplify = query => query.replace(/[\s-_]/g, "").toLowerCase()
 
 async function decrypt(buffer, password) {
     const crypto_initial = new Uint8Array([

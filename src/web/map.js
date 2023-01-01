@@ -3,6 +3,7 @@ const $debug = document.getElementById("debug")
 const $map = document.getElementById("map")
 const $overlay = document.getElementById("overlay")
 const $toggle = document.getElementById("toggle")
+const $download = document.getElementById("download")
 gl = $map.getContext("webgl2", { alpha: false, antialias: true } )
 
 //-- Dynamic parameters
@@ -166,6 +167,12 @@ async function addListeners() {
     touch.add(new Hammer.Pan({ threshold: 0, pointers: 0 } ))
     touch.add(new Hammer.Pinch({ threshold: 0 }).recognizeWith(touch.get("pan")))
 
+    $overlay.addEventListener("dblclick", async (event) => {
+        await drawScene(cam.projection_matrix, cam.pos, weather.sun, frame, times[0]/1000)
+        $download.href = $map.toDataURL("image/png")
+        $download.download = "map.ahs.app - " + simplify(new Date().toJSON().replace(/\D/g,""))
+        $download.click()
+    })
     $overlay.addEventListener('click', (event) => {
         /*
            const name = prompt("name")
@@ -261,8 +268,8 @@ z: 12
             break;
             case "KeyD":
                 case "ArrowRight":
-            break;
                 controlsMove(0, 0, -power, 0)
+            break;
             case "Space":
                 controlsZoom(event.shiftKey ? +5 : -5)
             break;
