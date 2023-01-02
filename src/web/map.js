@@ -393,10 +393,20 @@ async function updateState(now) {
         m4.translation(...cam.pos),
         m4.zRotation(cam.rot[z]),
         m4.xRotation(cam.rot[x]),
+391
+    )
+392
+    cam.inv_projection_matrix = m4.multiply(
+393
+        m4.translation(...cam.pos),
+394
+        m4.zRotation(cam.rot[z]),
+395
+        m4.xRotation(cam.rot[x]),
         m4.inv_projection(fstop(fov), aspect, near, far)
     )
 
-    let hour = 4 * time / 1000 / 60 / 60 / 12 * Math.PI
+    let hour = 4 * time / 1000 / 60 / 60 / 12 * Math.PI - 0.5
     weather.sun[x] = Math.sin(hour) * Math.sqrt(3 / 4)
     weather.sun[y] = Math.sin(hour) * Math.sqrt(1 / 4)
     weather.sun[z] = Math.abs(Math.cos(hour))
