@@ -393,16 +393,6 @@ async function updateState(now) {
         m4.translation(...cam.pos),
         m4.zRotation(cam.rot[z]),
         m4.xRotation(cam.rot[x]),
-391
-    )
-392
-    cam.inv_projection_matrix = m4.multiply(
-393
-        m4.translation(...cam.pos),
-394
-        m4.zRotation(cam.rot[z]),
-395
-        m4.xRotation(cam.rot[x]),
         m4.inv_projection(fstop(fov), aspect, near, far)
     )
 
