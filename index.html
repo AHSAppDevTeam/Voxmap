@@ -18,7 +18,7 @@
 </head>
 
 <body>
-	<iframe id="map" src="map.html"></iframe>
+	<iframe id="map" src="map.html?clean=1"></iframe>
 	<form id="form">
 		<button id="signin">Sign in with your AUSD account</button>
 		<label id=search>
@@ -28,10 +28,26 @@
 		<label>
 			<ul id="place-lists"> </ul>
 		</label>
-		<label>
-			Built and programmed by Xing between 2021 and 2022, with help from Shin,
-			Charles, and many open source libraries.
-			<a href="https://github.com/AHSAppDevTeam/Voxmap">Source code.</a>
+		<label id=about>
+			<p>
+				One finger to move horizontally. Two fingers (or right click / hold shift) to
+				rotate. Pinch to move vertically. Double tap to screenshot.
+			</p>
+			<p>
+				Built and programmed by <a href="https://x-ing.space">Xing</a> between 2021 and 2022, 
+				with help from <a href="https://github.com/DolphinGui">Shin</a>,
+				<a href="https://github.com/qwertyuioplkjhgfd">Charles</a>, 
+				and many open source libraries.
+				<a href="https://github.com/AHSAppDevTeam/Voxmap">Source code.</a>
+			</p>
+			<p>
+				This is a project of the Arcadia High App Development Team. 
+				<a href="https://get.ahs.app">Get our mobile app here.</a>
+			</p>
+			</p>
+				Something broken? Email <a href="mailto:bugs@ahs.app">bugs@ahs.app</a> 
+				or hunt us down by alternative means.
+			</p>
 		</label>
 	</form>
 	<script src=src/web/url.js></script>

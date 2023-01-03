@@ -1,8 +1,7 @@
 {
   "building_A" : {
-    "name" : "A building",
     "icon" : "A",
-    "sort" : 20,
+    "name" : "A building",
     "places" : {
       "building_A_000" : 0,
       "room_A_101" : 1,
@@ -23,127 +22,66 @@
       "room_A_207" : 1,
       "room_A_208" : 1,
       "room_A_209" : 1
-    }
-  },
-  "row_B" : {
-    "name" : "B row",
-    "icon" : "B",
-    "sort" : 21,
-    "places" : {
-      "row_B_000" : 0,
-      "room_B_101" : 1,
-      "room_B_102" : 1,
-      "room_B_103" : 1,
-      "room_B_104" : 1
-    }
-  },
-  "row_C" : {
-    "name" : "C row",
-    "icon" : "C",
-    "sort" : 22,
-    "places" : {
-      "row_C_000" : 0,
-      "room_C_101" : 1,
-      "room_C_102" : 1,
-      "room_C_103" : 1,
-      "room_C_104" : 1
-    }
-  },
-  "row_D" : {
-    "name" : "D row",
-    "icon" : "D",
-    "sort" : 23,
-    "places" : {
-      "row_D_000" : 0,
-      "room_D_101" : 1,
-      "room_D_102" : 1,
-      "room_D_103" : 1,
-      "room_D_104" : 1
-    }
-  },
-  "row_E" : {
-    "name" : "E row",
-    "icon" : "E",
-    "sort" : 24,
-    "places" : {
-      "row_E_000" : 0,
-      "room_E_101" : 1,
-      "room_E_102" : 1,
-      "room_E_103" : 1,
-      "room_E_104" : 1
-    }
-  },
-  "building_F" : {
-    "name" : "F row",
-    "icon" : "F",
-    "sort" : 25,
-    "places" : {
-      "row_F_000" : 0,
-      "room_F_101" : 1,
-      "room_F_102" : 1,
-      "room_F_103" : 1,
-      "room_F_104" : 1
-    }
-  },
-  "row_G" : {
-    "name" : "G row",
-    "icon" : "G",
-    "sort" : 26,
-    "places" : {
-      "row_G_000" : 0,
-      "room_G_101" : 1,
-      "room_G_102" : 1,
-      "room_G_103" : 1,
-      "room_G_104" : 1
-    }
-  },
-  "row_H" : {
-    "name" : "H row",
-    "icon" : "H",
-    "sort" : 27,
-    "places" : {
-      "row_H_000" : 0,
-      "room_H_101" : 1,
-      "room_H_102" : 1,
-      "room_H_103" : 1,
-      "room_H_104" : 1
-    }
-  },
-  "row_I" : {
-    "name" : "I row",
-    "icon" : "I",
-    "sort" : 28,
-    "places" : {
-      "row_I_000" : 0,
-      "room_I_101" : 1,
-      "room_I_102" : 1,
-      "room_I_103" : 1,
-      "room_I_104" : 1
-    }
+    },
+    "sort" : 20
   },
   "building_J" : {
-    "name" : "J building",
     "icon" : "J",
-    "sort" : 29,
+    "name" : "J building",
     "places" : {
       "building_J_000" : 0,
       "room_J_101" : 1,
       "room_J_102" : 1,
       "room_J_103" : 1,
       "room_J_104" : 1
-    }
+    },
+    "sort" : 29
+  },
+  "building_Library" : {
+    "icon" : "book",
+    "name" : "Library",
+    "places" : {
+      "building_Library_000" : 0,
+      "room_Library_001" : 1,
+      "room_Library_002" : 1,
+      "room_Library_003" : 1,
+      "room_Library_004" : 1,
+      "room_Library_004_Restrooms" : 1
+    },
+    "sort" : 31
+  },
+  "building_MPC" : {
+    "icon" : "chair",
+    "name" : "MPC",
+    "places" : {
+      "building_MPC_000" : 0
+    },
+    "sort" : 32
+  },
+  "building_PAC" : {
+    "icon" : "theater_comedy",
+    "name" : "PAC",
+    "places" : {
+      "building_PAC_000" : 0,
+      "room_PAC_001" : 0
+    },
+    "sort" : 33
   },
   "building_S" : {
-    "name" : "S building",
     "icon" : "S",
-    "sort" : 30,
+    "name" : "S building",
     "places" : {
       "building_Science_000" : 0,
+      "room_S_110_Restrooms" : 10,
+      "room_S_201_Restrooms" : 10,
+      "room_Library_004_Restrooms" : 1,
       "room_S_101" : 1,
       "room_S_102" : 1,
       "room_S_103" : 1,
       "room_S_104" : 1,
       "room_S_105" : 1,
+      "room_S_105_Lecture" : 1,
+      "room_S_204_Lecture" : 1,
       "room_S_106" : 1,
       "room_S_107" : 1,
       "room_S_108" : 1,
@@ -157,59 +95,209 @@
       "room_S_207" : 1,
       "room_S_208" : 1,
       "room_S_209" : 1
-    }
+    },
+    "sort" : 30
   },
-  "building_Library" : {
-    "sort" : 31,
-    "name" : "Library",
-	 "icon" : "book",
-    "places" : {
-      "building_Library" : 0
-    }
-  },
-  "building_MPC" : {
-    "sort" : 32,
-    "name" : "MPC",
-    "icon" : "chair",
-    "places" : {
-      "building_MPC" : 0
-    }
-  },
-  "building_PAC" : {
-    "name" : "PAC",
-    "sort" : 33,
-    "icon" : "theater_comedy",
-    "places" : {
-      "building_PAC" : 0
-    }
+  "collection_Clubs" : {
+    "icon" : "groups",
+    "name" : "Clubs",
+    "sort" : 13
   },
   "collection_Food" : {
     "icon" : "restaurant",
-    "sort" : 10,
     "name" : "Food",
     "places" : {
+      "building_Cafeteria_000" : 0,
       "building_Snack_000" : 1,
-      "building_Cafeteria_000" : 0
-    }
-  },
-  "collection_Sports" : {
-    "sort" : 11,
-    "name": "Sports",
-    "icon" : "sports_football"
-  },
-  "collection_Water" : {
-    "sort" : 12,
-    "icon" : "water_drop",
-    "name" : "Water"
-  },
-  "collection_Clubs" : {
-    "sort" : 13,
-    "icon" : "groups",
-    "name" : "Clubs"
+      "room_C_101_Vending" : 10,
+      "room_C_107_Vending" : 10,
+      "room_D_101_Vending" : 10
+    },
+    "sort" : 10
   },
   "collection_Restrooms" : {
-    "sort" : 14,
     "icon" : "wc",
-    "name": "Restrooms"
+    "name" : "Restrooms",
+    "places" : {
+      "room_C_101_Restroom" : 1,
+      "room_D_101_Restroom" : 1
+    },
+    "sort" : 14
+  },
+  "collection_Sports" : {
+    "icon" : "sports_football",
+    "name" : "Sports",
+    "places" : {
+      "building_Court_000" : 5,
+      "building_Court_001" : 5,
+      "building_Court_002" : 5,
+      "building_Court_003" : 5,
+      "building_Field_000" : 3,
+      "building_Field_001" : 3,
+      "building_Field_002" : 3,
+      "building_Gym_000" : 1,
+      "building_Gym_001" : 1,
+      "building_Pool_000" : 7
+    },
+    "sort" : 11
+  },
+  "collection_Water" : {
+    "icon" : "water_drop",
+    "name" : "Water",
+    "sort" : 12
+  },
+  "row_B" : {
+    "icon" : "B",
+    "name" : "B row",
+    "places" : {
+      "building_B_000" : 0,
+      "room_B_101" : 1,
+      "room_B_102" : 1,
+      "room_B_103" : 1,
+      "room_B_104" : 1,
+      "room_B_105" : 1
+    },
+    "sort" : 21
+  },
+  "row_C" : {
+    "icon" : "C",
+    "name" : "C row",
+    "places" : {
+      "building_C_000" : 0,
+      "building_C_001" : 0,
+      "room_C_101_Restroom" : 10,
+      "room_C_101_Vending" : 10,
+      "room_C_107_Vending" : 10,
+      "room_C_101" : 1,
+      "room_C_102" : 1,
+      "room_C_103" : 1,
+      "room_C_104" : 1,
+      "room_C_105" : 1,
+      "room_C_106" : 1,
+      "room_C_107" : 1,
+      "room_C_108" : 1,
+      "room_C_109" : 1,
+      "room_C_110" : 1,
+      "room_C_111" : 1,
+      "room_C_112" : 1,
+      "room_C_113" : 1
+    },
+    "sort" : 22
+  },
+  "row_D" : {
+    "icon" : "D",
+    "name" : "D row",
+    "places" : {
+      "building_D_000" : 0,
+      "building_D_001" : 0,
+      "room_D_101" : 1,
+      "room_D_101_Restroom" : 10,
+      "room_D_102" : 1,
+      "room_D_103" : 1,
+      "room_D_104" : 1,
+      "room_D_105" : 1,
+      "room_D_106" : 1,
+      "room_D_107" : 1,
+      "room_D_108" : 1,
+      "room_D_109" : 1,
+      "room_D_110" : 1,
+      "room_D_111" : 1,
+      "room_D_112" : 1,
+      "room_D_113" : 1,
+      "room_D_114" : 1
+    },
+    "sort" : 23
+  },
+  "row_E" : {
+    "icon" : "E",
+    "name" : "E row",
+    "places" : {
+      "building_E_000" : 0,
+      "building_E_001" : 0,
+      "room_E_101_Lecture" : 10,
+      "room_E_101" : 1,
+      "room_E_102" : 1,
+      "room_E_103" : 1,
+      "room_E_104" : 1,
+      "room_E_105" : 1,
+      "room_E_106" : 1,
+      "room_E_107" : 1,
+      "room_E_108" : 1,
+      "room_E_109" : 1,
+      "room_E_110" : 1,
+      "room_E_111" : 1
+    },
+    "sort" : 24
+  },
+  "row_F" : {
+    "icon" : "F",
+    "name" : "F row",
+    "places" : {
+      "building_F_000" : 0,
+      "building_F_001" : 0,
+      "room_F_101" : 1,
+      "room_F_102" : 1,
+      "room_F_103" : 1,
+      "room_F_104" : 1,
+      "room_F_105" : 1,
+      "room_F_106" : 1,
+      "room_F_107" : 1,
+      "room_F_108" : 1,
+      "room_F_109" : 1,
+      "room_F_110" : 1,
+      "room_F_111" : 1,
+      "room_F_112" : 1
+    },
+    "sort" : 25
+  },
+  "row_G" : {
+    "icon" : "G",
+    "name" : "G row",
+    "places" : {
+      "building_G_000" : 0,
+      "building_G_001" : 0,
+      "room_G_101" : 1,
+      "room_G_102" : 1,
+      "room_G_103" : 1,
+      "room_G_104" : 1,
+      "room_G_105" : 1,
+      "room_G_106" : 1,
+      "room_G_107" : 1,
+      "room_G_108" : 1,
+      "room_G_109" : 1,
+      "room_G_110" : 1
+    },
+    "sort" : 26
+  },
+  "row_H" : {
+    "icon" : "H",
+    "name" : "H row",
+    "places" : {
+      "room_H_101" : 1,
+      "room_H_102" : 1,
+      "room_H_103" : 1,
+      "room_H_104" : 1,
+      "room_H_110" : 1,
+      "room_H_111" : 1,
+      "room_H_112" : 1,
+      "room_H_113" : 1,
+      "room_H_114" : 1,
+      "room_H_115" : 1,
+      "row_H_000" : 0,
+      "row_H_001" : 0
+    },
+    "sort" : 27
+  },
+  "row_I" : {
+    "icon" : "I",
+    "name" : "I row",
+    "places" : {
+      "room_I_101" : 1,
+      "room_I_102" : 1,
+      "room_I_103" : 1,
+      "room_I_104" : 1,
+      "row_I_000" : 0
+    },
+    "sort" : 28
   }
 }

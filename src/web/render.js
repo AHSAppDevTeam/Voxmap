@@ -35,9 +35,6 @@ const S = {
     "render.h": 0,
     "render.vert": 0,
     "render.frag": 0,
-    "composit.h": 0,
-    "composit.vert": 0,
-    "composit.frag": 0,
 }
 // Programs
 const P = {}
@@ -46,27 +43,7 @@ const U = {}
 // Vertex attributes
 const A = {}
 // Textures: for rendering to and reading data from
-const T = {
-    colorUpdate: t => {
-        gl.bindTexture(gl.TEXTURE_2D, t)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ...size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-    }
-}
-// Renderbuffers: like textures, but for multisampled rendering
-const RB = {
-    colorUpdate: rb => {
-        gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
-        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, gl.getParameter(gl.MAX_SAMPLES), gl.RGBA8, ...size)
-    },
-    depthUpdate: rb => {
-        gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
-        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, gl.getParameter(gl.MAX_SAMPLES), gl.DEPTH_COMPONENT24, ...size)
-    }
-}
+const T = {}
 // Objects
 const O = {}
 // Buffers
@@ -87,6 +64,17 @@ const tex = (xyz) => Promise.all( // texture read
     [0, 1, 2].map(_c => D.map.then(map => map[project_xyzc(clamp_xyzc([...xyz, _c]))]))
 )
 
+//-- other updateable stuff
+
+const MODE_2D = 0
+const MODE_3D = 1
+
+let mode = MODE_2D
+let password = ""
+let place = {}
+let places = {}
+let matches = []
+
 async function initGl(){
     //-- Enable some features
 
@@ -106,17 +94,6 @@ async function initGl(){
 async function initPrograms() {
 
     //-- Set up GLSL programs
-    // The map drawing pipeline is made of two programs:
-    // the renderer and the compositor.
-    //
-    // The renderer takes in the school mesh and spits out a rendering that
-    // includes the base color, shadows, and the sky (the diffuse pass),
-    // and another rendering which has the UV coordinates of where the
-    // reflections go.
-    //
-    // The compositor takes the diffuse pass and the reflections UV and adds
-    // reflections to the final rendering.
-
     // Load shaders
 
     await Promise.all(Object.keys(S).map(
@@ -130,12 +107,6 @@ async function initPrograms() {
     await addShader(P.renderer, S["render.h"] + S["render.vert"], gl.VERTEX_SHADER)
     await addShader(P.renderer, S["render.h"] + S["render.frag"], gl.FRAGMENT_SHADER)
     gl.linkProgram(P.renderer)
-
-    P.compositor = gl.createProgram()
-    await addShader(P.compositor, S["composit.h"] + S["composit.vert"], gl.VERTEX_SHADER)
-    await addShader(P.compositor, S["composit.h"] + S["composit.frag"], gl.FRAGMENT_SHADER)
-    gl.linkProgram(P.compositor)
-
     gl.useProgram(P.renderer)
 
     // Initialize vertex attributes to pass from the mesh
@@ -158,32 +129,6 @@ async function initPrograms() {
     // reflections raymarching) and noise texture (for clouds and stuff)
     U.noise = gl.getUniformLocation(P.renderer, "u_noise")
     U.map = gl.getUniformLocation(P.renderer, "u_map")
-    A.texCoord = gl.getAttribLocation(P.compositor, "a_texCoord")
-    U.diffuse = gl.getUniformLocation(P.compositor, "u_diffuse")
-    U.reflection = gl.getUniformLocation(P.compositor, "u_reflection")
-
-    // The renderer is broken down into two parts: a rasterizer and a sampler.
-    //
-    // The rasterizer first outputs its diffuse, reflection, and depth passes into
-    // multisample-supporting render buffers, which the sampler then converts into
-    // 1x-sampled textures for the compositor to use.
-    //
-    // This is necessary in order to antialias (smoothen) the edges of the
-    // polygons, as we first need to render at a higher sample rate and then
-    // downsample that with smooth interpolation.
-    RB.diffuse = gl.createRenderbuffer()
-    RB.reflection = gl.createRenderbuffer()
-    RB.depth = gl.createRenderbuffer()
-
-    RB.colorUpdate(RB.diffuse)
-    RB.colorUpdate(RB.reflection)
-    RB.depthUpdate(RB.depth)
-
-    B.raster = gl.createFramebuffer()
-    gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, RB.diffuse)
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.RENDERBUFFER, RB.reflection)
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, RB.depth)
 }
 
 async function loadTextures() {
@@ -240,41 +185,6 @@ async function loadTextures() {
     gl.bindBuffer(gl.ARRAY_BUFFER, B.id)
     gl.bufferData(gl.ARRAY_BUFFER, D.vertex2d, gl.STATIC_DRAW)
     gl.vertexAttribIPointer( A.id, 1, gl.BYTE, N_stride, 6 * N_int16 + 2 * N_int8)
-
-    // Create textures for the sampler to output to from downsampling (aka
-    // blitting) the render bufers.
-    T.diffuse = gl.createTexture()
-    T.reflection = gl.createTexture()
-
-    T.colorUpdate(T.diffuse)
-    T.colorUpdate(T.reflection)
-
-    B.sampler = gl.createFramebuffer()
-    gl.bindFramebuffer(gl.FRAMEBUFFER, B.sampler)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, T.diffuse, 0)
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, T.reflection, 0) 
-
-    // Set up the parameters for the compositor, which uses the 1x-sampled
-    // default framebuffer.
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-    gl.useProgram(P.compositor)
-
-    D.composit = new Float32Array([
-        -1, -1,
-        1, -1,
-        -1, 1,
-        -1, 1,
-        1, -1,
-        1, 1,
-    ])
-    O.composit = gl.createVertexArray()
-    gl.bindVertexArray(O.composit)
-
-    B.texCoord = gl.createBuffer()
-    gl.enableVertexAttribArray(A.texCoord)
-    gl.bindBuffer(gl.ARRAY_BUFFER, B.texCoord)
-    gl.bufferData(gl.ARRAY_BUFFER, D.composit, gl.STATIC_DRAW)
-    gl.vertexAttribPointer(A.texCoord, 2, gl.FLOAT, false, 0, 0)
 }
 
 async function loadEncryptedTextures() {
@@ -335,16 +245,6 @@ async function loadEncryptedTextures() {
 }
 
 
-//-- WebGL helpers
-
-async function updateTextures() {
-    T.colorUpdate(T.diffuse)
-    T.colorUpdate(T.reflection)
-    RB.colorUpdate(RB.diffuse)
-    RB.colorUpdate(RB.reflection)
-    RB.depthUpdate(RB.depth)
-}
-
 async function addShader(program, source, type) {
     const shader = gl.createShader(type)
     gl.shaderSource(shader, source)
@@ -370,8 +270,9 @@ async function drawScene(projection_matrix, position, sun, frame, time){
     //-- Begin drawing stuff
     // First draw to the multisampling raster framebuffer, which rasterizes the
     // mesh and outputs a diffuse and a reflection pass into its renderbuffers.
-    gl.bindFramebuffer(gl.FRAMEBUFFER, B.raster)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+    gl.clearColor(0.9, 0.9, 0.9, 1)
 
     gl.useProgram(P.renderer)
     gl.bindVertexArray(mode == MODE_2D ? O.vertex2d : O.vertex)
@@ -383,7 +284,7 @@ async function drawScene(projection_matrix, position, sun, frame, time){
     gl.bindTexture(gl.TEXTURE_3D, T.map)
 
     // Set the matrix.
-    gl.uniform1i(U.quality, mode == MODE_2D ? 0 : quality)
+    gl.uniform1i(U.quality, mode == MODE_2D ? 0 : 1)
     gl.uniformMatrix4fv(U.matrix, false, projection_matrix)
     gl.uniform3i(U.cellPos, ...position.map(floor))
     gl.uniform3f(U.fractPos, ...position.map(fract))
@@ -393,42 +294,6 @@ async function drawScene(projection_matrix, position, sun, frame, time){
     gl.uniform1i(U.noise, 0)
     gl.uniform1i(U.map, 1)
 
-    gl.drawBuffers([
-        gl.COLOR_ATTACHMENT0,
-        gl.COLOR_ATTACHMENT1
-    ])
     gl.drawArrays(gl.TRIANGLES, 0, (mode == MODE_2D ? D.vertex2d : D.vertex).length / N_stride)
-
-    // Then downsample (blit) the raster framebuffer's renderbuffers into the
-    // sampler framebuffer's 1x-sampling textures.
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, B.raster)
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, B.sampler)
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-    gl.readBuffer(gl.COLOR_ATTACHMENT0)
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0, null])
-    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size, gl.COLOR_BUFFER_BIT, gl.LINEAR)
-    gl.readBuffer(gl.COLOR_ATTACHMENT1)
-    gl.drawBuffers([null, gl.COLOR_ATTACHMENT1])
-    gl.blitFramebuffer(0, 0, ...size, 0, 0, ...size, gl.COLOR_BUFFER_BIT, gl.LINEAR)
-
-    // Finally send these textures to the default framebuffer to composit into
-    // the final image.
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-    gl.useProgram(P.compositor)
-    gl.bindVertexArray(O.composit)
-
-    gl.activeTexture(gl.TEXTURE0)
-    gl.bindTexture(gl.TEXTURE_2D, T.diffuse)
-
-    gl.activeTexture(gl.TEXTURE1)
-    gl.bindTexture(gl.TEXTURE_2D, T.reflection)
-
-    gl.uniform1i(U.diffuse, 0)
-    gl.uniform1i(U.reflection, 1)
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6)
 }
 

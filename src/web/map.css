@@ -1,6 +1,7 @@
 html,
 body,
-canvas {
+#map,
+#overlay {
    margin: 0;
    padding: 0;
    width: 100%;
@@ -8,9 +9,13 @@ canvas {
    touch-action: none;
 }
 
+body > * {
+   position: fixed;
+}
+
 @font-face {
    font-family: "Quicksand";
-   src: url("/res/fonts/Quicksand-Medium.ttf") format("truetype");
+   src: url("/res/fonts/Quicksand-Bold.ttf") format("truetype");
 }
 @font-face {
    font-family: "Josefin Sans";
@@ -20,31 +25,64 @@ canvas {
 #debug {
    font-family: Monospace, Monospace;
    font-size: 0.7rem;
-   position: fixed;
    color: white;
    text-shadow: 0 0 2px black;
    top: 0.5rem;
    left: 0.5rem;
 }
 
-canvas {
-   position: fixed;
-   touch-action: none;
-}
-
-#map-2d {
-   image-rendering: pixelated;
-}
-
 #toggle {
+   all: unset;
+   display: block;
    position: fixed;
-   bottom: 2vmin;
-   right: 2vmin;
-   border-radius: 4vmin;
-   background-image: url("/res/render.png");
-   background-size: cover;
-   background-position: center;
-   width: 36vmin;
-   height: 24vmin;
-   border: white;
+   bottom: 3pt;
+   right: 3pt;
+   padding: 1rem;
+   font-family: Quicksand, Roboto, sans-serif;
+   font-size: 1rem;
+   border-radius: 3pt;
+   cursor: pointer;
+   background: powderblue;
+}
+#toggle:hover {
+   background: cornflowerblue;
+}
+#toggle[disabled] {
+   cursor: not-allowed;
+   background: tomato;
+}
+#toggle[disabled]:hover {
+   background: red;
+}
+
+#overlay {
+   /*background: radial-gradient(#000, #0000 1%);*/
+}
+
+.place {
+   transform-box: fill-box;
+   transform-origin: center;
+   text-anchor: middle;
+   dominant-baseline: middle;
+   paint-order: stroke fill;
+}
+.place.building {
+   font-size: 10rem;
+   fill: black;
+   stroke: white;
+   stroke-width: 1rem;
+   font-family: Quicksand, Roboto, sans-serif;
+}
+.place.building.match {
+   fill: orchid;
+}
+.place.room {
+   font-size: 4rem;
+   fill: white;
+   stroke: black;
+   stroke-width: 1rem;
+   font-family: "Josefin Sans", Roboto, sans-serif;
+}
+.place.room.match {
+   stroke: orchid;
 }

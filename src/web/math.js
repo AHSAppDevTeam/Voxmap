@@ -1,6 +1,8 @@
 const floor = x => Math.floor(x)
 const fract = x => x - floor(x)
 const pow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p)
+const min = (...x) => x.reduce((a,b) => Math.min(a,b))
+const max = (...x) => x.reduce((a,b) => Math.max(a,b))
 
 // smoothstep
 const smoothstep_polynomial = x => x * x * (3 - 2 * x)
@@ -13,8 +15,20 @@ const clamp = (x, a) => clamps(x, -a, a) // symmetrical clamp
 // field-of-view
 const fstop = (fov) => 1 / Math.tan(fov * Math.PI / 360)
 
-// vector magnitude (sqrt of sum of squares)
-const magnitude = v => Math.sqrt(v.reduce((a, b) => a + b * b))
+// vector operations
+
+const vec = {
+   add: (a, b) => a.map((_,i) => a[i] + b[i]),
+   subtract: (a, b) => a.map((_,i) => a[i] - b[i]),
+   multiply: (a, b) => a.map((_,i) => a[i] * b[i]),
+   divide: (a, b) => a.map((_,i) => a[i] / b[i]),
+   scalarAdd: (a, b) => a.map((_,i) => a[i] + b),
+   scalarSubtract: (a, b) => a.map((_,i) => a[i] - b),
+   scalarMultiply: (a, b) => a.map((_,i) => a[i] * b),
+   scalarDivide: (a, b) => a.map((_,i) => a[i] / b),
+   magnitude: v => Math.sqrt(v.reduce((a, b) => a + b*b, 0)),
+}
+vec.ground = (rayPos, rayDir) => vec.add(rayPos, vec.scalarMultiply(rayDir, rayPos[z]/rayDir[z]))
 
 // 4x4 matrix operations
 
