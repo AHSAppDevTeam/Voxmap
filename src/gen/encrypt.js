@@ -42,5 +42,5 @@ function encrypt(input, output) {
         .then(array => fs.createWriteStream(output).write(array))
 }
 
-encrypt("out/map.bin.gz", "src/map.blob")
-encrypt("out/vertex.bin.gz", "src/vertex.blob")
+encrypt("out/map.bin.gz", "res/map.blob")
+encrypt("out/vertex.bin.gz", "res/vertex.blob")

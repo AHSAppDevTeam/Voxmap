@@ -183,7 +183,7 @@ async function addListeners() {
         } else {
             await drawScene(cam.projection_matrix, cam.pos, weather.sun, frame, times[0]/1000)
             $download.href = $map.toDataURL("image/png")
-            $download.download = "map.ahs.app - " + simplify(new Date().toJSON().replace(/\D/g,""))
+            $download.download = "map.ahs.app - " + simplify(new Date().toJSON().replace(/\D/g,"")) + ".png"
             $download.click()
         }
     })
@@ -392,7 +392,7 @@ async function updateState(now) {
     cam.inv_projection_matrix = m4.multiply(
         m4.translation(...cam.pos),
         m4.zRotation(cam.rot[z]),
-        m4.xRotation(cam.rot[x]),
+        //m4.xRotation(cam.rot[x]),
         m4.inv_projection(fstop(fov), aspect, near, far)
     )
 
