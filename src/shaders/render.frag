@@ -9,7 +9,7 @@ flat in vec3 v_color;
 flat in vec3 v_normal;
 flat in int v_id;
 
-const int MAX_STEPS = Z;
+const int MAX_STEPS = 2*Z;
 
 // Utility functions
 //-------------------
@@ -176,11 +176,12 @@ void main() {
   skyCol = clamp(skyCol, vec3(0), vec3(1));
 
   if(isSky) {
+    rayDir.z = abs(rayDir.z);
 
     vec3 cloudCol = vec3(1);
     float cloudFactor = 0.0;
     float cloudTime = u_time * 4e-3;
-    vec2 skyPos = rayDir.xy / sqrt(rayDir.z + 0.03);
+    vec2 skyPos = rayDir.xy / sqrt(abs(rayDir.z) + 0.03);
     skyPos *= 0.1;
     skyPos *= sqrt(length(skyPos));
     skyPos *= 3.0 + vec2(
@@ -200,8 +201,6 @@ void main() {
     } else {
       skyCol = mix(skyCol, cloudCol, cloudFactor);
     }
-
-    if(rayDir.z < 0.) skyCol *= 0.5;
 
     o_color.rgb = skyCol;
 
