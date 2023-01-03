@@ -204,8 +204,8 @@ async function addListeners() {
         return [a[x]/a[w], a[y]/a[w], a[z]/a[w], 1]
     }
     async function controlsRotate(dx, dy) {
-        controls.rot[z] -= clamp(400 * dx, 8)
-        controls.rot[x] -= clamp(200 * dy, 4)
+        controls.rot[z] -= clamp(400 * dx, 16)
+        controls.rot[x] -= clamp(200 * dy, 8)
     }
     async function controlsMove(cx, cy, dx, dy) {
         const old_pos = projectToGround(dx-cx, cy-dy)
